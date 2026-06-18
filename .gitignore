@@ -1,0 +1,31 @@
+# ===== PHP / Laravel (backend) =====
+/backend/vendor/
+/backend/.env
+/backend/.env.*
+!/backend/.env.example
+/backend/storage/logs/*
+/backend/storage/framework/cache/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/views/*
+/backend/storage/app/public/*
+/backend/public/storage
+/backend/public/hot
+/backend/bootstrap/cache/*
+/backend/database/*.sqlite
+/backend/database/*.sqlite-journal
+
+# ===== Node / Vite (frontend) =====
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env
+/frontend/.env.*
+!/frontend/.env.example
+/frontend/vite.log
+
+# ===== misc =====
+.DS_Store
+Thumbs.db
+*.log
+# big local-only sample drawings
+/assets/*.pdf
+/assets/*.png

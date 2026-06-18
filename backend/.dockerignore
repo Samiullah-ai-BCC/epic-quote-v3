@@ -1,0 +1,16 @@
+vendor
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/public/*
+public/storage
+bootstrap/cache/*
+database/*.sqlite
+database/*.sqlite-journal
+tests

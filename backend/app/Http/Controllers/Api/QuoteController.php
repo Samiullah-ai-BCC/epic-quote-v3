@@ -1,0 +1,394 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Constants\AppConstants;
+use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use App\Models\Company;
+use App\Models\Quote;
+use App\Models\Representative;
+use App\Models\Setting;
+use App\Models\StatusHistory;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class QuoteController extends Controller
+{
+    // GET /api/quotes — list with search + status filter, scoped to non-admins (#40,#41,#52)
+    public function index(Request $request): JsonResponse
+    {
+        $q = Quote::query()->visibleTo($request->user());
+
+        $status = $request->query('status');
+        if ($status === '__pending__') {
+            $q->where('status', '!=', 'Done');     // V1 "Pending" filter
+        } elseif ($status) {
+            $q->where('status', $status);
+        }
+
+        if ($search = $request->query('search')) {
+            $like = '%'.$search.'%';
+            $q->where(function ($w) use ($like) {
+                $w->where('quote_id', 'like', $like)
+                  ->orWhere('company_name', 'like', $like)
+                  ->orWhere('job_name', 'like', $like)
+                  ->orWhere('client_name', 'like', $like);
+            });
+        }
+
+        $quotes = $q->latest('created_at')->get()->map->toApi();
+
+        return response()->json($quotes);
+    }
+
+    // POST /api/quotes — Add Quote (#33-37)
+    public function store(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $companyName = trim((string) $request->input('company_name', ''));
+        $clientName  = trim((string) $request->input('client_name', ''));
+        $contact     = trim((string) $request->input('contact', ''));
+        $address     = trim((string) $request->input('address', ''));
+        $jobName     = trim((string) $request->input('job_name', ''));
+        $special     = trim((string) $request->input('special_requirements', ''));
+        $salesRep    = (string) $request->input('sales_rep', '');
+        $quoteSource = (string) $request->input('quote_source', '');
+        $orderId     = trim((string) $request->input('order_id', ''));
+        $qid         = trim((string) $request->input('quote_id', ''));
+
+        // Non-admins can only create quotes assigned to themselves
+        if (!$user->isAdmin()) {
+            $salesRep = $user->full_name;
+        }
+
+        // --- validation (V1 create_quote) ---
+        if ($companyName === '') {
+            return response()->json(['error' => 'Company Name is required'], 400);
+        }
+        if (!in_array($salesRep, AppConstants::SALES_REPS, true)) {
+            return response()->json(['error' => 'Invalid Sales Representative'], 400);
+        }
+        if (!in_array($quoteSource, AppConstants::QUOTE_SOURCES, true)) {
+            return response()->json(['error' => 'Invalid Quote Source'], 400);
+        }
+        if ($qid === '') {
+            return response()->json(['error' => 'Quote ID is required'], 400);
+        }
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', $qid)) {
+            return response()->json(['error' => 'Quote ID may only contain letters, numbers, hyphens and underscores'], 400);
+        }
+        if (strlen($qid) > 20) {
+            return response()->json(['error' => 'Quote ID must be 20 characters or fewer'], 400);
+        }
+        if (Quote::where('quote_id', $qid)->exists()) {
+            return response()->json(['error' => "Quote ID \"{$qid}\" already exists"], 400);
+        }
+
+        // customer PDF/image, max 25 MB (#37)
+        $file = $request->file('customer_pdf');
+        if ($file) {
+            $request->validate([
+                'customer_pdf' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,svg|max:25600',
+            ]);
+        }
+
+        $quote = DB::transaction(function () use (
+            $companyName, $clientName, $contact, $address, $jobName, $special,
+            $salesRep, $quoteSource, $orderId, $qid, $file, $user
+        ) {
+            // auto-create company (case-insensitive dedup) (#34)
+            $company = Company::whereRaw('LOWER(name) = ?', [strtolower($companyName)])->first();
+            if (!$company) {
+                $company = Company::create([
+                    'name' => $companyName, 'address' => $address, 'email' => '', 'phone' => '',
+                ]);
+            } elseif ($address && !$company->address) {
+                $company->update(['address' => $address]);
+            }
+
+            // auto-create representative for a new client (#35)
+            if ($clientName !== '') {
+                $exists = Representative::where('company_id', $company->id)
+                    ->whereRaw('LOWER(name) = ?', [strtolower($clientName)])->exists();
+                if (!$exists) {
+                    Representative::create([
+                        'company_id' => $company->id, 'name' => $clientName, 'email' => $contact,
+                    ]);
+                }
+            }
+
+            [$num] = Setting::nextQuoteId();
+
+            // store customer file as {qid}_{original}
+            $pdfFilename = null;
+            if ($file) {
+                $pdfFilename = $qid.'_'.$file->getClientOriginalName();
+                $file->storeAs('pdfs', $pdfFilename, 'public');
+            }
+
+            return Quote::create([
+                'quote_id'             => $qid,
+                'quote_num'            => $num,
+                'order_id'             => $orderId,
+                'company_id'           => $company->id,
+                'company_name'         => $company->name,
+                'client_name'          => $clientName,
+                'contact'              => $contact,
+                'address'              => $address ?: ($company->address ?? ''),
+                'job_name'             => $jobName,
+                'special_requirements' => $special,
+                'customer_pdf'         => $pdfFilename,
+                'sales_rep'            => $salesRep,
+                'quote_source'         => $quoteSource,
+                'status'               => 'To Do',
+                'tags'                 => [],
+                'price'                => 0,
+                'created_by'           => $user->id,
+            ]);
+        });
+
+        ActivityLog::record($user->id, 'quote_created', "{$qid} for {$companyName}");
+
+        return response()->json($quote->toApi(), 201);
+    }
+
+    // GET /api/quotes/{quote}
+    public function show(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        return response()->json($quote->toApi(includeGenerated: true));
+    }
+
+    // PUT /api/quotes/{quote} — inline edit of all fields (#47)
+    public function update(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $user = $request->user();
+        $data = $request->all();
+        $changes = [];
+
+        if (array_key_exists('quote_id', $data)) {
+            $newQid = trim((string) $data['quote_id']);
+            if ($newQid !== $quote->quote_id) {
+                if ($newQid === '') {
+                    return response()->json(['error' => 'Quote ID is required'], 400);
+                }
+                if (!preg_match('/^[A-Za-z0-9_-]+$/', $newQid)) {
+                    return response()->json(['error' => 'Quote ID may only contain letters, numbers, hyphens and underscores'], 400);
+                }
+                if (strlen($newQid) > 20) {
+                    return response()->json(['error' => 'Quote ID must be 20 characters or fewer'], 400);
+                }
+                if (Quote::where('quote_id', $newQid)->exists()) {
+                    return response()->json(['error' => "Quote ID \"{$newQid}\" already exists"], 400);
+                }
+                $changes[] = "Quote ID: {$quote->quote_id} -> {$newQid}";
+                $quote->quote_id = $newQid;
+            }
+        }
+
+        if (array_key_exists('sales_rep', $data)) {
+            // V1: only admins can reassign the sales rep (#7)
+            if (!$user->isAdmin()) {
+                return response()->json(['error' => 'Only admins can change the Sales Representative'], 403);
+            }
+            if (!in_array($data['sales_rep'], AppConstants::SALES_REPS, true)) {
+                return response()->json(['error' => 'Invalid Sales Representative'], 400);
+            }
+            if ($data['sales_rep'] !== $quote->sales_rep) {
+                $changes[] = "Sales Rep: {$quote->sales_rep} -> {$data['sales_rep']}";
+                $quote->sales_rep = $data['sales_rep'];
+            }
+        }
+
+        if (array_key_exists('quote_source', $data)) {
+            if (!in_array($data['quote_source'], AppConstants::QUOTE_SOURCES, true)) {
+                return response()->json(['error' => 'Invalid Quote Source'], 400);
+            }
+            if ($data['quote_source'] !== $quote->quote_source) {
+                $changes[] = 'Quote Source';
+            }
+            $quote->quote_source = $data['quote_source'];
+        }
+
+        foreach (['client_name', 'contact', 'address', 'job_name', 'special_requirements', 'company_name', 'order_id'] as $field) {
+            if (array_key_exists($field, $data)) {
+                // ConvertEmptyStringsToNull turns '' into null; these columns are NOT NULL
+                // default '' (V1 stored '', never null), so coalesce back to ''.
+                $value = $data[$field] ?? '';
+                if ((string) ($quote->{$field} ?? '') !== (string) $value) {
+                    $changes[] = ucwords(str_replace('_', ' ', $field));
+                }
+                $quote->{$field} = $value;
+            }
+        }
+
+        if (array_key_exists('price', $data) && is_numeric($data['price'])) {
+            $newPrice = (float) $data['price'];
+            if ($newPrice !== (float) ($quote->price ?? 0)) {
+                $changes[] = 'Final Price';
+            }
+            $quote->price = $newPrice;
+        }
+
+        if (array_key_exists('tags', $data) && is_array($data['tags'])) {
+            $quote->tags = $data['tags'];
+        }
+
+        $quote->save();
+
+        if ($changes) {
+            ActivityLog::record($user->id, 'quote_edited', "{$quote->quote_id}: updated ".implode(', ', $changes));
+        }
+
+        return response()->json($quote->toApi());
+    }
+
+    // PUT /api/quotes/{quote}/status (#43,#53)
+    public function updateStatus(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $status = $request->input('status');
+        if (!in_array($status, AppConstants::STATUS_OPTIONS, true)) {
+            return response()->json(['error' => 'invalid status'], 400);
+        }
+
+        $quote->update(['status' => $status]);
+        StatusHistory::create([
+            'quote_id'   => $quote->id,
+            'status'     => $status,
+            'changed_by' => $request->user()->id,
+            'changed_at' => now(),
+        ]);
+        ActivityLog::record($request->user()->id, 'status_changed', "{$quote->quote_id} -> {$status}");
+
+        return response()->json($quote->toApi());
+    }
+
+    // PUT /api/quotes/{quote}/tags (#44)
+    public function updateTags(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $tags = $request->input('tags', []);
+        if (!is_array($tags) || array_diff($tags, AppConstants::STATUS_OPTIONS)) {
+            return response()->json(['error' => 'invalid tags'], 400);
+        }
+        $quote->update(['tags' => array_values($tags)]);
+
+        return response()->json($quote->toApi());
+    }
+
+    // DELETE /api/quotes/{quote} (#51)
+    public function destroy(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $qid = $quote->quote_id;
+        // FK cascade handles status_history / orders / payments / quote_items
+        $quote->delete();
+        ActivityLog::record($request->user()->id, 'quote_deleted', $qid);
+
+        return response()->json(['ok' => true]);
+    }
+
+    // GET /api/next-order-id (#119)
+    public function nextOrderId(): JsonResponse
+    {
+        return response()->json(['order_id' => Setting::nextOrderId()]);
+    }
+
+    // GET /api/quotes/{quote}/generated — full editor/wizard state (#19,#71)
+    public function getGenerated(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        return response()->json($quote->generated_data ?: (object) []);
+    }
+
+    // PUT /api/quotes/{quote}/generated — save wizard/editor progress (V1 generated_data)
+    public function putGenerated(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $data = $request->all();
+
+        $quote->generated_data = $data;
+        if (in_array($data['quote_type'] ?? null, ['generator', 'custom'], true)) {
+            $quote->quote_type = $data['quote_type'];
+        }
+        $answers = $data['answers'] ?? [];
+        if (isset($answers['price']) && $answers['price'] !== '' && is_numeric($answers['price'])) {
+            $quote->price = (float) $answers['price'];
+        }
+        if (!empty($data['job_name'])) {
+            $quote->job_name = $data['job_name'];
+        }
+        if (!$quote->final_created_by) {
+            $quote->final_created_by = $request->user()->id;
+        }
+        $quote->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    // POST /api/quotes/{quote}/pdf — customer PDF/image (#37 replace)
+    public function uploadPdf(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $request->validate(['file' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp,svg|max:25600']);
+        $file = $request->file('file');
+        $filename = $quote->quote_id.'_'.$file->getClientOriginalName();
+        $file->storeAs('pdfs', $filename, 'public');
+        $quote->update(['customer_pdf' => $filename]);
+        ActivityLog::record($request->user()->id, 'file_uploaded', "{$quote->quote_id}: Customer PDF/Drawing ({$filename})");
+
+        return response()->json(['path' => "/storage/pdfs/{$filename}"]);
+    }
+
+    // POST /api/quotes/{quote}/artwork — artwork image (#67); path saved into generated_data
+    public function uploadArtwork(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $request->validate(['file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,svg|max:25600']);
+        $file = $request->file('file');
+        $ext = $file->getClientOriginalExtension();
+        $filename = $quote->quote_id.'_'.time().'.'.$ext;
+        $file->storeAs('artwork', $filename, 'public');
+        ActivityLog::record($request->user()->id, 'file_uploaded', "{$quote->quote_id}: Artwork ({$filename})");
+
+        return response()->json(['path' => "/storage/artwork/{$filename}"]);
+    }
+
+    // POST /api/quotes/{quote}/crunched-artwork — image or PDF (#123)
+    public function uploadCrunchedArtwork(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $request->validate(['file' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp,svg|max:25600']);
+        $file = $request->file('file');
+        $ext = $file->getClientOriginalExtension();
+        $filename = "crunched_{$quote->quote_id}_".time().".{$ext}";
+        $file->storeAs('artwork', $filename, 'public');
+        $quote->update(['crunched_artwork' => $filename]);
+        ActivityLog::record($request->user()->id, 'file_uploaded', "{$quote->quote_id}: Crunched Dimension Artwork ({$filename})");
+
+        return response()->json(['path' => "/storage/artwork/{$filename}"]);
+    }
+
+    // --- Deferred to later phases (routes exist; not yet implemented) ---
+    public function getPaymentLink()       { return $this->pending('P8 payments'); }
+    public function putPaymentLink()       { return $this->pending('P8 payments'); }
+    public function confirmOrder()         { return $this->pending('P8 order confirmation'); }
+    public function downloadPdf()          { return $this->pending('P7 PDF generation'); }
+
+    private function pending(string $phase): JsonResponse
+    {
+        return response()->json(['error' => "Not implemented yet — {$phase}"], 501);
+    }
+
+    private function assertAccess(Request $request, Quote $quote): void
+    {
+        if (!$quote->isVisibleTo($request->user())) {
+            abort(403);
+        }
+    }
+}

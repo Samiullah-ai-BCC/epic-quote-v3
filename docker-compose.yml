@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  # MySQL database
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: epic_craftings
+      MYSQL_USER: epic
+      MYSQL_PASSWORD: secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # Gotenberg — headless Chrome PDF rendering
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    ports:
+      - "3030:3000"
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=false"
+      - "--chromium-allow-list=.*"
+
+  # phpMyAdmin (dev convenience)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_USER: epic
+      PMA_PASSWORD: secret
+    ports:
+      - "8080:80"
+
+volumes:
+  db_data:

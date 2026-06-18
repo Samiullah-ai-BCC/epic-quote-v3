@@ -1,0 +1,60 @@
+# Render Blueprint — two services: Dockerised Laravel API + static React SPA.
+# Fastest path for a single-instance prototype: SQLite on a persistent disk.
+# Switch to MySQL later by changing only the DB_* env vars (no code change).
+services:
+  # ---------------- Backend API (Laravel, Docker) ----------------
+  - type: web
+    name: epic-quote-v3-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_KEY            # generate: php artisan key:generate --show
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL            # set to the API's own https URL after first deploy
+        sync: false
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/data/database.sqlite
+      - key: GROQ_API_KEY       # paste the Groq key here (NOT committed)
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_VISION_MODEL
+        value: meta-llama/llama-4-scout-17b-16e-instruct
+      - key: SEED_ADMIN_PASSWORD   # keep stable so the admin login persists across deploys
+        sync: false
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: FILESYSTEM_DISK
+        value: local
+
+  # ---------------- Frontend SPA (React/Vite, static) ----------------
+  - type: web
+    name: epic-quote-v3-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL       # set to the API service URL, e.g. https://epic-quote-v3-api.onrender.com
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
