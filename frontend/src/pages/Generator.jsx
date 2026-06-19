@@ -140,7 +140,10 @@ export default function Generator() {
   }
   const onCustomerFile = async (e) => {
     const f = e.target.files[0]; if (!f) return
-    await uploadCustomerFile(quoteId, f)
+    const path = await uploadCustomerFile(quoteId, f)
+    setQuote((qd) => ({ ...qd, customer_pdf: path }))
+    // if it's an image, flow it straight to the proposal artwork too (#10)
+    if (/\.(png|jpe?g|gif|webp|svg)$/i.test(path)) setArtworkPath(path)
   }
   const runAI = async () => {
     setAiLoading(true)
@@ -233,7 +236,17 @@ export default function Generator() {
             </div>
             <div className="field">
               <label>Customer's PDF/image of the sign required</label>
-              <input type="file" accept=".pdf,image/*" onChange={onCustomerFile} />
+              {quote?.customer_pdf ? (
+                <div className="muted" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <a href={quote.customer_pdf} target="_blank" rel="noreferrer">📎 View attached file</a>
+                  <label style={{ cursor: 'pointer', textDecoration: 'underline' }}>
+                    Replace
+                    <input type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={onCustomerFile} />
+                  </label>
+                </div>
+              ) : (
+                <input type="file" accept=".pdf,image/*" onChange={onCustomerFile} />
+              )}
             </div>
             <div className="ai-box">
               <button onClick={runAI} disabled={aiLoading}>{aiLoading ? 'Generating…' : '⚡ Generate Specs with AI'}</button>
