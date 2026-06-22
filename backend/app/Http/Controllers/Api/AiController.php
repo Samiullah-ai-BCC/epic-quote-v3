@@ -51,6 +51,13 @@ class AiController extends Controller
             }
         }
 
+        // A rasterized PDF page (or any image) sent from the client takes precedence for vision —
+        // this is how vector/CAD PDFs that carry no extractable text still get "seen".
+        $reqImage = $request->input('image_data');
+        if ($reqImage) {
+            $imageDataUrl = 'data:' . $request->input('image_type', 'image/png') . ';base64,' . $reqImage;
+        }
+
         $infoParts = array_filter([$quote->special_requirements, $extraInfo, $pdfText]);
         $info = $infoParts ? implode("\n\n", $infoParts) : '(no project details provided)';
         $signTypeList = implode("\n", AppConstants::SIGN_TYPE_NAMES);

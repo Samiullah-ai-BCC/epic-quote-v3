@@ -6,6 +6,7 @@ import { getLogo } from '../api/meta'
 import { T, CUSTOM_TEMPLATES } from '../generator/catalog'
 import { autoAnswerFromAI } from '../generator/questions'
 import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
+import { rasterizePdf } from '../generator/pdfRaster'
 import QA from '../generator/QA'
 import Proposal from '../components/Proposal'
 
@@ -118,7 +119,7 @@ export default function Generator() {
       answers,
       ai,
       custom_spec: customSpec,
-      artwork_path: artworkPath,
+      artwork_path: artworkPath?.startsWith('data:') ? null : artworkPath,
       ...extra,
     }
     await putGenerated(quoteId, payload)
@@ -150,7 +151,15 @@ export default function Generator() {
     setAiStatus('Reading customer details and generating specifications…')
     try {
       await updateQuote(quoteId, { special_requirements: special })
-      const result = await generateSpecs(quoteId, special, SIDE_VIEWS.map((s) => s.key).join(','))
+      // vector/CAD PDFs carry no extractable text — render page 1 to an image so vision can read it
+      let imageData = null
+      if (quote?.customer_pdf && /\.pdf$/i.test(quote.customer_pdf)) {
+        setAiStatus('Rendering the PDF for the AI…')
+        const dataUrl = await rasterizePdf(quote.customer_pdf)
+        if (dataUrl) { imageData = dataUrl.split(',')[1]; if (!artworkPath) setArtworkPath(dataUrl) }
+        setAiStatus('Reading the drawing and generating specifications…')
+      }
+      const result = await generateSpecs(quoteId, special, SIDE_VIEWS.map((s) => s.key).join(','), imageData)
       setAi(result)
       // snap AI signType to the closest catalog entry (robust match)
       const found = matchSignType(result.signType)

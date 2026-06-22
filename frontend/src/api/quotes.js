@@ -44,5 +44,8 @@ export const uploadArtwork = (quoteId, file) =>
 export const uploadCustomerFile = (quoteId, file) =>
   client.post(`/quotes/${quoteId}/pdf`, fileForm(file)).then((r) => r.data.path)
 
-export const generateSpecs = (quoteId, projectInfo, sideViewKeys = '') =>
-  client.post('/ai/generate-specs', { quote_id: quoteId, project_info: projectInfo, side_view_keys: sideViewKeys }).then((r) => r.data)
+export const generateSpecs = (quoteId, projectInfo, sideViewKeys = '', imageData = null) =>
+  client.post('/ai/generate-specs', {
+    quote_id: quoteId, project_info: projectInfo, side_view_keys: sideViewKeys,
+    image_data: imageData, image_type: 'image/png',
+  }).then((r) => r.data)
