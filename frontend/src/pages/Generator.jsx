@@ -5,6 +5,7 @@ import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile,
 import { getLogo } from '../api/meta'
 import { T, CUSTOM_TEMPLATES } from '../generator/catalog'
 import { autoAnswerFromAI } from '../generator/questions'
+import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
 import QA from '../generator/QA'
 import Proposal from '../components/Proposal'
 
@@ -52,6 +53,7 @@ export default function Generator() {
   const [tpl, setTpl] = useState(null)
   const [answers, setAnswers] = useState({})
   const [artworkPath, setArtworkPath] = useState(null)
+  const [sideViews, setSideViews] = useState([])   // chosen side-view keys
   const [customSpec, setCustomSpec] = useState(null)
   const [logo, setLogoUrl] = useState(null)
   const [signSearch, setSignSearch] = useState('')
@@ -80,6 +82,7 @@ export default function Generator() {
       if (g.artwork_path) setArtworkPath(g.artwork_path)
       // #10: if no artwork chosen yet but the customer uploaded an image of the sign, use it
       else if (q.customer_pdf && /\.(png|jpe?g|gif|webp|svg)$/i.test(q.customer_pdf)) setArtworkPath(q.customer_pdf)
+      if (g.side_views) setSideViews(g.side_views)
       getLogo().then((l) => setLogoUrl(l.logo)).catch(() => {})
 
       // Mode comes from the intake choice (?mode=ai|custom) or the persisted quote_type — never re-asked.
@@ -147,7 +150,7 @@ export default function Generator() {
     setAiStatus('Reading customer details and generating specifications…')
     try {
       await updateQuote(quoteId, { special_requirements: special })
-      const result = await generateSpecs(quoteId, special)
+      const result = await generateSpecs(quoteId, special, SIDE_VIEWS.map((s) => s.key).join(','))
       setAi(result)
       // snap AI signType to the closest catalog entry (robust match)
       const found = matchSignType(result.signType)
@@ -158,6 +161,9 @@ export default function Generator() {
         updateQuote(quoteId, { company_name: result.companyName }).catch(() => {})
       }
       if (result.jobName && !client.job_name) setClient((c) => ({ ...c, job_name: result.jobName }))
+      // hybrid side-view: deterministic map (by sign type) fused with the Groq-vision suggestion
+      const sv = pickSideView(found?.n || result.signType, result.sideViewKey, result.sideViewConfidence || 0)
+      if (sv.selected) setSideViews([sv.selected])
       setAiStatus('')
     } catch (err) {
       setAiStatus('⚠ AI generation failed: ' + (err.response?.data?.error || err.message))
@@ -370,8 +376,11 @@ export default function Generator() {
               info={{ company: client.company_name, client: client.client_name, contact: client.contact, address: client.address, job: client.job_name, quoteId }}
               artworkPath={artworkPath}
               logo={logo}
+              aiResult={ai}
               savedState={gd?.proposal_state}
-              onSave={(proposalState) => saveProgress({ proposal_state: proposalState })}
+              sideViews={sideViews}
+              onSideViews={setSideViews}
+              onSave={(proposalState) => saveProgress({ proposal_state: proposalState, side_views: sideViews })}
             />
             <div className="foot" style={{ marginTop: 14 }}>
               <button className="ghost" onClick={back}>Back</button>

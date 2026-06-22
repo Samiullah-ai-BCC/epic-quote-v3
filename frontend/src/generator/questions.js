@@ -8,6 +8,16 @@ export function buildQuestions(t, ai = {}) {
 
   qs.push({ key: 'dimensions', q: 'What are the overall dimensions? (Height × Width)', type: 'text', def: ai.dimensions || null, placeholder: 'e.g. 29" X 100"', aiSet: !!ai.dimensions })
 
+  // monuments are free-form — ask only the high-level fields (V2 parity); spec body comes from AI fullSpec
+  if (t.mono) {
+    if (t.illum === 'led') qs.push({ key: 'illumination', q: 'Illumination?', type: 'chips', options: ['6500K LED MODULES (3 YEAR WARRANTY)', '3500K LED MODULES (3 YEAR WARRANTY)', 'N/A'], def: ai.illumination || '6500K LED MODULES (3 YEAR WARRANTY)' })
+    qs.push({ key: 'mounting', q: 'Mounting?', type: 'text', def: ai.mounting || t.mountDef || '', placeholder: t.mountDef, aiSet: !!ai.mounting })
+    qs.push({ key: 'colorspecs', q: 'Color specs? (PMS / named colors)', type: 'text', def: ai.colorSpecs || null, placeholder: 'e.g. BLACK 6 C', aiSet: !!ai.colorSpecs })
+    qs.push({ key: 'application', q: 'Application?', type: 'chips', options: ['EXTERIOR', 'INTERIOR'], def: (ai.application === 'EXTERIOR' || ai.application === 'INTERIOR') ? ai.application : 'EXTERIOR', aiSet: !!ai.application })
+    qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : null, placeholder: 'e.g. 5256', aiSet: ai.price != null })
+    return qs
+  }
+
   if (t.neon) qs.push({ key: 'neoncolors', q: 'Neon colors?', type: 'text', placeholder: 'e.g. PINK & WHITE' })
 
   if (t.ret !== null && t.ret !== undefined) {

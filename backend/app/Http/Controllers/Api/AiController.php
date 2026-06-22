@@ -30,6 +30,7 @@ class AiController extends Controller
         }
 
         $extraInfo = trim((string) $request->input('project_info', ''));
+        $sideViewKeys = trim((string) $request->input('side_view_keys', ''));
 
         // Customer file → PDF text (smalot) or image data URL (vision)
         $pdfText = '';
@@ -87,6 +88,10 @@ Respond ONLY with a JSON object, no markdown fences, no preamble, with these key
  "fullSpec": "EXHAUSTIVE multi-line transcription of every spec/detail found in the source (each sign, every dimension, material, finish, font, mounting, lighting). Never null if any detail exists."
 }
 PROMPT;
+
+        if ($imageDataUrl && $sideViewKeys !== '') {
+            $prompt .= "\n\nSIDE VIEW: From this exact list of construction side-view keys — {$sideViewKeys} — pick the ONE whose construction best matches the drawing. Add two more JSON keys: \"sideViewKey\" (exactly one key from the list, or null) and \"sideViewConfidence\" (a number from 0 to 1).";
+        }
 
         try {
             $ai = $this->callAndParse($prompt, $imageDataUrl);

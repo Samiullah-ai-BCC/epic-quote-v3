@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
+import { SIDE_VIEWS } from '../generator/sideviews'
 
 /* M2 proposal preview: renders the captured quote as a print-ready document.
    Every labelled block is contentEditable; edits are captured into proposal_state
@@ -24,13 +25,14 @@ const HEAD = '#e9e9e9'
 const cell = { fontSize: 11, border: '1px solid #777', padding: '6px 8px', outline: 'none' }
 const headCell = { ...cell, background: HEAD, fontWeight: 700, borderTop: 'none' }
 
-export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave }) {
+export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, sideViews = [], onSideViews }) {
   const pageRef = useRef(null)
   const wrapRef = useRef(null)
   const [scale, setScale] = useState(1)
   const [scaledH, setScaledH] = useState(1056)
   const [busy, setBusy] = useState('')
   const [toast, setToast] = useState('')
+  const [pickingSV, setPickingSV] = useState(false)
 
   // fit the fixed 816px page into the available column width (keeps full-res for PDF)
   useEffect(() => {
@@ -55,8 +57,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
 
   const specHTML = useMemo(() => {
     if (mode === 'custom') return esc(customSpec?.specText || '').replace(/\n/g, '<br>')
-    return buildSpecLines(tpl, answers).map(esc).join('<br>')
-  }, [mode, tpl, answers, customSpec])
+    return buildSpecLines(tpl, answers, aiResult).map(esc).join('<br>')
+  }, [mode, tpl, answers, customSpec, aiResult])
 
   const today = new Date()
   const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
@@ -202,6 +204,19 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             {E('notes', { ...cell, borderTop: 'none', minHeight: 36 })}
           </div>
 
+          {/* side view */}
+          <div style={{ margin: '0 40px' }}>
+            <div style={{ ...headCell }}>SIDE VIEW</div>
+            <div style={{ ...cell, borderTop: 'none', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start', minHeight: 56 }}>
+              {sideViews.length === 0
+                ? <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 11, textTransform: 'none' }}>[ No side view selected ]</span>
+                : sideViews.map((k) => (
+                    <img key={k} src={`/storage/side_views/${k}.png`} alt={k} crossOrigin="anonymous"
+                      style={{ maxWidth: 150, maxHeight: 110, objectFit: 'contain', border: '1px solid #ccc' }} />
+                  ))}
+            </div>
+          </div>
+
           {/* totals + terms */}
           <div style={{ margin: '12px 40px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
             {E('terms', { fontSize: 8.5, lineHeight: 1.6, textTransform: 'none' })}
@@ -221,6 +236,29 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
         </div>
         </div>
       </div>
+
+      {/* side-view picker — a control, not part of the printed page */}
+      {onSideViews && (
+        <div style={{ margin: '12px 0' }}>
+          <button type="button" className="ghost" onClick={() => setPickingSV((v) => !v)}>
+            {pickingSV ? 'Done choosing side views' : '+ Choose side views'}
+          </button>
+          {pickingSV && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+              {SIDE_VIEWS.map((s) => {
+                const on = sideViews.includes(s.key)
+                return (
+                  <label key={s.key} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: on ? '2px solid #f5a623' : '1px solid #ccc', borderRadius: 6, padding: 4 }}>
+                    <input type="checkbox" checked={on} onChange={(e) => onSideViews(e.target.checked ? [...sideViews, s.key] : sideViews.filter((x) => x !== s.key))} />
+                    <img src={`/storage/side_views/${s.key}.png`} alt={s.label} style={{ width: '100%', height: 70, objectFit: 'contain' }} />
+                    <div>{s.label}</div>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* actions */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>

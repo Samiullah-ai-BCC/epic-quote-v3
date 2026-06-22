@@ -12,8 +12,21 @@ export function esc(s) {
 }
 
 // Returns an array of spec lines for a generator-mode quote.
-export function buildSpecLines(t, a = {}) {
+export function buildSpecLines(t, a = {}, ai = null) {
   if (!t) return []
+  // monuments are free-form: render the AI's full spec (or a minimal block) instead of templated lines
+  if (t.mono) {
+    const body = (ai && ai.fullSpec) ? ai.fullSpec : [
+      'SIGN TYPE: ' + t.st,
+      'OVERALL DIMENSIONS: ' + (a.dimensions || ''),
+      'ILLUMINATED : ' + (t.illum === 'none' ? 'N/A' : (a.illumination || '6500K LED MODULES (3 YEAR WARRANTY)')),
+      'MOUNTING: ' + (a.mounting || t.mountDef || ''),
+      'PAINT FINISH: SATIN',
+      'COLOR SPECS: ' + (a.colorspecs || ''),
+      'APPLICATION: ' + (a.application || 'EXTERIOR'),
+    ].join('\n')
+    return String(body).split('\n')
+  }
   const L = []
   L.push(t.st)
   L.push('FACE: ' + t.face)
