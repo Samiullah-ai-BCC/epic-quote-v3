@@ -175,12 +175,18 @@ export default function Generator() {
       // snap AI signType to the closest catalog entry (robust match)
       const found = matchSignType(result.signType)
       if (found) setTpl(found)
-      // #7: the retail company is OUR client — fill + persist it (not the drawing's "Client:" = end customer)
-      if (result.companyName && !client.company_name) {
-        setClient((c) => ({ ...c, company_name: result.companyName }))
-        updateQuote(quoteId, { company_name: result.companyName }).catch(() => {})
+      // #7: the retail company is OUR client (company_name); the drawing's "Client:" = end customer (client_name).
+      // Fill + persist every party field the AI found, without clobbering anything the user already typed.
+      const prefill = {}
+      if (result.companyName && !client.company_name) prefill.company_name = result.companyName
+      if (result.endCustomer && !client.client_name) prefill.client_name = result.endCustomer
+      if (result.contact && !client.contact) prefill.contact = result.contact
+      if (result.address && !client.address) prefill.address = result.address
+      if (result.jobName && !client.job_name) prefill.job_name = result.jobName
+      if (Object.keys(prefill).length) {
+        setClient((c) => ({ ...c, ...prefill }))
+        updateQuote(quoteId, prefill).catch(() => {})
       }
-      if (result.jobName && !client.job_name) setClient((c) => ({ ...c, job_name: result.jobName }))
       // hybrid side-view: deterministic map (by sign type) fused with the Groq-vision suggestion
       const sv = pickSideView(found?.n || result.signType, result.sideViewKey, result.sideViewConfidence || 0)
       if (sv.selected) setSideViews([sv.selected])

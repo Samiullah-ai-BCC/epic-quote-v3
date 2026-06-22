@@ -165,14 +165,14 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           }}
         >
           {/* header */}
-          <div style={{ height: 104, position: 'relative', padding: '0 40px' }}>
-            <img src="/epic-craftings-logo.png" alt="logo" crossOrigin="anonymous"
-              style={{ height: 80, objectFit: 'contain', display: 'block', paddingTop: 16 }} />
-            {E('contact', { position: 'absolute', right: 40, top: 18, fontSize: 9, textAlign: 'right', lineHeight: 1.8 })}
+          <div style={{ height: 110, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center' }}>
+            <img src="/proposal-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
+              style={{ height: 60, objectFit: 'contain', display: 'block' }} />
+            {E('contact', { position: 'absolute', right: 40, top: 20, fontSize: 9, textAlign: 'right', lineHeight: 1.85 })}
           </div>
 
-          <div style={{ padding: '6px 40px 0' }}>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1 }}>PROPOSAL</div>
+          <div style={{ padding: '8px 40px 0' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: '#1a2433' }}>PROPOSAL</div>
           </div>
 
           {/* info grid */}

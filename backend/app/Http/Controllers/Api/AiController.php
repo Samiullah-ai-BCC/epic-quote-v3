@@ -81,6 +81,8 @@ Respond ONLY with a JSON object, no markdown fences, no preamble, with these key
 {
  "companyName": "the RETAIL sign company that sent this drawing (OUR client) — from the title block/footer/logo, else null",
  "endCustomer": "the end customer the retail company is selling to (often the drawing's 'Client:' field), else null",
+ "contact": "the RETAIL sign company's email and/or phone (from the title block/footer/logo block), else null",
+ "address": "the RETAIL sign company's mailing address (from the title block/footer/logo block), else null",
  "signType": "one of the sign types above, verbatim",
  "jobName": "short job name",
  "dimensions": "primary sign overall dimensions, like 29\\" X 100\\"",
