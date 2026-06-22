@@ -14,7 +14,7 @@ export default function AddQuoteModal({ onClose }) {
   const create = useCreateQuote()
   const { user, isAdmin } = useAuthStore()
 
-  const [choice, setChoice] = useState(null)   // null | 'scratch' | 'ai'
+  const [choice, setChoice] = useState(null)   // null | 'custom' | 'ai'
   const [form, setForm] = useState(EMPTY)
   const [file, setFile] = useState(null)
   const [error, setError] = useState('')
@@ -24,7 +24,7 @@ export default function AddQuoteModal({ onClose }) {
   const submit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!form.company_name.trim()) return setError('Company Name is required')
+    if (choice === 'custom' && !form.company_name.trim()) return setError('Company Name is required')
     if (choice === 'ai' && !file && !form.special_requirements.trim()) {
       return setError('AI mode needs a PDF/image or some project details to read from.')
     }
@@ -33,8 +33,8 @@ export default function AddQuoteModal({ onClose }) {
     if (file) payload.customer_pdf = file
     try {
       const created = await create.mutateAsync(payload)
-      // Both modes go straight into the generator wizard. AI mode auto-runs extraction.
-      navigate(`/quotes/${created.quote_id}/generate${choice === 'ai' ? '?ai=1' : ''}`)
+      // Mode is chosen here once and carried in the URL; the wizard never re-asks.
+      navigate(`/quotes/${created.quote_id}/generate?mode=${choice}`)
     } catch (err) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create quote')
     }
@@ -54,10 +54,10 @@ export default function AddQuoteModal({ onClose }) {
               <h3>AI Mode</h3>
               <p>Upload the customer's PDF/image of the sign required (or paste the brief). AI reads it and pre-fills the sign type and specs.</p>
             </div>
-            <div className="choice-tile" onClick={() => setChoice('scratch')}>
+            <div className="choice-tile" onClick={() => setChoice('custom')}>
               <div className="ico">✍️</div>
-              <h3>Start from Scratch</h3>
-              <p>Enter the quote details manually and build the specification step by step yourself.</p>
+              <h3>Custom</h3>
+              <p>Write the specification yourself — straight to the custom questions, no AI.</p>
             </div>
           </div>
           <div className="foot"><button className="ghost" onClick={() => onClose(false)}>Cancel</button></div>
@@ -70,7 +70,7 @@ export default function AddQuoteModal({ onClose }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose(false)}>
       <form className="modal" onSubmit={submit}>
-        <h2>{choice === 'ai' ? '⚡ New Quote — AI Mode' : 'New Quote — From Scratch'}</h2>
+        <h2>{choice === 'ai' ? '⚡ New Quote — AI Mode' : 'New Quote — Custom'}</h2>
         <p className="muted" style={{ marginTop: -8, marginBottom: 16 }}>
           A unique Quote ID is assigned automatically.
           {choice === 'ai' && ' Attach the sign PDF/image (or describe the project) — AI extracts the specs next.'}

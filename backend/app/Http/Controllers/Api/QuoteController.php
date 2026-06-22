@@ -65,9 +65,7 @@ class QuoteController extends Controller
         }
 
         // --- validation ---
-        if ($companyName === '') {
-            return response()->json(['error' => 'Company Name is required'], 400);
-        }
+        // Company is optional: AI mode is PDF-first and fills it from the drawing (workstream B).
         if (!in_array($salesRep, AppConstants::SALES_REPS, true)) {
             return response()->json(['error' => 'Invalid Sales Representative'], 400);
         }
@@ -97,24 +95,28 @@ class QuoteController extends Controller
             $companyName, $clientName, $contact, $address, $jobName, $special,
             $salesRep, $quoteSource, $orderId, $qid, $file, $user
         ) {
-            // auto-create company (case-insensitive dedup) (#34)
-            $company = Company::whereRaw('LOWER(name) = ?', [strtolower($companyName)])->first();
-            if (!$company) {
-                $company = Company::create([
-                    'name' => $companyName, 'address' => $address, 'email' => '', 'phone' => '',
-                ]);
-            } elseif ($address && !$company->address) {
-                $company->update(['address' => $address]);
-            }
-
-            // auto-create representative for a new client (#35)
-            if ($clientName !== '') {
-                $exists = Representative::where('company_id', $company->id)
-                    ->whereRaw('LOWER(name) = ?', [strtolower($clientName)])->exists();
-                if (!$exists) {
-                    Representative::create([
-                        'company_id' => $company->id, 'name' => $clientName, 'email' => $contact,
+            // auto-create company (case-insensitive dedup) — only when a name is supplied.
+            // AI mode is PDF-first (no typed company yet); B fills it later via update.
+            $company = null;
+            if ($companyName !== '') {
+                $company = Company::whereRaw('LOWER(name) = ?', [strtolower($companyName)])->first();
+                if (!$company) {
+                    $company = Company::create([
+                        'name' => $companyName, 'address' => $address, 'email' => '', 'phone' => '',
                     ]);
+                } elseif ($address && !$company->address) {
+                    $company->update(['address' => $address]);
+                }
+
+                // auto-create representative for a new client (#35)
+                if ($clientName !== '') {
+                    $exists = Representative::where('company_id', $company->id)
+                        ->whereRaw('LOWER(name) = ?', [strtolower($clientName)])->exists();
+                    if (!$exists) {
+                        Representative::create([
+                            'company_id' => $company->id, 'name' => $clientName, 'email' => $contact,
+                        ]);
+                    }
                 }
             }
 
@@ -132,11 +134,11 @@ class QuoteController extends Controller
                 'quote_id'             => $qid,
                 'quote_num'            => $num,
                 'order_id'             => '',
-                'company_id'           => $company->id,
-                'company_name'         => $company->name,
+                'company_id'           => $company?->id,
+                'company_name'         => $company?->name ?? '',
                 'client_name'          => $clientName,
                 'contact'              => $contact,
-                'address'              => $address ?: ($company->address ?? ''),
+                'address'              => $address ?: ($company?->address ?? ''),
                 'job_name'             => $jobName,
                 'special_requirements' => $special,
                 'customer_pdf'         => $pdfFilename,

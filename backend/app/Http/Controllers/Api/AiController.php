@@ -64,10 +64,14 @@ AVAILABLE SIGN TYPES (you MUST pick exactly one, verbatim):
 CUSTOMER PROJECT INFO:
 {$info}
 
+WHO IS OUR CLIENT — CRITICAL: Epic Craftings is a WHOLESALE sign manufacturer. This drawing was sent to us by a RETAIL sign company (OUR client) who resells to THEIR end customer. The retail company appears in the drawing's title block / footer / logo / contact details (e.g. "FastSigns Allentown"). The "Client:" field on the drawing names the END customer (e.g. "28 TEN Group") — that is NOT our client. Set companyName to the RETAIL sign company (our client); set endCustomer to the end customer.
+
 Capture EVERY detail you can find — read all of it. For the structured fields below, pick the PRIMARY sign. For "fullSpec", write out EVERYTHING the document specifies (all dimensions, letter heights, materials, finishes/anodizing, fonts, standoffs, backlighting, every distinct sign, seals, etc.) as readable lines — do not omit anything. If multiple signs are described, list each.
 
 Respond ONLY with a JSON object, no markdown fences, no preamble, with these keys (use null when unknown):
 {
+ "companyName": "the RETAIL sign company that sent this drawing (OUR client) — from the title block/footer/logo, else null",
+ "endCustomer": "the end customer the retail company is selling to (often the drawing's 'Client:' field), else null",
  "signType": "one of the sign types above, verbatim",
  "jobName": "short job name",
  "dimensions": "primary sign overall dimensions, like 29\\" X 100\\"",

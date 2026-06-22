@@ -10,7 +10,7 @@ import Proposal from '../components/Proposal'
 
 const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
-  custom: ['client', 'artwork', 'customspecs', 'preview'],
+  custom: ['customspecs', 'preview'], // straight to the questions; client captured at intake
 }
 
 // Robust AI signType → catalog match: exact → normalized → contains → best token overlap.
@@ -38,7 +38,6 @@ export default function Generator() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
-  const aiParam = searchParams.get('ai')
   const [autoAi, setAutoAi] = useState(false)
 
   const [quote, setQuote] = useState(null)
@@ -83,17 +82,19 @@ export default function Generator() {
       else if (q.customer_pdf && /\.(png|jpe?g|gif|webp|svg)$/i.test(q.customer_pdf)) setArtworkPath(q.customer_pdf)
       getLogo().then((l) => setLogoUrl(l.logo)).catch(() => {})
 
-      const resolvedMode = g.quote_type || null
+      // Mode comes from the intake choice (?mode=ai|custom) or the persisted quote_type — never re-asked.
+      const modeParam = searchParams.get('mode')
+      const resolvedMode = g.quote_type
+        || (modeParam === 'custom' ? 'custom' : modeParam === 'ai' ? 'generator' : null)
       if (resolvedMode) {
         setMode(resolvedMode)
-        const hasProgress = (resolvedMode === 'generator' && g.tpl_name && Object.keys(g.answers || {}).length)
-          || (resolvedMode === 'custom' && g.custom_spec)
-        setStep(hasProgress ? 'preview' : FLOWS[resolvedMode][0])
-      } else if (aiParam) {
-        // Came from Add Quote → AI Mode: jump into generator + auto-run AI
-        setMode('generator')
-        setStep('project')
-        setAutoAi(true)
+        if (resolvedMode === 'custom') {
+          setStep(g.custom_spec ? 'preview' : 'customspecs')   // straight to the questions
+        } else {
+          const hasProgress = g.tpl_name && Object.keys(g.answers || {}).length
+          setStep(hasProgress ? 'preview' : 'project')
+          if (modeParam === 'ai' && !g.ai) setAutoAi(true)      // auto-run extraction once
+        }
       }
       setLoading(false)
     })()
@@ -129,10 +130,6 @@ export default function Generator() {
     await updateQuote(quoteId, client)
     next()
   }
-  const saveProject = async () => {
-    await updateQuote(quoteId, { special_requirements: special })
-    next()
-  }
   const onArtwork = async (e) => {
     const f = e.target.files[0]; if (!f) return
     const path = await uploadArtwork(quoteId, f)
@@ -155,6 +152,11 @@ export default function Generator() {
       // snap AI signType to the closest catalog entry (robust match)
       const found = matchSignType(result.signType)
       if (found) setTpl(found)
+      // #7: the retail company is OUR client — fill + persist it (not the drawing's "Client:" = end customer)
+      if (result.companyName && !client.company_name) {
+        setClient((c) => ({ ...c, company_name: result.companyName }))
+        updateQuote(quoteId, { company_name: result.companyName }).catch(() => {})
+      }
       if (result.jobName && !client.job_name) setClient((c) => ({ ...c, job_name: result.jobName }))
       setAiStatus('')
     } catch (err) {
@@ -180,6 +182,12 @@ export default function Generator() {
     goto('artwork')
   }
 
+  // project-step forward: save the brief, then continue (to artwork if AI matched a sign type, else sign-type)
+  const proceedFromProject = async () => {
+    await updateQuote(quoteId, { special_requirements: special })
+    continueFromAI()
+  }
+
   const finishSpecs = (finalAnswers) => { setAnswers(finalAnswers) }
   const toPreview = async () => { setSaving(true); await saveProgress(); setSaving(false); goto('preview') }
 
@@ -191,8 +199,8 @@ export default function Generator() {
       <div className="center" style={{ flexDirection: 'column', gap: 16 }}>
         <h2>How do you want to build {quoteId}?</h2>
         <div style={{ display: 'flex', gap: 16 }}>
-          <button onClick={() => { setMode('generator'); setStep('client') }}>Quote Generator</button>
-          <button className="ghost" onClick={() => { setMode('custom'); setStep('client') }}>Custom Quote Creator</button>
+          <button onClick={() => { setMode('generator'); setStep('project') }}>Quote Generator (AI)</button>
+          <button className="ghost" onClick={() => { setMode('custom'); setStep('customspecs') }}>Custom Quote Creator</button>
         </div>
       </div>
     )
@@ -255,7 +263,7 @@ export default function Generator() {
               {ai && (
                 <div className="ai-result">
                   <b style={{ color: '#c4b5fd' }}>✔ AI specifications generated</b>
-                  {[['Sign Type', ai.signType], ['Job Name', ai.jobName], ['Dimensions', ai.dimensions],
+                  {[['Our Client (retail)', ai.companyName], ['End Customer', ai.endCustomer], ['Sign Type', ai.signType], ['Job Name', ai.jobName], ['Dimensions', ai.dimensions],
                     ['Returns', ai.returns], ['Trim Cap', ai.trimcap], ['Mounting', ai.mounting],
                     ['Illumination', ai.illumination], ['Face Color', ai.faceColor], ['Return Color', ai.returnColor],
                     ['Application', ai.application], ['Price', ai.price != null ? '$' + ai.price : null], ['Notes', ai.notes]]
@@ -267,12 +275,11 @@ export default function Generator() {
                       <pre className="spec-dump" style={{ maxHeight: 220 }}>{ai.fullSpec}</pre>
                     </div>
                   )}
-                  <p className="muted" style={{ marginTop: 6 }}>Pre-filled as defaults below — review/change, or jump to artwork.</p>
-                  <button className="ghost sm" style={{ marginTop: 8 }} onClick={continueFromAI}>Continue to Artwork Upload →</button>
+                  <p className="muted" style={{ marginTop: 6 }}>Pre-filled from the drawing — review above, then "Continue to Artwork".</p>
                 </div>
               )}
             </div>
-            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={saveProject}>Next →</button></div>
+            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={proceedFromProject}>Continue to Artwork →</button></div>
           </div>
         )}
 
