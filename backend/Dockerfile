@@ -19,7 +19,10 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
             storage/logs storage/app/public bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Retry composer install — GitHub's zipball API occasionally returns transient 504s mid-build
+RUN composer install --no-dev --optimize-autoloader --no-interaction \
+ || (sleep 10 && composer install --no-dev --optimize-autoloader --no-interaction) \
+ || (sleep 20 && composer install --no-dev --optimize-autoloader --no-interaction)
 
 ENV APP_ENV=production
 ENV APP_DEBUG=false
