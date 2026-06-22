@@ -43,6 +43,8 @@ services:
         value: sync
       - key: FILESYSTEM_DISK
         value: local
+      - key: PUBLIC_DISK_ROOT     # uploads on the persistent disk so they survive redeploys
+        value: /var/data/public
 
   # ---------------- Frontend SPA (React/Vite, static) ----------------
   - type: web

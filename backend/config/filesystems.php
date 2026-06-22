@@ -13,7 +13,9 @@ return [
 
         'public' => [
             'driver'     => 'local',
-            'root'       => storage_path('app/public'),
+            // On Render, point this at the persistent disk (PUBLIC_DISK_ROOT=/var/data/public)
+            // so uploads survive redeploys; unset locally → default ephemeral-safe path.
+            'root'       => env('PUBLIC_DISK_ROOT', storage_path('app/public')),
             'url'        => env('APP_URL').'/storage',
             'visibility' => 'public',
             'throw'      => false,
