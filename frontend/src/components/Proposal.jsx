@@ -188,7 +188,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', minHeight: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
             {artworkPath
-              ? <img src={fileUrl(artworkPath)} alt="artwork" crossOrigin="anonymous" style={{ maxHeight: 160, maxWidth: 520, objectFit: 'contain' }} />
+              ? <img src={fileUrl(artworkPath)} alt="artwork" style={{ maxHeight: 160, maxWidth: 520, objectFit: 'contain' }} />
               : <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {dims && <div style={{ position: 'absolute', bottom: 6, right: 12, fontSize: 10 }}>{dims}</div>}
           </div>
