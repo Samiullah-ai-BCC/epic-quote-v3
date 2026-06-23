@@ -34,28 +34,55 @@ const PACKAGE = [
   { label: 'POWER SUPPLY', img: '/package/power-supply.png' },
 ]
 
-// Resizable image with a VISIBLE drag-handle (bottom-right). Size persists via data-rk
-// (read in captureState) and renders into the PDF; the handle is hidden during capture.
-function AdjImg({ rk, w: dw, h: dh, savedSizes, src, alt }) {
-  const saved = savedSizes?.[rk]
-  const [w, setW] = useState(saved?.w ? parseFloat(saved.w) : dw)
-  const [h, setH] = useState(saved?.h ? parseFloat(saved.h) : dh)
-  const onDown = (e) => {
-    e.preventDefault(); e.stopPropagation()
-    const sx = e.clientX, sy = e.clientY, sw = w, sh = h
+// Canva-style adjustable image: click to select (purple box + 4 corner handles + rotate grip),
+// drag the body to move, a corner to resize, the top grip to rotate. Absolute-positioned, so
+// resizing one element never reflows the page. Geometry is reported up via onLay (persisted in
+// proposal_state.__layout); selection chrome carries className "adj-ui" so PDF capture hides it.
+function AdjImg({ rk, def, lay, onLay, src, alt, caption, scaleRef, selected, onSelect }) {
+  const init = lay || def
+  const [box, setBox] = useState({ x: init.x, y: init.y, w: init.w, h: init.h, rot: init.rot || 0 })
+  const rootRef = useRef(null)
+  const start = (kind, corner) => (e) => {
+    e.preventDefault(); e.stopPropagation(); onSelect()
+    const sx = e.clientX, sy = e.clientY, b0 = { ...box }, sc = scaleRef.current || 1
+    let cx = 0, cy = 0
+    if (kind === 'rot' && rootRef.current) { const r = rootRef.current.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2 }
     const move = (ev) => {
-      setW(Math.max(40, Math.round(sw + ev.clientX - sx)))
-      setH(Math.max(30, Math.round(sh + ev.clientY - sy)))
+      const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
+      if (kind === 'move') setBox({ ...b0, x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) })
+      else if (kind === 'rot') setBox({ ...b0, rot: Math.round(Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90) })
+      else {
+        const L = corner.includes('l'), T = corner.includes('t'), R = corner.includes('r'), B = corner.includes('b')
+        let w = b0.w, h = b0.h
+        if (R) w = b0.w + dx; if (L) w = b0.w - dx; if (B) h = b0.h + dy; if (T) h = b0.h - dy
+        w = Math.max(30, Math.round(w)); h = Math.max(20, Math.round(h))
+        let x = b0.x, y = b0.y
+        if (L) x = Math.round(b0.x + (b0.w - w)); if (T) y = Math.round(b0.y + (b0.h - h))
+        setBox({ ...b0, w, h, x, y })
+      }
     }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up) }
-    document.addEventListener('mousemove', move)
-    document.addEventListener('mouseup', up)
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); setBox((b) => { onLay(b); return b }) }
+    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
   }
+  const hdl = { position: 'absolute', width: 11, height: 11, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', zIndex: 60 }
+  const corners = { tl: { left: -6, top: -6, cursor: 'nwse-resize' }, tr: { right: -6, top: -6, cursor: 'nesw-resize' }, bl: { left: -6, bottom: -6, cursor: 'nesw-resize' }, br: { right: -6, bottom: -6, cursor: 'nwse-resize' } }
   return (
-    <div data-rk={rk} style={{ position: 'relative', display: 'inline-block', width: w, height: h, maxWidth: '100%', verticalAlign: 'top' }}>
-      <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-      <span className="adj-handle" onMouseDown={onDown} title="Drag to resize"
-        style={{ position: 'absolute', right: -5, bottom: -5, width: 14, height: 14, background: '#f5a623', border: '2px solid #fff', borderRadius: 3, cursor: 'se-resize', zIndex: 50 }} />
+    <div ref={rootRef} data-rk={rk} onMouseDown={start('move')}
+      style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', pointerEvents: 'none' }}>
+        <img src={src} alt={alt} draggable={false} style={{ flex: 1, minHeight: 0, width: '100%', objectFit: 'contain', display: 'block' }} />
+        {caption && <div style={{ fontSize: 8, textAlign: 'center', marginTop: 2, lineHeight: 1.2 }}>{caption}</div>}
+      </div>
+      {selected && (
+        <>
+          <div className="adj-ui" style={{ position: 'absolute', inset: 0, border: '1.5px solid #8b5cf6', pointerEvents: 'none' }} />
+          {Object.entries(corners).map(([c, pos]) => (
+            <span key={c} className="adj-ui" onMouseDown={start('resize', c)} style={{ ...hdl, ...pos }} />
+          ))}
+          <span className="adj-ui" onMouseDown={start('rot')} title="Rotate"
+            style={{ position: 'absolute', top: -26, left: '50%', marginLeft: -8, width: 16, height: 16, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#8b5cf6', cursor: 'grab', zIndex: 60 }}>⟳</span>
+        </>
+      )}
     </div>
   )
 }
@@ -68,6 +95,17 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   const [busy, setBusy] = useState('')
   const [toast, setToast] = useState('')
   const [pickingSV, setPickingSV] = useState(false)
+  const [selId, setSelId] = useState(null)                          // selected adjustable image
+  const [layout, setLayout] = useState(savedState?.__layout || {})  // persisted geometry per image
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
+
+  // click anywhere outside an adjustable image deselects it (hides the handles)
+  useEffect(() => {
+    const onDown = (e) => { if (!e.target.closest('[data-rk]')) setSelId(null) }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
 
   // fit the fixed 816px page into the available column width (keeps full-res for PDF)
   useEffect(() => {
@@ -85,7 +123,6 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   }, [])
 
   const price = Number((mode === 'custom' ? customSpec?.price : answers?.price) || 0)
-  const dims = (mode === 'custom' ? customSpec?.dims : answers?.dimensions) || ''
   const itemDesc = mode === 'custom'
     ? (customSpec?.itemDesc || 'CUSTOM SIGNAGE')
     : ((tpl?.desc || 'SIGN') + ' FOR ' + (info.company || ''))
@@ -126,12 +163,16 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       dangerouslySetInnerHTML={{ __html: initial[key] }} />
   )
 
+  // common props for a Canva-style adjustable image
+  const adjProps = (rk, def) => ({
+    rk, def, lay: layout[rk],
+    onLay: (b) => setLayout((L) => ({ ...L, [rk]: b })),
+    scaleRef, selected: selId === rk, onSelect: () => setSelId(rk),
+  })
+
   const captureState = () => {
-    const state = {}
+    const state = { __layout: layout }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
-    const sizes = {}
-    pageRef.current?.querySelectorAll('[data-rk]').forEach((el) => { sizes[el.dataset.rk] = { w: el.offsetWidth + 'px', h: el.offsetHeight + 'px' } })
-    state.__sizes = sizes
     return state
   }
 
@@ -149,8 +190,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     const el = pageRef.current
     const prev = el.style.transform
     el.style.transform = 'none'
-    const handles = [...el.querySelectorAll('.adj-handle')]
-    handles.forEach((h) => { h.style.visibility = 'hidden' })   // don't print the resize grips
+    const handles = [...el.querySelectorAll('.adj-ui')]
+    handles.forEach((h) => { h.style.visibility = 'hidden' })   // don't print selection chrome
     try {
       return await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false })
     } finally {
@@ -218,28 +259,27 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
 
           {/* item details */}
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
-          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', minHeight: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative' }}>
             {artworkPath
-              ? <AdjImg rk="artwork" w={420} h={200} savedSizes={savedState?.__sizes} src={fileUrl(artworkPath)} alt="artwork" />
-              : <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
-            {dims && <div style={{ position: 'absolute', bottom: 6, right: 12, fontSize: 10 }}>{dims}</div>}
+              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" />
+              : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
           </div>
 
-          {/* item table */}
-          <div style={{ margin: '0 40px', display: 'grid', gridTemplateColumns: '1fr 56px 104px 104px' }}>
-            <div style={headCell}>ITEM DESCRIPTION</div>
-            <div style={{ ...headCell, borderLeft: 'none' }}>QTY</div>
-            <div style={{ ...headCell, borderLeft: 'none' }}>UNIT PRICE</div>
-            <div style={{ ...headCell, borderLeft: 'none' }}>TOTAL PRICE</div>
+          {/* item table — its own bordered block with a gap above (matches the template) */}
+          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: '1fr 56px 104px 104px' }}>
+            <div style={{ ...headCell, borderTop: '1px solid #777' }}>ITEM DESCRIPTION</div>
+            <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none', textAlign: 'center' }}>QTY</div>
+            <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none' }}>UNIT PRICE</div>
+            <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none' }}>TOTAL PRICE</div>
             {E('itemDesc', { ...cell, borderTop: 'none' })}
-            <div style={{ ...cell, borderTop: 'none', borderLeft: 'none' }}>1</div>
+            <div style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }}>1</div>
             {E('unitPrice', { ...cell, borderTop: 'none', borderLeft: 'none' })}
             {E('totalPrice', { ...cell, borderTop: 'none', borderLeft: 'none' })}
           </div>
 
           {/* specs (left) + package & side view (right): ONE outer frame; the divider is the left
               column's right border, so it's continuous no matter which column ends up taller */}
-          <div style={{ margin: '0 40px', display: 'grid', gridTemplateColumns: '1fr 270px', border: '1px solid #777', borderTop: 'none' }}>
+          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: '1fr 264px', border: '1px solid #777' }}>
             <div style={{ borderRight: '1px solid #777' }}>
               <div style={secHead}>SPECIFICATIONS</div>
               {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', minHeight: 215, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: '1px solid #777' })}
@@ -248,20 +288,17 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             </div>
             <div>
               <div style={secHead}>PACKAGE INCLUDES</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', justifyContent: 'space-around', minHeight: 130, boxSizing: 'border-box', padding: 8, borderBottom: '1px solid #777' }}>
-                {PACKAGE.map((p) => (
-                  <div key={p.label} style={{ textAlign: 'center', fontSize: 8, lineHeight: 1.3 }}>
-                    <AdjImg rk={`pkg-${p.label}`} w={96} h={96} savedSizes={savedState?.__sizes} src={p.img} alt={p.label} />
-                    <div style={{ marginTop: 4 }}>{p.label}</div>
-                  </div>
+              <div style={{ position: 'relative', height: 104, borderBottom: '1px solid #777' }}>
+                {PACKAGE.map((p, i) => (
+                  <AdjImg key={p.label} {...adjProps(`pkg-${p.label}`, { x: 18 + i * 122, y: 8, w: 92, h: 86 })} src={p.img} alt={p.label} caption={p.label} />
                 ))}
               </div>
               <div style={secHead}>SIDE VIEW</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', justifyContent: 'center', minHeight: 130, boxSizing: 'border-box', padding: 8 }}>
+              <div style={{ position: 'relative', height: 208 }}>
                 {sideViews.length === 0
-                  ? <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
-                  : sideViews.map((k) => (
-                      <AdjImg key={k} rk={`sv-${k}`} w={240} h={150} savedSizes={savedState?.__sizes} src={`/side_views/${k}.png`} alt={k} />
+                  ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
+                  : sideViews.map((k, i) => (
+                      <AdjImg key={k} {...adjProps(`sv-${k}`, { x: 46 + i * 12, y: 12 + i * 12, w: 160, h: 184 })} src={`/side_views/${k}.png`} alt={k} />
                     ))}
               </div>
             </div>
