@@ -13,6 +13,7 @@ use App\Models\StatusHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class QuoteController extends Controller
 {
@@ -340,6 +341,9 @@ class QuoteController extends Controller
         $file = $request->file('file');
         $filename = $quote->quote_id.'_'.$this->safeFilename($file);
         $file->storeAs('pdfs', $filename, 'public');
+        if (!Storage::disk('public')->exists("pdfs/{$filename}")) {
+            return response()->json(['error' => 'Upload could not be saved — server storage is not writable/persistent.'], 500);
+        }
         $quote->update(['customer_pdf' => $filename]);
         ActivityLog::record($request->user()->id, 'file_uploaded', "{$quote->quote_id}: Customer PDF/Drawing ({$filename})");
 
@@ -355,6 +359,9 @@ class QuoteController extends Controller
         $ext = $file->getClientOriginalExtension();
         $filename = $quote->quote_id.'_'.time().'.'.$ext;
         $file->storeAs('artwork', $filename, 'public');
+        if (!Storage::disk('public')->exists("artwork/{$filename}")) {
+            return response()->json(['error' => 'Upload could not be saved — server storage is not writable/persistent.'], 500);
+        }
         ActivityLog::record($request->user()->id, 'file_uploaded', "{$quote->quote_id}: Artwork ({$filename})");
 
         return response()->json(['path' => "/storage/artwork/{$filename}"]);
