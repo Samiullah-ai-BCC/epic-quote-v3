@@ -155,7 +155,15 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       terms: TERMS_HTML,
       pay: 'CLICK HERE TO MAKE PAYMENT',
     }
-    return { ...def, ...(savedState || {}) }
+    const merged = { ...def, ...(savedState || {}) }
+    // Older saved proposals captured the previous $0 default for the money fields — fall back to
+    // the current default ($1,200 / $600) so they show a price instead of a stale zero.
+    const zero = money(0)
+    ;['unitPrice', 'totalPrice', 'subtotal', 'dep1', 'dep2'].forEach((k) => {
+      const sv = savedState?.[k]
+      if (sv === undefined || sv === '' || sv === zero) merged[k] = def[k]
+    })
+    return merged
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
