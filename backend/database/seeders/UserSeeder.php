@@ -19,7 +19,6 @@ class UserSeeder extends Seeder
     {
         // username, full_name, role, email, env-key for password
         $seed = [
-            ['admin',      'Administrator', User::ROLE_ADMIN,     '',                               'SEED_ADMIN_PASSWORD'],
             ['rod',        'Rod Muffet',    User::ROLE_SALES_REP, 'rod@epiccrafting.com',           'SEED_ROD_PASSWORD'],
             ['ed',         'ED',            User::ROLE_SALES_REP, '',                               'SEED_ED_PASSWORD'],
             ['sami',       'Sir Sami',      User::ROLE_MANAGER,   '',                               'SEED_SAMI_PASSWORD'],
@@ -50,6 +49,21 @@ class UserSeeder extends Seeder
                 ]
             );
         }
+
+        // Primary admin login — explicit credentials (renames the legacy 'admin' user if present,
+        // so there's no duplicate). Login is by USERNAME, so username IS the login id.
+        // SECURITY: this password is committed per request — rotate it after first login, or move
+        // it to the SEED_ADMIN_PASSWORD env for production.
+        $admin = User::where('username', 'admin')->first()
+            ?? User::where('username', 'test@123.com')->first()
+            ?? new User();
+        $admin->forceFill([
+            'username'  => 'test@123.com',
+            'full_name' => 'Administrator',
+            'role'      => User::ROLE_ADMIN,
+            'email'     => 'test@123.com',
+            'password'  => Hash::make('123456789!'),
+        ])->save();
 
         if ($generated) {
             $this->command?->warn(str_repeat('=', 60));
