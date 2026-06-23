@@ -122,6 +122,7 @@ export default function Generator() {
       ai,
       custom_spec: customSpec,
       artwork_path: (artworkPath && !artworkPath.startsWith('blob:') && !artworkPath.startsWith('data:')) ? artworkPath : null,
+      side_views: sideViews,
       ...extra,
     }
     await putGenerated(quoteId, payload)
@@ -142,7 +143,8 @@ export default function Generator() {
     setArtworkPath(URL.createObjectURL(f))   // show the picked image immediately, straight from the local file
     try {
       const path = await uploadArtwork(quoteId, f)
-      setArtworkPath(path)                    // then swap to the saved server copy so it persists
+      setArtworkPath(path)                          // swap to the saved server copy
+      await saveProgress({ artwork_path: path })    // persist now so it survives reopen
     } catch (err) {
       setArtErr('Shown locally, but the server upload failed: ' + (err.response?.data?.message || err.message || 'unknown error'))
     }

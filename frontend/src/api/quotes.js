@@ -37,12 +37,15 @@ export const putGenerated = (quoteId, data) =>
   client.put(`/quotes/${quoteId}/generated`, data).then((r) => r.data)
 
 const fileForm = (file) => { const fd = new FormData(); fd.append('file', file); return fd }
+// Must override the client's JSON default so axios sends real multipart with a boundary, else the
+// server can't parse the file and the upload fails (this is why artwork wasn't persisting).
+const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } }
 
 export const uploadArtwork = (quoteId, file) =>
-  client.post(`/quotes/${quoteId}/artwork`, fileForm(file)).then((r) => r.data.path)
+  client.post(`/quotes/${quoteId}/artwork`, fileForm(file), MULTIPART).then((r) => r.data.path)
 
 export const uploadCustomerFile = (quoteId, file) =>
-  client.post(`/quotes/${quoteId}/pdf`, fileForm(file)).then((r) => r.data.path)
+  client.post(`/quotes/${quoteId}/pdf`, fileForm(file), MULTIPART).then((r) => r.data.path)
 
 export const generateSpecs = (quoteId, projectInfo, sideViewKeys = '', imageData = null) =>
   client.post('/ai/generate-specs', {
