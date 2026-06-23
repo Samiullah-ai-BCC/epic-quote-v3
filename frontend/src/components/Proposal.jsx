@@ -103,8 +103,19 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   const captureState = () => {
     const state = {}
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
+    const sizes = {}
+    pageRef.current?.querySelectorAll('[data-rk]').forEach((el) => { sizes[el.dataset.rk] = { w: el.style.width, h: el.style.height } })
+    state.__sizes = sizes
     return state
   }
+
+  // user-resizable images: restore a previously-dragged size, else a (bigger) default
+  const sz = (rk, w, h) => {
+    const s = savedState?.__sizes?.[rk]
+    return { width: s?.w || w, height: s?.h || h }
+  }
+  const rzBox = { resize: 'both', overflow: 'hidden', minWidth: 40, minHeight: 30 }
+  const rzImg = { width: '100%', height: '100%', objectFit: 'contain', display: 'block' }
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 2500) }
 
@@ -188,7 +199,9 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', minHeight: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
             {artworkPath
-              ? <img src={fileUrl(artworkPath)} alt="artwork" style={{ maxHeight: 160, maxWidth: 520, objectFit: 'contain' }} />
+              ? <div data-rk="artwork" style={{ ...rzBox, display: 'inline-block', maxWidth: '100%', ...sz('artwork', 420, 200) }}>
+                  <img src={fileUrl(artworkPath)} alt="artwork" style={rzImg} />
+                </div>
               : <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {dims && <div style={{ position: 'absolute', bottom: 6, right: 12, fontSize: 10 }}>{dims}</div>}
           </div>
@@ -216,10 +229,12 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             </div>
             <div>
               <div style={secHead}>PACKAGE INCLUDES</div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', justifyContent: 'space-around', height: 130, boxSizing: 'border-box', padding: 8, borderBottom: '1px solid #777' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', justifyContent: 'space-around', minHeight: 130, boxSizing: 'border-box', padding: 8, borderBottom: '1px solid #777' }}>
                 {PACKAGE.map((p) => (
                   <div key={p.label} style={{ textAlign: 'center', fontSize: 8, lineHeight: 1.3 }}>
-                    <img src={p.img} alt={p.label} crossOrigin="anonymous" style={{ height: 78, objectFit: 'contain', display: 'block', margin: '0 auto 4px' }} />
+                    <div data-rk={`pkg-${p.label}`} style={{ ...rzBox, margin: '0 auto 4px', ...sz(`pkg-${p.label}`, 96, 96) }}>
+                      <img src={p.img} alt={p.label} style={rzImg} />
+                    </div>
                     {p.label}
                   </div>
                 ))}
@@ -229,8 +244,9 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
                 {sideViews.length === 0
                   ? <span style={{ color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
                   : sideViews.map((k) => (
-                      <img key={k} src={`/side_views/${k}.png`} alt={k} crossOrigin="anonymous"
-                        style={{ maxWidth: 250, maxHeight: 120, objectFit: 'contain' }} />
+                      <div key={k} data-rk={`sv-${k}`} style={{ ...rzBox, ...sz(`sv-${k}`, 240, 150) }}>
+                        <img src={`/side_views/${k}.png`} alt={k} style={rzImg} />
+                      </div>
                     ))}
               </div>
             </div>
