@@ -38,7 +38,7 @@ const PACKAGE = [
 // drag the body to move, a corner to resize, the top grip to rotate. Absolute-positioned, so
 // resizing one element never reflows the page. Geometry is reported up via onLay (persisted in
 // proposal_state.__layout); selection chrome carries className "adj-ui" so PDF capture hides it.
-function AdjImg({ rk, def, lay, onLay, src, alt, caption, scaleRef, selected, onSelect }) {
+function AdjImg({ rk, def, lay, onLay, src, alt, caption, lockAspect, scaleRef, selected, onSelect }) {
   const init = lay || def
   const [box, setBox] = useState({ x: init.x, y: init.y, w: init.w, h: init.h, rot: init.rot || 0 })
   const rootRef = useRef(null)
@@ -56,6 +56,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, caption, scaleRef, selected, on
         let w = b0.w, h = b0.h
         if (R) w = b0.w + dx; if (L) w = b0.w - dx; if (B) h = b0.h + dy; if (T) h = b0.h - dy
         w = Math.max(30, Math.round(w)); h = Math.max(20, Math.round(h))
+        if (lockAspect && b0.w) h = Math.max(20, Math.round(w * b0.h / b0.w))  // keep the logo's proportions
         let x = b0.x, y = b0.y
         if (L) x = Math.round(b0.x + (b0.w - w)); if (T) y = Math.round(b0.y + (b0.h - h))
         setBox({ ...b0, w, h, x, y })
@@ -70,7 +71,9 @@ function AdjImg({ rk, def, lay, onLay, src, alt, caption, scaleRef, selected, on
     <div ref={rootRef} data-rk={rk} onMouseDown={start('move')}
       style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', pointerEvents: 'none' }}>
-        <img src={src} alt={alt} draggable={false} style={{ flex: 1, minHeight: 0, width: '100%', objectFit: 'contain', display: 'block' }} />
+        <img src={src} alt={alt} draggable={false}
+          onLoad={lockAspect ? (e) => { const r = e.target.naturalWidth / e.target.naturalHeight; if (r > 0) setBox((b) => ({ ...b, h: Math.max(20, Math.round(b.w / r)) })) } : undefined}
+          style={{ flex: 1, minHeight: 0, width: '100%', objectFit: 'contain', display: 'block' }} />
         {caption && <div style={{ fontSize: 8, textAlign: 'center', marginTop: 2, lineHeight: 1.2 }}>{caption}</div>}
       </div>
       {selected && (
@@ -87,7 +90,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, caption, scaleRef, selected, on
   )
 }
 
-export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, sideViews = [], onSideViews }) {
+export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, sideViews = [], onSideViews }) {
   const pageRef = useRef(null)
   const wrapRef = useRef(null)
   const [scale, setScale] = useState(1)
@@ -242,7 +245,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
         >
           {/* header */}
           <div style={{ height: 110, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center' }}>
-            <img src="/proposal-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
+            <img src="/epic-craftings-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
               style={{ height: 60, objectFit: 'contain', display: 'block' }} />
             {E('contact', { position: 'absolute', right: 40, top: 20, fontSize: 9, textAlign: 'right', lineHeight: 1.85 })}
           </div>
@@ -261,7 +264,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative' }}>
             {artworkPath
-              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" />
+              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
           </div>
 
@@ -317,7 +320,9 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
                 <span>50% DUE ON SHIPMENT</span>{E('dep2')}
               </div>
-              {E('pay', { marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5 })}
+              {paymentLink
+                ? <a href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
+                : E('pay', { marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5 })}
             </div>
           </div>
         </div>

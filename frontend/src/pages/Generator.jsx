@@ -56,6 +56,7 @@ export default function Generator() {
   const [answers, setAnswers] = useState({})
   const [artworkPath, setArtworkPath] = useState(null)
   const [artErr, setArtErr] = useState('')
+  const [paymentLink, setPaymentLink] = useState('')
   const [sideViews, setSideViews] = useState([])   // chosen side-view keys
   const [customSpec, setCustomSpec] = useState(null)
   const [logo, setLogoUrl] = useState(null)
@@ -86,6 +87,7 @@ export default function Generator() {
       // #10: if no artwork chosen yet but the customer uploaded an image of the sign, use it
       else if (q.customer_pdf && /\.(png|jpe?g|gif|webp|svg)$/i.test(q.customer_pdf)) setArtworkPath(q.customer_pdf)
       if (g.side_views) setSideViews(g.side_views)
+      if (g.payment_link) setPaymentLink(g.payment_link)
       getLogo().then((l) => setLogoUrl(l.logo)).catch(() => {})
 
       // Mode comes from the intake choice (?mode=ai|custom) or the persisted quote_type — never re-asked.
@@ -123,6 +125,7 @@ export default function Generator() {
       custom_spec: customSpec,
       artwork_path: (artworkPath && !artworkPath.startsWith('blob:') && !artworkPath.startsWith('data:')) ? artworkPath : null,
       side_views: sideViews,
+      payment_link: paymentLink,
       ...extra,
     }
     await putGenerated(quoteId, payload)
@@ -216,11 +219,11 @@ export default function Generator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAi, step])
 
-  // V1 continueFromAI — skip Q&A, use AI defaults, jump to artwork (#80)
+  // AI mode now routes through the Q&A pages (sign type + specs) so the rep can review/adjust
+  // the AI-extracted values instead of jumping straight to artwork.
   const continueFromAI = () => {
-    if (!tpl) { setAiStatus('AI did not return a matching sign type — please pick one manually.'); goto('signtype'); return }
-    setAnswers(autoAnswerFromAI(tpl, ai))
-    goto('artwork')
+    if (!tpl) setAiStatus('AI did not return a matching sign type — please pick one manually.')
+    goto('signtype')
   }
 
   // project-step forward: save the brief, then continue (to artwork if AI matched a sign type, else sign-type)
@@ -284,7 +287,6 @@ export default function Generator() {
               <textarea rows={4} value={special} onChange={(e) => setSpecial(e.target.value)} />
             </div>
             <div className="field">
-              <label>Customer's PDF/image of the sign required</label>
               {quote?.customer_pdf ? (
                 <div className="muted" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <a href={fileUrl(quote.customer_pdf)} target="_blank" rel="noreferrer">📎 View attached file</a>
@@ -316,11 +318,11 @@ export default function Generator() {
                       <pre className="spec-dump" style={{ maxHeight: 220 }}>{ai.fullSpec}</pre>
                     </div>
                   )}
-                  <p className="muted" style={{ marginTop: 6 }}>Pre-filled from the drawing — review above, then "Continue to Artwork".</p>
+                  <p className="muted" style={{ marginTop: 6 }}>Pre-filled from the drawing — review above, then click Next.</p>
                 </div>
               )}
             </div>
-            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={proceedFromProject}>Continue to Artwork →</button></div>
+            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={proceedFromProject}>Next →</button></div>
           </div>
         )}
 
@@ -341,7 +343,7 @@ export default function Generator() {
             </div>
             <div className="foot">
               <button className="ghost" onClick={back}>Back</button>
-              <button disabled={!tpl} onClick={() => { setAnswers({}); next() }}>Next →</button>
+              <button disabled={!tpl} onClick={() => { setAnswers(ai ? autoAnswerFromAI(tpl, ai) : {}); next() }}>Next →</button>
             </div>
           </div>
         )}
@@ -404,6 +406,10 @@ export default function Generator() {
         {step === 'preview' && (
           <div className="step">
             <h3>Proposal</h3>
+            <div className="field" style={{ maxWidth: 520 }}>
+              <label>Payment link (paste it here if you already have one — leave blank otherwise)</label>
+              <input type="url" placeholder="https://…" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} />
+            </div>
             <Proposal
               mode={mode}
               tpl={tpl}
@@ -413,6 +419,7 @@ export default function Generator() {
               artworkPath={artworkPath}
               logo={logo}
               aiResult={ai}
+              paymentLink={paymentLink}
               savedState={gd?.proposal_state}
               sideViews={sideViews}
               onSideViews={setSideViews}

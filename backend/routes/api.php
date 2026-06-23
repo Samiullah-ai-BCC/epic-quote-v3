@@ -43,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // AI
     Route::post('/ai/generate-specs', [App\Http\Controllers\Api\AiController::class, 'generateSpecs']);
+    Route::post('/ai/extract-party', [App\Http\Controllers\Api\AiController::class, 'extractParty']);
 
     // Dashboard & Reports
     Route::get('/dashboard', [App\Http\Controllers\Api\DashboardController::class, 'index']);

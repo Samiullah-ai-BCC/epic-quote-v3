@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useConstants, useCreateQuote } from '../hooks'
+import { extractParty } from '../api/quotes'
 import useAuthStore from '../store/authStore'
 
 const EMPTY = {
@@ -18,8 +19,29 @@ export default function AddQuoteModal({ onClose }) {
   const [form, setForm] = useState(EMPTY)
   const [file, setFile] = useState(null)
   const [error, setError] = useState('')
+  const [autofilling, setAutofilling] = useState(false)
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  // Real-time autofill of the party/job fields from the uploaded file (or pasted brief).
+  // Only fills fields the user hasn't already typed, so it never clobbers manual edits.
+  const autofill = async (source) => {
+    if (!source || (typeof source === 'string' && !source.trim())) return
+    setAutofilling(true); setError('')
+    try {
+      const d = await extractParty(source)
+      setForm((f) => ({
+        ...f,
+        company_name: f.company_name || d.company_name || '',
+        client_name: f.client_name || d.client_name || '',
+        contact: f.contact || d.contact || '',
+        address: f.address || d.address || '',
+        job_name: f.job_name || d.job_name || '',
+      }))
+    } catch (err) {
+      setError('Auto-fill failed: ' + (err.response?.data?.error || err.message || 'unknown error'))
+    } finally { setAutofilling(false) }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -80,8 +102,10 @@ export default function AddQuoteModal({ onClose }) {
         {choice === 'ai' && (
           <div className="field">
             <label>Customer's PDF/image of the sign required — AI reads this first (max 25 MB)</label>
-            <input type="file" accept=".pdf,image/*" autoFocus onChange={(e) => setFile(e.target.files[0] || null)} />
-            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>The fields below are optional — AI fills company, client &amp; specs from the file.</div>
+            <input type="file" accept=".pdf,image/*" autoFocus onChange={(e) => { const f = e.target.files[0] || null; setFile(f); if (f) autofill(f) }} />
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              {autofilling ? '⏳ Reading the file and filling the fields below…' : 'Company, client, contact, address & job auto-fill from the file.'}
+            </div>
           </div>
         )}
 
@@ -111,6 +135,11 @@ export default function AddQuoteModal({ onClose }) {
         <div className="field">
           <label>{choice === 'ai' ? 'Project brief (what the customer wants)' : 'Special Requirements'}</label>
           <textarea rows={choice === 'ai' ? 3 : 2} value={form.special_requirements} onChange={set('special_requirements')} />
+          {choice === 'ai' && form.special_requirements.trim() && (
+            <button type="button" className="ghost sm" style={{ marginTop: 6 }} disabled={autofilling} onClick={() => autofill(form.special_requirements)}>
+              {autofilling ? 'Reading…' : '⚡ Auto-fill fields from this text'}
+            </button>
+          )}
         </div>
 
         {choice === 'custom' && (

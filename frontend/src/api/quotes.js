@@ -52,3 +52,12 @@ export const generateSpecs = (quoteId, projectInfo, sideViewKeys = '', imageData
     quote_id: quoteId, project_info: projectInfo, side_view_keys: sideViewKeys,
     image_data: imageData, image_type: 'image/png',
   }).then((r) => r.data)
+
+// Lightweight party/job extraction for real-time autofill on the intake page (no quote needed yet).
+// Accepts a File (PDF/image) or a plain text brief.
+export const extractParty = (fileOrText) => {
+  const fd = new FormData()
+  if (fileOrText instanceof File) fd.append('file', fileOrText)
+  else fd.append('text', fileOrText || '')
+  return client.post('/ai/extract-party', fd, MULTIPART).then((r) => r.data)
+}

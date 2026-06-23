@@ -114,6 +114,62 @@ PROMPT;
         return response()->json($ai);
     }
 
+    // POST /api/ai/extract-party — autofills the intake fields (company/client/contact/address/job)
+    // from an uploaded PDF/image OR pasted text, BEFORE a quote exists (real-time on the first page).
+    public function extractParty(Request $request): JsonResponse
+    {
+        $text = trim((string) $request->input('text', ''));
+        $imageDataUrl = null;
+        $file = $request->file('file');
+        if ($file) {
+            $path = $file->getRealPath();
+            $ext = strtolower($file->getClientOriginalExtension());
+            if ($ext === 'pdf') {
+                $text = trim($this->extractPdfText($path)."\n".$text);
+            } else {
+                $mime = $ext === 'png' ? 'image/png' : ($ext === 'svg' ? 'image/svg+xml' : "image/{$ext}");
+                $imageDataUrl = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($path));
+            }
+        }
+        if ($text === '' && !$imageDataUrl) {
+            return response()->json(['error' => 'Provide a PDF/image or some text to read.'], 422);
+        }
+
+        $info = $text !== '' ? mb_substr($text, 0, 8000) : '(see the attached image)';
+        $imgNote = $imageDataUrl ? ' and the attached image of their document' : '';
+        $prompt = <<<PROMPT
+You are a sign-industry assistant for Epic Craftings, a WHOLESALE sign manufacturer. A RETAIL sign company (OUR client) sends a drawing/brief for THEIR end customer. Read the content{$imgNote} and identify the parties + job.
+
+CONTENT:
+{$info}
+
+The RETAIL sign company (OUR client) appears in the title block / footer / logo / contact details (e.g. "FastSigns Allentown"). The drawing's "Client:" field is the END customer (e.g. "28 TEN Group") — that is NOT our client.
+
+Respond ONLY with a JSON object (no markdown, no preamble); use empty string "" when unknown:
+{
+ "companyName": "the RETAIL sign company that sent this — OUR client",
+ "clientName": "the end customer (often the drawing's 'Client:' field)",
+ "contact": "the retail company's email and/or phone",
+ "address": "the retail company's mailing address",
+ "jobName": "a short job name"
+}
+PROMPT;
+
+        try {
+            $ai = $this->callAndParse($prompt, $imageDataUrl);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Extraction failed: '.$e->getMessage()], 502);
+        }
+
+        return response()->json([
+            'company_name' => $ai['companyName'] ?? '',
+            'client_name'  => $ai['clientName'] ?? '',
+            'contact'      => $ai['contact'] ?? '',
+            'address'      => $ai['address'] ?? '',
+            'job_name'     => $ai['jobName'] ?? '',
+        ]);
+    }
+
     /** Call Groq and robustly parse JSON, retrying once if the model returns junk. */
     private function callAndParse(string $prompt, ?string $imageDataUrl): array
     {
