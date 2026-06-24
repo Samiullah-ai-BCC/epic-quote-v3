@@ -253,7 +253,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
         >
           {/* header */}
           <div style={{ height: 110, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center' }}>
-            <img src="/epic-craftings-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
+            <img src="/quote-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
               style={{ height: 60, objectFit: 'contain', display: 'block' }} />
             {E('contact', { position: 'absolute', right: 40, top: 20, fontSize: 9, textAlign: 'right', lineHeight: 1.85 })}
           </div>
