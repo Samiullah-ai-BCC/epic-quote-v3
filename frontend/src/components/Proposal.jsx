@@ -141,7 +141,7 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
   )
 }
 
-const LOUPE = 180, SRC = 33   // eyedropper magnifier: loupe diameter (px) and source pixels across it
+const LOUPE = 185, SRC = 38   // eyedropper magnifier: loupe diameter (px) and source pixels across it
                               // (~5.5px per pixel — pixels stay visible but you keep enough context to aim)
 
 export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, sideViews = [], onSideViews }) {
