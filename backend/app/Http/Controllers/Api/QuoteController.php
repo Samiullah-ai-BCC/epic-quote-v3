@@ -148,7 +148,7 @@ class QuoteController extends Controller
                 'quote_source'         => $quoteSource,
                 'status'               => 'To Do',
                 'tags'                 => [],
-                'price'                => 0,
+                'price'                => 1200,   // default quote value until the rep sets a real price
                 'created_by'           => $user->id,
             ]);
         });
