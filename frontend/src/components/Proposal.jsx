@@ -141,6 +141,8 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
   )
 }
 
+const LOUPE = 168, SRC = 13   // eyedropper magnifier: loupe diameter (px) and source pixels across it
+
 export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, sideViews = [], onSideViews }) {
   const pageRef = useRef(null)
   const wrapRef = useRef(null)
@@ -172,39 +174,65 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     setSelId('swatch-' + id)
   }
   const [pickFor, setPickFor] = useState(null)   // swatch id currently sampling a color from the artwork
-  // Universal eyedropper (every browser/device): read the clicked pixel from a CORS-loaded copy of
-  // the artwork via canvas — no native EyeDropper API, so it works in Chrome/Firefox/Safari/mobile.
-  const sampleArtwork = (e) => {
+  const [loupe, setLoupe] = useState(null)       // { left, top, hex } magnifier following the cursor
+  const artCanvasRef = useRef(null)              // cached CORS-readable canvas of the artwork (natural size)
+  const loupeRef = useRef(null)
+  // Build (once) a readable canvas of the artwork; null if the image can't be read (no CORS).
+  const getArtCanvas = () => {
+    if (artCanvasRef.current) return artCanvasRef.current
+    const el = pageRef.current?.querySelector('[data-rk="artwork"] img')
+    if (!el || !el.naturalWidth) return null
+    try {
+      const cv = document.createElement('canvas'); cv.width = el.naturalWidth; cv.height = el.naturalHeight
+      cv.getContext('2d').drawImage(el, 0, 0)
+      cv.getContext('2d').getImageData(0, 0, 1, 1)    // throws if tainted
+      artCanvasRef.current = cv; return cv
+    } catch { return null }
+  }
+  const relPos = (e) => {
     const t = e.currentTarget
-    const relX = t.offsetWidth ? Math.min(1, Math.max(0, e.nativeEvent.offsetX / t.offsetWidth)) : 0.5
-    const relY = t.offsetHeight ? Math.min(1, Math.max(0, e.nativeEvent.offsetY / t.offsetHeight)) : 0.5
+    return [t.offsetWidth ? Math.min(1, Math.max(0, e.nativeEvent.offsetX / t.offsetWidth)) : 0.5,
+      t.offsetHeight ? Math.min(1, Math.max(0, e.nativeEvent.offsetY / t.offsetHeight)) : 0.5]
+  }
+  const hexAt = (cv, rx, ry) => {
+    const px = Math.min(cv.width - 1, Math.max(0, Math.round(rx * cv.width)))
+    const py = Math.min(cv.height - 1, Math.max(0, Math.round(ry * cv.height)))
+    const d = cv.getContext('2d').getImageData(px, py, 1, 1).data
+    return ['#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join(''), px, py]
+  }
+  // Magnifier loupe so the rep can see the exact pixel/color before clicking.
+  const onPickMove = (e) => {
+    const cv = getArtCanvas(); if (!cv) return
+    const [rx, ry] = relPos(e)
+    const [hex, px, py] = hexAt(cv, rx, ry)
+    const lc = loupeRef.current
+    if (lc) {
+      const ctx = lc.getContext('2d'); ctx.imageSmoothingEnabled = false
+      ctx.clearRect(0, 0, LOUPE, LOUPE)
+      ctx.drawImage(cv, px - (SRC - 1) / 2, py - (SRC - 1) / 2, SRC, SRC, 0, 0, LOUPE, LOUPE)
+      const cell = LOUPE / SRC, c0 = Math.floor(SRC / 2) * cell
+      ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeRect(c0, c0, cell, cell)
+      ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.strokeRect(c0, c0, cell, cell)
+    }
+    setLoupe({ left: e.clientX, top: e.clientY, hex })
+  }
+  const sampleArtwork = (e) => {
     const swId = pickFor
+    const [rx, ry] = relPos(e)
     const apply = (hex) => {
       setSwatches((arr) => arr.map((x) => (x.id === swId ? { ...x, color: hex } : x)))
-      setSelId('swatch-' + swId); flash('Color picked ' + hex.toUpperCase()); setPickFor(null)
+      setSelId('swatch-' + swId); flash('Color picked ' + hex.toUpperCase()); setLoupe(null); setPickFor(null)
     }
-    const readFrom = (img) => {
-      const cv = document.createElement('canvas')
-      cv.width = img.naturalWidth; cv.height = img.naturalHeight
-      const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0)
-      const px = Math.min(img.naturalWidth - 1, Math.max(0, Math.round(relX * img.naturalWidth)))
-      const py = Math.min(img.naturalHeight - 1, Math.max(0, Math.round(relY * img.naturalHeight)))
-      const d = ctx.getImageData(px, py, 1, 1).data
-      return '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('')
-    }
-    // 1) read straight from the on-screen artwork image (CORS-loaded via crossOrigin on the <img>)
-    const el = pageRef.current?.querySelector('[data-rk="artwork"] img')
-    if (el && el.naturalWidth) { try { apply(readFrom(el)); return } catch { /* tainted — fall through */ } }
-    // 2) fallback: fetch a fresh CORS copy (unique URL avoids a non-CORS cache hit)
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => { try { apply(readFrom(img)) } catch (err) { flash('Could not read this artwork: ' + (err.message || err)); setPickFor(null) } }
-    img.onerror = () => { flash('Could not load the artwork for picking.'); setPickFor(null) }
-    const src = fileUrl(artworkPath)
-    img.src = src + (src.includes('?') ? '&' : '?') + '_cors=' + Date.now()
+    const cv = getArtCanvas()
+    if (cv) { apply(hexAt(cv, rx, ry)[0]); return }
+    // fallback for an image we can't read directly: fetch a fresh CORS copy
+    const img = new Image(); img.crossOrigin = 'anonymous'
+    img.onload = () => { try { const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0); apply(hexAt(c, rx, ry)[0]) } catch (err) { flash('Could not read this artwork: ' + (err.message || err)); setLoupe(null); setPickFor(null) } }
+    img.onerror = () => { flash('Could not load the artwork for picking.'); setLoupe(null); setPickFor(null) }
+    const src = fileUrl(artworkPath); img.src = src + (src.includes('?') ? '&' : '?') + '_cors=' + Date.now()
   }
   useEffect(() => {
-    if (!pickFor) return
+    if (!pickFor) { setLoupe(null); return }
     const onKey = (e) => { if (e.key === 'Escape') setPickFor(null) }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -353,6 +381,15 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           🎨 Click the highlighted artwork to grab its color · press Esc to cancel
         </div>
       )}
+      {pickFor && (
+        <div style={{ position: 'fixed', left: loupe ? loupe.left - LOUPE / 2 : -9999, top: loupe ? loupe.top - LOUPE / 2 : -9999, zIndex: 210, pointerEvents: 'none', display: loupe ? 'block' : 'none' }}>
+          <canvas ref={loupeRef} width={LOUPE} height={LOUPE}
+            style={{ width: LOUPE, height: LOUPE, borderRadius: '50%', border: '3px solid #fff', boxShadow: '0 3px 14px rgba(0,0,0,0.5)', display: 'block', background: '#fff' }} />
+          <div style={{ textAlign: 'center', marginTop: 5 }}>
+            <span style={{ background: '#222', color: '#fff', fontSize: 12, fontWeight: 700, borderRadius: 4, padding: '2px 8px', fontFamily: 'monospace' }}>{loupe ? loupe.hex.toUpperCase() : ''}</span>
+          </div>
+        </div>
+      )}
 
       <div ref={wrapRef} style={{ overflow: 'hidden', background: '#5a6270', padding: 20, borderRadius: 10 }}>
         <div style={{ width: 816 * scale, height: scaledH, margin: '0 auto' }}>
@@ -389,7 +426,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
               ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144, rot: 0 }; return (
-              <div onClick={sampleArtwork} title="Click to grab this color"
+              <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
                 style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, transform: `rotate(${a.rot || 0}deg)`, cursor: 'crosshair', zIndex: 80, outline: '2px dashed #8b5cf6', outlineOffset: -1 }} />
             ) })()}
           </div>
@@ -458,7 +495,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
               selected={selId === 'swatch-' + sw.id} onSelect={() => setSelId('swatch-' + sw.id)}
               onChange={(n) => setSwatches((arr) => arr.map((x) => (x.id === sw.id ? n : x)))}
               onRemove={() => { setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null) }}
-              onPick={() => setPickFor(sw.id)} canPick={!!artworkPath} />
+              onPick={() => { artCanvasRef.current = null; setPickFor(sw.id) }} canPick={!!artworkPath} />
           ) : null))}
         </div>
         </div>
