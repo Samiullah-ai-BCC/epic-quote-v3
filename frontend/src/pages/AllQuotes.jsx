@@ -79,7 +79,7 @@ export default function AllQuotes() {
                   <td><EditCell value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>
                   <td><EditCell value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>
                   <td><EditCell value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>
-                  <td><EditCell value={q.price} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>
+                  <td><EditCell value={q.price || 1200} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>
                   <td>
                     {admin ? (
                       <select value={q.sales_rep || ''} style={{ width: 110 }} onChange={(e) => patch(q.quote_id, 'sales_rep', e.target.value)}>
@@ -119,7 +119,7 @@ export default function AllQuotes() {
               ['Company', viewing.company_name], ['Client', viewing.client_name],
               ['Contact', viewing.contact], ['Address', viewing.address],
               ['Job', viewing.job_name],
-              ['Price', viewing.price], ['Sales Rep', viewing.sales_rep],
+              ['Price', `$${Number(viewing.price || 1200).toLocaleString()}`], ['Sales Rep', viewing.sales_rep],
               ['Status', viewing.status],
               ['Special Requirements', viewing.special_requirements],
               ['Created By', viewing.added_by], ['Finalized By', viewing.created_by_name],
