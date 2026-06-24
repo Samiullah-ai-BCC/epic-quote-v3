@@ -38,7 +38,7 @@ const PACKAGE = [
 // drag the body to move, a corner to resize, the top grip to rotate. Absolute-positioned, so
 // resizing one element never reflows the page. Geometry is reported up via onLay (persisted in
 // proposal_state.__layout); selection chrome carries className "adj-ui" so PDF capture hides it.
-function AdjImg({ rk, def, lay, onLay, src, alt, caption, lockAspect, scaleRef, selected, onSelect }) {
+function AdjImg({ rk, def, lay, onLay, src, alt, caption, lockAspect, cors, scaleRef, selected, onSelect }) {
   const init = lay || def
   const [box, setBox] = useState({ x: init.x, y: init.y, w: init.w, h: init.h, rot: init.rot || 0 })
   const rootRef = useRef(null)
@@ -71,7 +71,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, caption, lockAspect, scaleRef, 
     <div ref={rootRef} data-rk={rk} onMouseDown={start('move')}
       style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', pointerEvents: 'none' }}>
-        <img src={src} alt={alt} draggable={false}
+        <img src={src} alt={alt} draggable={false} crossOrigin={cors ? 'anonymous' : undefined}
           onLoad={lockAspect ? (e) => { const r = e.target.naturalWidth / e.target.naturalHeight; if (r > 0) setBox((b) => ({ ...b, h: Math.max(20, Math.round(b.w / r)) })) } : undefined}
           style={{ flex: 1, minHeight: 0, width: '100%', objectFit: 'contain', display: 'block' }} />
         {caption && <div style={{ fontSize: 8, textAlign: 'center', marginTop: 2, lineHeight: 1.2 }}>{caption}</div>}
@@ -100,7 +100,7 @@ function swatchText(hex) {
 
 // Canva-style draggable color swatch: a filled block + name that PRINTS, plus a picker popover
 // (color wheel + name field) carrying className "adj-ui" so it is hidden from the PDF/PNG capture.
-function AdjSwatch({ rk, sw, onChange, onRemove, scaleRef, selected, onSelect }) {
+function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, selected, onSelect }) {
   const startDrag = (e) => {
     if (e.target.closest('.adj-ui')) return            // don't drag while using the picker
     e.preventDefault(); e.stopPropagation(); onSelect()
@@ -121,9 +121,15 @@ function AdjSwatch({ rk, sw, onChange, onRemove, scaleRef, selected, onSelect })
         <>
           <div className="adj-ui" style={{ position: 'absolute', inset: -2, border: '1.5px solid #8b5cf6', pointerEvents: 'none' }} />
           <div className="adj-ui" onMouseDown={(e) => e.stopPropagation()}
-            style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 70, background: '#fff', border: '1px solid #8b5cf6', borderRadius: 6, padding: 8, display: 'flex', gap: 6, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', textTransform: 'none', width: 210 }}>
+            style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 70, background: '#fff', border: '1px solid #8b5cf6', borderRadius: 6, padding: 8, display: 'flex', gap: 6, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', textTransform: 'none', width: 246 }}>
             <input type="color" value={has ? sw.color : '#000000'} onChange={(e) => onChange({ ...sw, color: e.target.value })}
               title="Pick color" style={{ width: 34, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
+            {canPick && (
+              <button type="button" onClick={onPick} title="Pick a color from the artwork (works in every browser)"
+                style={{ border: '1px solid #ccc', background: '#fff', borderRadius: 4, cursor: 'pointer', padding: '4px 5px', display: 'flex', alignItems: 'center' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 22 1-1h3l9-9" /><path d="M3 21v-3l9-9" /><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" /></svg>
+              </button>
+            )}
             <input type="text" value={sw.name || ''} placeholder="name / PMS" onChange={(e) => onChange({ ...sw, name: e.target.value })}
               style={{ flex: 1, fontSize: 12, padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4 }} />
             <button type="button" onClick={onRemove} title="Remove swatch"
@@ -165,6 +171,44 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     setSwatches((s) => [...s, { id, name: '', color: '', x: 300, y: 560, w: SW_W, h: SW_H }])
     setSelId('swatch-' + id)
   }
+  const [pickFor, setPickFor] = useState(null)   // swatch id currently sampling a color from the artwork
+  // Universal eyedropper (every browser/device): read the clicked pixel from a CORS-loaded copy of
+  // the artwork via canvas — no native EyeDropper API, so it works in Chrome/Firefox/Safari/mobile.
+  const sampleArtwork = (e) => {
+    const t = e.currentTarget
+    const relX = t.offsetWidth ? Math.min(1, Math.max(0, e.nativeEvent.offsetX / t.offsetWidth)) : 0.5
+    const relY = t.offsetHeight ? Math.min(1, Math.max(0, e.nativeEvent.offsetY / t.offsetHeight)) : 0.5
+    const swId = pickFor
+    const apply = (hex) => {
+      setSwatches((arr) => arr.map((x) => (x.id === swId ? { ...x, color: hex } : x)))
+      setSelId('swatch-' + swId); flash('Color picked ' + hex.toUpperCase()); setPickFor(null)
+    }
+    const readFrom = (img) => {
+      const cv = document.createElement('canvas')
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight
+      const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0)
+      const px = Math.min(img.naturalWidth - 1, Math.max(0, Math.round(relX * img.naturalWidth)))
+      const py = Math.min(img.naturalHeight - 1, Math.max(0, Math.round(relY * img.naturalHeight)))
+      const d = ctx.getImageData(px, py, 1, 1).data
+      return '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('')
+    }
+    // 1) read straight from the on-screen artwork image (CORS-loaded via crossOrigin on the <img>)
+    const el = pageRef.current?.querySelector('[data-rk="artwork"] img')
+    if (el && el.naturalWidth) { try { apply(readFrom(el)); return } catch { /* tainted — fall through */ } }
+    // 2) fallback: fetch a fresh CORS copy (unique URL avoids a non-CORS cache hit)
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => { try { apply(readFrom(img)) } catch (err) { flash('Could not read this artwork: ' + (err.message || err)); setPickFor(null) } }
+    img.onerror = () => { flash('Could not load the artwork for picking.'); setPickFor(null) }
+    const src = fileUrl(artworkPath)
+    img.src = src + (src.includes('?') ? '&' : '?') + '_cors=' + Date.now()
+  }
+  useEffect(() => {
+    if (!pickFor) return
+    const onKey = (e) => { if (e.key === 'Escape') setPickFor(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [pickFor])
   const scaleRef = useRef(scale)
   scaleRef.current = scale
 
@@ -304,6 +348,11 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       <div className="edit-hint" style={{ marginBottom: 10, fontSize: 13, color: 'var(--muted, #8a94a6)' }}>
         ✏️ Click any text on the proposal to edit it. Save keeps your edits; PDF embeds none of the handles.
       </div>
+      {pickFor && (
+        <div style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', background: '#8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: 6, zIndex: 200, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
+          🎨 Click the highlighted artwork to grab its color · press Esc to cancel
+        </div>
+      )}
 
       <div ref={wrapRef} style={{ overflow: 'hidden', background: '#5a6270', padding: 20, borderRadius: 10 }}>
         <div style={{ width: 816 * scale, height: scaledH, margin: '0 auto' }}>
@@ -337,8 +386,12 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative' }}>
             {artworkPath
-              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect />
+              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
+            {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144, rot: 0 }; return (
+              <div onClick={sampleArtwork} title="Click to grab this color"
+                style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, transform: `rotate(${a.rot || 0}deg)`, cursor: 'crosshair', zIndex: 80, outline: '2px dashed #8b5cf6', outlineOffset: -1 }} />
+            ) })()}
           </div>
 
           {/* item table — its own bordered block with a gap above (matches the template) */}
@@ -404,7 +457,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             <AdjSwatch key={sw.id} rk={'swatch-' + sw.id} sw={sw} scaleRef={scaleRef}
               selected={selId === 'swatch-' + sw.id} onSelect={() => setSelId('swatch-' + sw.id)}
               onChange={(n) => setSwatches((arr) => arr.map((x) => (x.id === sw.id ? n : x)))}
-              onRemove={() => { setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null) }} />
+              onRemove={() => { setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null) }}
+              onPick={() => setPickFor(sw.id)} canPick={!!artworkPath} />
           ) : null))}
         </div>
         </div>
