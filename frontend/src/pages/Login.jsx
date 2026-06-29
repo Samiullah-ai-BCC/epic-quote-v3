@@ -120,7 +120,7 @@ const CSS = `
 
 .ecsign-form { flex:1; display:flex; align-items:center; justify-content:center; padding:32px; }
 .ecsign-inner { width:300px; }
-.ecsign-logo { height:30px; display:block; margin-bottom:8px; }
+.ecsign-logo { height:48px; display:block; margin-bottom:12px; }
 .ecsign-sub { font-size:13px; color:#7f93b5; margin-bottom:24px; }
 .ecsign-lbl { display:block; font-size:12px; font-weight:600; color:#9fb0cd; margin-bottom:6px; }
 .ecsign-in { width:100%; height:42px; background:#0a1220; border:1px solid #25364f; border-radius:8px; padding:0 12px;
