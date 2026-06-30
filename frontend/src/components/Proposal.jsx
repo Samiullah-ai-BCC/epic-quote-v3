@@ -92,7 +92,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
       style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
         <img src={src} alt={alt} draggable={false} crossOrigin={cors ? 'anonymous' : undefined}
-          onLoad={lockAspect ? (e) => { const r = e.target.naturalWidth / e.target.naturalHeight; if (r > 0) setBox((b) => { const h = Math.max(20, Math.round(b.w / r)); return { ...b, h, ix: 0, iy: 0, iw: b.w, ih: h } }) } : undefined}
+          onLoad={(lockAspect && !lay) ? (e) => { const r = e.target.naturalWidth / e.target.naturalHeight; if (r > 0) setBox((b) => { const h = Math.max(20, Math.round(b.w / r)); return { ...b, h, ix: 0, iy: 0, iw: b.w, ih: h } }) } : undefined}
           style={{ position: 'absolute', left: box.ix, top: box.iy, width: box.iw, height: box.ih, objectFit: 'contain', display: 'block', pointerEvents: 'none' }} />
       </div>
       {selected && (
@@ -383,17 +383,17 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 2500) }
 
-  // ---- Auto-save: persist edits + geometry automatically (debounced) so nothing is lost and the
-  // layout/crop stays locked when you leave the proposal and come back. ----
+  // ---- Auto-save: persist edits + geometry automatically (debounced). flushRef always points at
+  // the LATEST capture + onSave, so neither the debounce nor the unmount flush can ever save a stale
+  // (pre-edit) snapshot — which is what was wiping artwork edits on "Save & Return". ----
   const saveTimer = useRef(null)
   const mounted = useRef(false)
+  const flushRef = useRef(() => {})
+  flushRef.current = () => { try { if (onSave) onSave(captureState()) } catch { /* ignore */ } }
   const queueSave = () => {
     if (!onSave) return
     clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      saveTimer.current = null
-      try { onSave(captureState()); flash('Saved') } catch { /* ignore */ }
-    }, 700)
+    saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -402,8 +402,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     el.addEventListener('input', h)
     return () => el.removeEventListener('input', h)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // Flush a pending save on unmount so a quick Back right after an edit still persists.
-  useEffect(() => () => { if (saveTimer.current) { clearTimeout(saveTimer.current); try { onSave?.(captureState()) } catch { /* ignore */ } } }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Flush a pending save on unmount (e.g. "Save & Return" right after an edit) using the LATEST snapshot.
+  useEffect(() => () => { if (saveTimer.current) { clearTimeout(saveTimer.current); flushRef.current() } }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Data-driven colour chips: scan the real FACE / RETURN / TRIM colour lines and glue one chip
   // snug to the right of each, vertically centred. Handles every catalog wording, incl. a combined
