@@ -51,11 +51,36 @@ class DashboardController extends Controller
 
         $totalSalesValue = (float) (clone $ordersQuery)->sum('orders.total_value');
 
-        $pendingCount = $allQuotes->where('status', '!=', 'Done')->count();
+        $openQuotes   = $allQuotes->where('status', '!=', 'Done');
+        $pendingCount = $openQuotes->count();
+        $pipelineValue = (float) $openQuotes->sum('price');
+        $avgQuoteValue = $pendingCount ? round($pipelineValue / $pendingCount) : 0;
+
+        // The "needs attention" queue — open quotes waiting on a rep action, most overdue first.
+        $attentionStatuses = [
+            'Artwork Needed', 'Quote Approval Needed', 'Need Payment Link Sent', 'Need To Share With Customer',
+            'Awaiting Customer Response', 'Awaiting Rod Response', 'Awaiting Sir Sami Response',
+        ];
+        $needsAttention = $allQuotes
+            ->whereIn('status', $attentionStatuses)
+            ->map(fn ($q) => [
+                'quote_id'     => $q->quote_id,
+                'company_name' => $q->company_name,
+                'job_name'     => $q->job_name,
+                'price'        => (float) $q->price,
+                'status'       => $q->status,
+                'days_waiting' => $q->updated_at ? (int) $q->updated_at->diffInDays($now) : 0,
+            ])
+            ->sortByDesc('days_waiting')
+            ->take(8)
+            ->values();
 
         return response()->json([
-            'month_label' => $now->format('F Y'),
-            'cards'       => $statusCounts,
+            'month_label'     => $now->format('F Y'),
+            'cards'           => $statusCounts,
+            'pipeline_value'  => $pipelineValue,
+            'avg_quote_value' => $avgQuoteValue,
+            'needs_attention' => $needsAttention,
             'totals'      => [
                 'total_quotes_month' => $totalQuotesMonth,
                 'total_amount_month' => $totalAmountMonth,
