@@ -72,6 +72,7 @@ export default function Generator() {
   const [aiLoading, setAiLoading] = useState(false)
   const artInput = useRef(null)
   const [showDrawing, setShowDrawing] = useState(false)   // in-app viewer for the customer's file
+  const [drawingOk, setDrawingOk] = useState(null)        // null = checking, false = file missing on server
   const [proposalNotes, setProposalNotes] = useState('')  // net-new notes (asked last), shown on the proposal
   const [repOther, setRepOther] = useState(false)         // typing a custom sales rep
 
@@ -241,6 +242,15 @@ export default function Generator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAi, step])
+
+  // When the drawing viewer opens, check the file is actually on the server (older uploads can be gone)
+  useEffect(() => {
+    if (!showDrawing || !quote?.customer_pdf) return
+    setDrawingOk(null)
+    fetch(fileUrl(quote.customer_pdf), { method: 'HEAD' })
+      .then((r) => setDrawingOk(r.ok))
+      .catch(() => setDrawingOk(false))
+  }, [showDrawing, quote?.customer_pdf])
 
   // Pick a sign type → go straight to its questions (one click, no separate Next button).
   // Re-picking the SAME type keeps the answers already entered (fixes edit-back wiping specs).
@@ -488,7 +498,14 @@ export default function Generator() {
                 <button className="ghost sm" onClick={() => setShowDrawing(false)}>Close</button>
               </div>
             </div>
-            {/\.pdf$/i.test(quote.customer_pdf)
+            {drawingOk === null ? (
+              <div className="center" style={{ flex: 1, color: 'var(--text-dim)' }}>Loading…</div>
+            ) : drawingOk === false ? (
+              <div className="center" style={{ flex: 1, flexDirection: 'column', gap: 6, color: 'var(--text-dim)', textAlign: 'center', padding: 24 }}>
+                <div style={{ fontSize: 15, color: 'var(--text)' }}>This drawing isn't on the server.</div>
+                <div style={{ fontSize: 13 }}>It looks like an older upload from before files were stored permanently. Re-upload it with "Replace" on the project step.</div>
+              </div>
+            ) : /\.pdf$/i.test(quote.customer_pdf)
               ? <iframe title="Customer drawing" src={fileUrl(quote.customer_pdf)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', minHeight: 0 }} />
               : <img src={fileUrl(quote.customer_pdf)} alt="Customer drawing" style={{ flex: 1, objectFit: 'contain', minHeight: 0 }} />}
           </div>
