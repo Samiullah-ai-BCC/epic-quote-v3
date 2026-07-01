@@ -6,7 +6,7 @@ import useAuthStore from '../store/authStore'
 
 // status → pill colour (read status by colour, everywhere)
 const COLOR = {
-  'To Do': 'gray', 'In Progress': 'blue', 'Artwork Needed': 'amber', 'Quote Approval Needed': 'amber',
+  'To Do': 'gray', 'In Progress': 'blue', 'Artwork Needed': 'amber', 'Quote Approval Needed': 'pink',
   'Need Payment Link Sent': 'coral', 'Need To Share With Customer': 'teal',
   'Awaiting Customer Response': 'purple', 'Awaiting Rod Response': 'purple', 'Awaiting Sir Sami Response': 'purple',
   'Done': 'green',

@@ -270,10 +270,11 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .pill-teal { background: rgba(29,158,117,.17); color: #5dcaa5; }
 .pill-purple { background: rgba(127,119,221,.2); color: #afa9ec; }
 .pill-green { background: rgba(99,153,34,.18); color: #97c459; }
+.pill-pink { background: rgba(237,147,177,.2); color: #f2a7c2; }
 .pipe { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--navy-600); }
 .pipe-seg { cursor: pointer; min-width: 2px; }
 .seg-gray { background: #3a4a66; } .seg-blue { background: #378add; } .seg-amber { background: #ba7517; }
-.seg-coral { background: #d85a30; } .seg-teal { background: #1d9e75; } .seg-purple { background: #7f77dd; } .seg-green { background: #639922; }
+.seg-coral { background: #d85a30; } .seg-teal { background: #1d9e75; } .seg-purple { background: #7f77dd; } .seg-green { background: #639922; } .seg-pink { background: #d4537e; }
 .pipe-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 14px; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
 .pipe-legend .item { cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .pipe-legend .item b { color: var(--text); margin-left: 2px; }
