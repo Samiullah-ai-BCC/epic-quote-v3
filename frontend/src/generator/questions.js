@@ -6,7 +6,7 @@ export function buildQuestions(t, ai = {}) {
   ai = ai || {}
   const qs = []
 
-  qs.push({ key: 'dimensions', q: 'What are the overall dimensions? (Height × Width)', type: 'text', def: ai.dimensions || null, placeholder: 'e.g. 29" X 100"', aiSet: !!ai.dimensions })
+  qs.push({ key: 'dimensions', q: 'Overall dimensions (L × W × H)', type: 'dims', def: ai.dimensions || null, aiSet: !!ai.dimensions })
 
   // monuments are free-form — ask only the high-level fields (V2 parity); spec body comes from AI fullSpec
   if (t.mono) {
@@ -53,6 +53,18 @@ export function buildQuestions(t, ai = {}) {
   qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : '1200', placeholder: 'e.g. 1200', aiSet: ai.price != null })
 
   return qs
+}
+
+// Dimensions: keep L×W×H as separate values so the team can't mangle the format.
+// parseDims splits an existing/AI string into parts; composeDims rebuilds the
+// canonical `20" x 20" x 3"` string (only the filled parts, always ` x `-joined).
+export function parseDims(str) {
+  if (!str) return { l: '', w: '', h: '' }
+  const p = String(str).split(/\s*[x×*_]\s*/i).map((s) => s.replace(/["'″′]/g, '').trim())
+  return { l: p[0] || '', w: p[1] || '', h: p[2] || '' }
+}
+export function composeDims(l, w, h) {
+  return [l, w, h].map((v) => String(v ?? '').trim()).filter((v) => v !== '').map((v) => v + '"').join(' x ')
 }
 
 // Pre-fill answers from AI defaults (V1 autoAnswerFromAI)

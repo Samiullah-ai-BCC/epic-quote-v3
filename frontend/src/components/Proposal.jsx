@@ -364,6 +364,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   // editable block — content set once via dangerouslySetInnerHTML so React never clobbers edits
   const E = (key, style) => (
     <div data-key={key} contentEditable suppressContentEditableWarning
+      spellCheck lang="en-US"
       style={{ outline: 'none', ...style }}
       dangerouslySetInnerHTML={{ __html: initial[key] }} />
   )

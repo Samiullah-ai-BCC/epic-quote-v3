@@ -16,9 +16,9 @@ export default function Layout() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand-lock">
+        <NavLink to="/dashboard" className="brand-lock" title="Go to dashboard" style={{ cursor: 'pointer' }}>
           <img src="/quote-logo-t.png" alt="Epic Craftings" />
-        </div>
+        </NavLink>
         <NavLink to="/dashboard" className={link}>Dashboard</NavLink>
         <NavLink to="/quotes" className={link}>All Quotes</NavLink>
         {admin && <NavLink to="/users" className={link}>Users</NavLink>}

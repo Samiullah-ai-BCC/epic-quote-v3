@@ -408,7 +408,10 @@ export default function Generator() {
             <QA tpl={tpl} ai={ai} initialAnswers={answers} onComplete={finishSpecs} />
             <div className="foot">
               <button className="ghost" onClick={back}>Back</button>
-              <button disabled={!Object.keys(answers).length} onClick={() => next()}>Next: Upload Artwork →</button>
+              {!String(answers.dimensions || '').trim() && (
+                <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>Enter L, W & H to continue</span>
+              )}
+              <button disabled={!Object.keys(answers).length || !String(answers.dimensions || '').trim()} onClick={() => next()}>Next: Upload Artwork →</button>
             </div>
           </div>
         )}

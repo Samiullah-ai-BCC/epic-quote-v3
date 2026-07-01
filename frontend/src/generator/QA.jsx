@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildQuestions } from './questions'
+import { buildQuestions, parseDims, composeDims } from './questions'
 
 /* Single, consistent Specifications form. Every sign type shows ONE page of fields
    (the set adapts to the type, but it's always one page — never a variable-length chat).
@@ -11,6 +11,17 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
   const seed = useMemo(() => {
     const a = {}
     questions.forEach((q) => {
+      if (q.type === 'dims') {
+        // seed the 3 parts from saved parts, else parse the saved/AI string
+        const src = (initialAnswers.dim_l || initialAnswers.dim_w || initialAnswers.dim_h)
+          ? { l: initialAnswers.dim_l, w: initialAnswers.dim_w, h: initialAnswers.dim_h }
+          : parseDims(initialAnswers.dimensions ?? q.def)
+        a.dim_l = src.l || ''
+        a.dim_w = src.w || ''
+        a.dim_h = src.h || ''
+        a.dimensions = composeDims(a.dim_l, a.dim_w, a.dim_h)
+        return
+      }
       a[q.key] = initialAnswers[q.key]
         ?? (q.def != null ? String(q.def) : (q.type === 'chips' && q.options?.length ? q.options[0] : ''))
     })
@@ -20,6 +31,12 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
 
   const [answers, setAnswers] = useState(seed)
   const setA = (k, v) => setAnswers((s) => ({ ...s, [k]: v }))
+  // update one dimension part and re-derive the canonical L×W×H string in lock-step
+  const setDim = (part, v) => setAnswers((s) => {
+    const n = { ...s, [part]: v }
+    n.dimensions = composeDims(n.dim_l, n.dim_w, n.dim_h)
+    return n
+  })
 
   // keep the parent in sync (seed on mount + every edit) so the wizard always has current answers
   useEffect(() => { onComplete(answers) }, [answers]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -29,7 +46,23 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
       {questions.map((q) => (
         <div className="field" key={q.key}>
           <label>{q.q}{q.aiSet ? '  ⚡ AI' : ''}</label>
-          {q.type === 'chips' ? (
+          {q.type === 'dims' ? (
+            <div className="dims-row">
+              {['dim_l', 'dim_w', 'dim_h'].map((part, i) => (
+                <div className="dims-cell" key={part}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={['L', 'W', 'H'][i]}
+                    value={answers[part] ?? ''}
+                    onChange={(e) => setDim(part, e.target.value)}
+                  />
+                  {i < 2 && <span className="dims-x">×</span>}
+                </div>
+              ))}
+              <span className="dims-unit">in</span>
+            </div>
+          ) : q.type === 'chips' ? (
             <div className="chip-row">
               {q.options.map((opt) => (
                 <button
