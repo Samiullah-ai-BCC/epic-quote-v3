@@ -107,23 +107,23 @@ const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 .ecsign { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
   background:#070a12; font-family:'Inter',system-ui,sans-serif; color:#e8edf5; }
-.ecsign-card { display:flex; width:100%; max-width:880px; min-height:480px; background:#0d1626; border:1px solid #1c2a44;
+.ecsign-card { display:flex; width:100%; max-width:1000px; min-height:580px; background:#0d1626; border:1px solid #1c2a44;
   border-radius:16px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.55); }
 
-.ecsign-panel { flex:0 0 47%; position:relative; background:#0a1220; border-right:1px solid #1c2a44; padding:30px;
+.ecsign-panel { flex:0 0 47%; position:relative; background:#0a1220; border-right:1px solid #1c2a44; padding:40px;
   display:flex; flex-direction:column; justify-content:space-between; }
 .ecsign-tag { align-self:flex-start; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#f9a600;
   background:rgba(249,166,0,.1); border:1px solid rgba(249,166,0,.25); border-radius:999px; padding:5px 12px; }
 .ecsign-bp { width:100%; height:auto; margin:14px 0; }
-.ecsign-ph { font-size:19px; font-weight:700; color:#fff; margin-bottom:7px; }
-.ecsign-pd { font-size:13.5px; line-height:1.55; color:#8497b6; }
+.ecsign-ph { font-size:22px; font-weight:700; color:#fff; margin-bottom:7px; }
+.ecsign-pd { font-size:14px; line-height:1.55; color:#8497b6; }
 
-.ecsign-form { flex:1; display:flex; align-items:center; justify-content:center; padding:32px; }
-.ecsign-inner { width:300px; }
-.ecsign-logo { height:48px; display:block; margin-bottom:12px; }
+.ecsign-form { flex:1; display:flex; align-items:center; justify-content:center; padding:40px; }
+.ecsign-inner { width:340px; }
+.ecsign-logo { height:78px; display:block; margin-bottom:16px; }
 .ecsign-sub { font-size:13px; color:#7f93b5; margin-bottom:24px; }
 .ecsign-lbl { display:block; font-size:12px; font-weight:600; color:#9fb0cd; margin-bottom:6px; }
-.ecsign-in { width:100%; height:42px; background:#0a1220; border:1px solid #25364f; border-radius:8px; padding:0 12px;
+.ecsign-in { width:100%; height:46px; background:#0a1220; border:1px solid #25364f; border-radius:8px; padding:0 13px;
   color:#e8edf5; font-size:14px; font-family:inherit; outline:none; transition:border-color .15s, box-shadow .15s; box-sizing:border-box; }
 .ecsign-in::placeholder { color:#52688c; }
 .ecsign-in:focus { border-color:#f9a600; box-shadow:0 0 0 3px rgba(249,166,0,.14); }
