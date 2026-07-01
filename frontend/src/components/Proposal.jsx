@@ -583,8 +583,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
 
           {/* totals + terms */}
           <div style={{ margin: '12px 40px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
-            {E('terms', { fontSize: 8.5, lineHeight: 1.6, textTransform: 'none' })}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            {E('terms', { fontSize: 8, lineHeight: 1.3, textTransform: 'none' })}
+            <div>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: 6 }}>
                   <span>SUBTOTAL</span>{E('subtotal')}
