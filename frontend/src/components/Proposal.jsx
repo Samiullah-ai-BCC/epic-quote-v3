@@ -433,8 +433,10 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     const retLine = lines.find((l) => l !== faceLine && l.hasRet)
     setHideRet(!retLine)
     if (!faceLine) return
-    const target = { face: { x: faceLine.x, y: faceLine.y } }
-    if (retLine) target.rettrim = { x: retLine.x, y: retLine.y }
+    // Align both chips to the SAME x (the rightmost/lower label) so they sit in a neat column.
+    const X = Math.max(faceLine.x, retLine ? retLine.x : 0)
+    const target = { face: { x: X, y: faceLine.y } }
+    if (retLine) target.rettrim = { x: X, y: retLine.y }
     setSwatches((arr) => {
       let changed = false
       const next = arr.map((s) => {
@@ -582,7 +584,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           {/* totals + terms */}
           <div style={{ margin: '12px 40px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
             {E('terms', { fontSize: 8.5, lineHeight: 1.6, textTransform: 'none' })}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: 6 }}>
                 <span>SUBTOTAL</span>{E('subtotal')}
               </div>

@@ -27,7 +27,7 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
   return (
     <div className="qa-form">
       {questions.map((q) => (
-        <div className="field" key={q.key} style={{ marginBottom: 14 }}>
+        <div className="field" key={q.key}>
           <label>{q.q}{q.aiSet ? '  ⚡ AI' : ''}</label>
           {q.type === 'chips' ? (
             <div className="chip-row">
