@@ -431,6 +431,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       dep2: money(price / 2),
       terms: TERMS_HTML,
       pay: 'CLICK HERE TO MAKE PAYMENT',
+      pkgLabel1: 'INSTALLATION TAPE',
     }
     const merged = { ...def, ...(savedState || {}) }
     // EVERY wizard-derived block (money, client info, item description, spec text, notes) must
@@ -709,6 +710,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
                   // lockAspect keeps each image in its natural proportions.)
                   <AdjImg key={p.label} {...adjProps(`pkg3-${p.label}`, { x: Math.round(((264 - arr.length * 122) / (arr.length + 1)) * (i + 1) + 122 * i), y: 8, w: 122, h: 134 })} src={p.img} alt={p.label} lockAspect />
                 ))}
+                {/* caption under the tape roll — matches the baked-in POWER SUPPLY label; editable */}
+                {E('pkgLabel1', { position: 'absolute', left: 7, top: 88, width: 122, textAlign: 'center', fontSize: 9, letterSpacing: 2, color: '#555', fontWeight: 600 })}
               </div>
               <div style={secHead}>SIDE VIEW</div>
               <div style={{ position: 'relative', height: 208 }}>
