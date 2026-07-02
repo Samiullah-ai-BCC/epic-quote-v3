@@ -586,7 +586,11 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
               <div style={secHead}>PACKAGE INCLUDES</div>
               <div style={{ position: 'relative', height: 150, borderBottom: '1px solid #777' }}>
                 {PACKAGE.map((p, i) => (
-                  <AdjImg key={p.label} {...adjProps(`pkg-${p.label}`, { x: 6 + i * 130, y: 8, w: 122, h: 134 })} src={p.img} alt={p.label} />
+                  // key bumped pkg→pkg2 when the base images were re-cropped by hand: every quote's
+                  // OLD saved crop/resize geometry was tuned to the old images and mangled the new
+                  // ones, so it's ignored wholesale. lockAspect = show the image in its natural
+                  // proportions; new adjustments save under pkg2 and stick as usual.
+                  <AdjImg key={p.label} {...adjProps(`pkg2-${p.label}`, { x: 6 + i * 130, y: 8, w: 122, h: 134 })} src={p.img} alt={p.label} lockAspect />
                 ))}
               </div>
               <div style={secHead}>SIDE VIEW</div>
