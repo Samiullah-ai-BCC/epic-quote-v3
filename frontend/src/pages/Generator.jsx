@@ -628,6 +628,12 @@ export default function Generator() {
                   const specText = cat
                     ? buildSpecLines(cat, {}, null).join('\n')
                     : (stored?.data?.spec || `SIGN TYPE: ${v}`)
+                  // the sign type implies its construction side view — pick it automatically
+                  // (same curated map the AI mode uses); the rep can still change it on the proposal
+                  if (cat && sideViews.length === 0) {
+                    const sv = pickSideView(cat.n)
+                    if (sv?.selected) setSideViews([sv.selected])
+                  }
                   setCustomSpec({
                     ...customSpec,
                     itemDesc: `${(cat?.desc || v)} FOR ${client.company_name || 'CUSTOMER'}`,

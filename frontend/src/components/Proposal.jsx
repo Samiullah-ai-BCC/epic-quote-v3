@@ -170,6 +170,21 @@ function AdjDim({ rk, lay, onLay, scaleRef, selected, onSelect, onRemove }) {
   )
 }
 
+// Editable block: content is written ONCE on mount, imperatively — never through props.
+// (Passing dangerouslySetInnerHTML makes React re-apply the ORIGINAL html on every re-render,
+// erasing whatever the user typed the moment anything else updates — e.g. the "Saved" toast.)
+function EBlock({ k, html, style }) {
+  const ref = useRef(null)
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current && ref.current) { ref.current.innerHTML = html; first.current = false }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div ref={ref} data-key={k} contentEditable suppressContentEditableWarning
+      spellCheck lang="en-US" style={{ outline: 'none', ...style }} />
+  )
+}
+
 // Luminance-based text color so the swatch label stays readable on any fill.
 function swatchText(hex) {
   const h = (hex || '').replace('#', '')
@@ -253,7 +268,9 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   const SW_W = 96, SW_H = 20   // default swatch size (now horizontally resizable)
   const [swatches, setSwatches] = useState(() => {
     if (savedState?.__swatches?.length) return savedState.__swatches.map((s) => ({ ...s, h: s.h > 22 ? SW_H : s.h }))
-    if (mode === 'custom') return []
+    // custom mode: seed the two chips only when the spec text actually has colour lines
+    // (catalog-prefilled specs do); a fully free-form spec starts with none.
+    if (mode === 'custom' && !/FACE[^\n]*COLOR/i.test(customSpec?.specText || '')) return []
     // Two default chips, stacked + left-aligned, anchored later to the FACE / RETURN & TRIM colour
     // lines. Default first BLACK, second WHITE (the common pair); the rep adjusts via the picker.
     return [
@@ -269,7 +286,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     setSwatches((s) => {
       const row = s.find((x) => x.id === 'face') || s[0]
       const rightX = s.reduce((m, x) => Math.max(m, x.x + x.w), row ? row.x : 96)
-      return [...s, { id, name: '', color: '', x: row ? rightX + 16 : 96, y: row ? row.y : 640, w: SW_W, h: SW_H }]
+      // keep:true → a hand-added chip stays visible even while empty (it used to vanish on deselect)
+      return [...s, { id, name: '', color: '', keep: true, x: row ? rightX + 16 : 96, y: row ? row.y : 640, w: SW_W, h: SW_H }]
     })
     setSelId('swatch-' + id)
   }
@@ -434,13 +452,8 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // editable block — content set once via dangerouslySetInnerHTML so React never clobbers edits
-  const E = (key, style) => (
-    <div data-key={key} contentEditable suppressContentEditableWarning
-      spellCheck lang="en-US"
-      style={{ outline: 'none', ...style }}
-      dangerouslySetInnerHTML={{ __html: initial[key] }} />
-  )
+  // editable block — content written once at mount (see EBlock) so React can NEVER clobber edits
+  const E = (key, style) => <EBlock key={key} k={key} html={initial[key]} style={style} />
 
   // common props for a Canva-style adjustable image
   const adjProps = (rk, def) => ({
@@ -528,6 +541,24 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       return changed ? next : arr
     })
   }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once dimensions are taken and artwork exists, the size arrows appear over the artwork by
+  // themselves (still movable/removable). __dimsSeeded stops them re-appearing after a delete.
+  useEffect(() => {
+    if (!artworkPath) return
+    const p = parseDims(mode === 'custom' ? customSpec?.dims : answers?.dimensions)
+    if (!p.l && !p.w) return
+    setLayout((L) => {
+      if (L.__dimsSeeded || L['dim-w'] || L['dim-h']) return L
+      const a = L.artwork || { x: 188, y: 24, w: 360, h: 144 }
+      return {
+        ...L,
+        __dimsSeeded: true,
+        'dim-w': { x: a.x, y: Math.max(2, a.y - 16), len: a.w, vert: false, label: p.w ? p.w + '"' : 'WIDTH' },
+        'dim-h': { x: Math.max(2, a.x - 18), y: a.y, len: a.h, vert: true, label: p.l ? p.l + '"' : 'HEIGHT' },
+      }
+    })
+  }, [artworkPath]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const render = async () => {
     // capture at the page's true 816px size (drop the fit-to-fit scale during render)
@@ -672,12 +703,11 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             <div>
               <div style={secHead}>PACKAGE INCLUDES</div>
               <div style={{ position: 'relative', height: 150, borderBottom: '1px solid #777' }}>
-                {PACKAGE.map((p, i) => (
-                  // key bumped pkg→pkg2 when the base images were re-cropped by hand: every quote's
-                  // OLD saved crop/resize geometry was tuned to the old images and mangled the new
-                  // ones, so it's ignored wholesale. lockAspect = show the image in its natural
-                  // proportions; new adjustments save under pkg2 and stick as usual.
-                  <AdjImg key={p.label} {...adjProps(`pkg2-${p.label}`, { x: 6 + i * 130, y: 8, w: 122, h: 134 })} src={p.img} alt={p.label} lockAspect />
+                {PACKAGE.map((p, i, arr) => (
+                  // Horizontally centred as a group: equal margins and gap across the 264px column.
+                  // (Key bumped pkg2→pkg3 to reset any saved offsets to the centred defaults;
+                  // lockAspect keeps each image in its natural proportions.)
+                  <AdjImg key={p.label} {...adjProps(`pkg3-${p.label}`, { x: Math.round(((264 - arr.length * 122) / (arr.length + 1)) * (i + 1) + 122 * i), y: 8, w: 122, h: 134 })} src={p.img} alt={p.label} lockAspect />
                 ))}
               </div>
               <div style={secHead}>SIDE VIEW</div>
@@ -713,7 +743,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           </div>
 
           {/* draggable color swatches — the filled block prints; the picker chrome (.adj-ui) does not */}
-          {swatches.map((sw) => ((sw.id === 'rettrim' && hideRet) ? null : (sw.id === 'face' || sw.id === 'rettrim' || sw.color || sw.name || selId === 'swatch-' + sw.id) ? (
+          {swatches.map((sw) => ((sw.id === 'rettrim' && hideRet) ? null : (sw.id === 'face' || sw.id === 'rettrim' || sw.color || sw.name || sw.keep || selId === 'swatch-' + sw.id) ? (
             <AdjSwatch key={sw.id} rk={'swatch-' + sw.id} sw={sw} scaleRef={scaleRef}
               locked={sw.id === 'face' || sw.id === 'rettrim'}
               selected={selId === 'swatch-' + sw.id} onSelect={() => setSelId('swatch-' + sw.id)}
@@ -807,6 +837,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
             const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144 }
             setLayout((L) => ({
               ...L,
+              __dimsSeeded: true,
               'dim-w': L['dim-w'] || { x: a.x, y: Math.max(2, a.y - 16), len: a.w, vert: false, label: p.w ? p.w + '"' : 'WIDTH' },
               'dim-h': L['dim-h'] || { x: Math.max(2, a.x - 18), y: a.y, len: a.h, vert: true, label: p.l ? p.l + '"' : 'HEIGHT' },
             }))
