@@ -24,8 +24,8 @@ export default function Reports() {
           <div key={r.name} style={{ marginBottom: 24 }}>
             <h3 style={{ marginBottom: 10 }}>{r.name}</h3>
             <div className="totals">
-              <StatBlock title="This Week" s={r.weekly} />
-              <StatBlock title="This Month" s={r.monthly} />
+              <StatBlock title="Last 7 days" s={r.weekly} />
+              <StatBlock title="Last 30 days" s={r.monthly} />
             </div>
           </div>
         ))

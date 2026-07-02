@@ -18,6 +18,12 @@ const FLOWS = {
   custom: ['customspecs', 'preview'], // straight to the questions; client captured at intake
 }
 
+// Cloudinary-stored PDF/Illustrator drawings can't render in an <img>/<iframe> directly —
+// ask the CDN to rasterize page 1 to a PNG instead (free URL transformation).
+const isCloudDoc = (p) => /res\.cloudinary\.com/.test(p || '') && /\.(pdf|ai)$/i.test(p || '')
+const cloudRaster = (p, w = 1600) =>
+  p.replace('/upload/', `/upload/pg_1,f_png,w_${w}/`).replace(/\.(pdf|ai)$/i, '.png')
+
 // Robust AI signType → catalog match: exact → normalized → contains → best token overlap.
 // The model often returns a near-name (e.g. "1\" DEEP RAISED ALUMINUM LETTERS") that isn't
 // verbatim in the catalog; this still snaps it to the closest real sign type.
@@ -187,9 +193,18 @@ export default function Generator() {
       // vector/CAD PDFs carry no extractable text — render page 1 to an image so vision can read it
       let imageData = null
       let artPath = artworkPath
-      if (quote?.customer_pdf && /\.pdf$/i.test(quote.customer_pdf)) {
-        setAiStatus('Rendering the PDF for the AI…')
-        const dataUrl = await rasterizePdf(fileUrl(quote.customer_pdf))
+      if (quote?.customer_pdf && (isCloudDoc(quote.customer_pdf) || /\.pdf$/i.test(quote.customer_pdf))) {
+        setAiStatus('Rendering the drawing for the AI…')
+        let dataUrl = null
+        if (isCloudDoc(quote.customer_pdf)) {
+          // Cloudinary-stored PDF/AI: let the CDN rasterize page 1 to a PNG (no pdf.js needed)
+          try {
+            const blob = await (await fetch(cloudRaster(quote.customer_pdf, 1200))).blob()
+            dataUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob) })
+          } catch { dataUrl = null }
+        } else {
+          dataUrl = await rasterizePdf(fileUrl(quote.customer_pdf))
+        }
         if (dataUrl) {
           imageData = dataUrl.split(',')[1]
           // persist the rendered page as the proposal artwork (survives reload; not a giant data-URL)
@@ -354,8 +369,16 @@ export default function Generator() {
             <div className="field">
               <label>💳 Payment link (optional)</label>
               <input type="url" placeholder="https://…" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} />
+              {paymentLink.trim() !== '' && !/^https?:\/\/\S+\.\S+/i.test(paymentLink.trim()) && (
+                <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 6 }}>
+                  That's not a working link — it must start with https:// (this goes on the customer's proposal).
+                </p>
+              )}
             </div>
-            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={saveClient}>Next →</button></div>
+            <div className="foot">
+              <button className="ghost" onClick={back}>Back</button>
+              <button disabled={paymentLink.trim() !== '' && !/^https?:\/\/\S+\.\S+/i.test(paymentLink.trim())} onClick={saveClient}>Next →</button>
+            </div>
           </div>
         )}
 
@@ -421,19 +444,23 @@ export default function Generator() {
           </div>
         )}
 
-        {step === 'specs' && tpl && (
-          <div className="step">
-            <h3>Specifications — {tpl.n}</h3>
-            <QA tpl={tpl} ai={ai} initialAnswers={answers} onComplete={finishSpecs} />
-            <div className="foot">
-              <button className="ghost" onClick={back}>Back</button>
-              {!String(answers.dimensions || '').trim() && (
-                <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>Enter L, W & H to continue</span>
-              )}
-              <button disabled={!Object.keys(answers).length || !String(answers.dimensions || '').trim()} onClick={() => next()}>Next: Upload Artwork →</button>
+        {step === 'specs' && tpl && (() => {
+          const noDims = !String(answers.dimensions || '').trim()
+          const priceNum = Number(answers.price)
+          const badPrice = String(answers.price ?? '').trim() === '' || !Number.isFinite(priceNum) || priceNum <= 0
+          const hint = noDims ? 'Enter the dimensions to continue' : badPrice ? 'Enter a real price (more than $0) to continue' : ''
+          return (
+            <div className="step">
+              <h3>Specifications — {tpl.n}</h3>
+              <QA tpl={tpl} ai={ai} initialAnswers={answers} onComplete={finishSpecs} />
+              <div className="foot">
+                <button className="ghost" onClick={back}>Back</button>
+                {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}
+                <button disabled={!Object.keys(answers).length || noDims || badPrice} onClick={() => next()}>Next: Upload Artwork →</button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {step === 'artwork' && (
           <div className="step">
@@ -478,7 +505,16 @@ export default function Generator() {
             <div className="field"><label>Specification Text</label><textarea rows={10} value={customSpec?.specText || ''} onChange={(e) => setCustomSpec({ ...customSpec, specText: e.target.value })} /></div>
             <div className="foot">
               <button className="ghost" onClick={back}>Back</button>
-              <button onClick={toPreview}>{saving ? 'Saving…' : 'Next →'}</button>
+              {(() => {
+                const n = Number(customSpec?.price)
+                const bad = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0
+                return (
+                  <>
+                    {bad && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>Enter a real price (more than $0) to continue</span>}
+                    <button disabled={bad} onClick={toPreview}>{saving ? 'Saving…' : 'Next →'}</button>
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}
@@ -527,9 +563,11 @@ export default function Generator() {
                 <div style={{ fontSize: 15, color: 'var(--text)' }}>This drawing isn't on the server.</div>
                 <div style={{ fontSize: 13 }}>It looks like an older upload from before files were stored permanently. Re-upload it with "Replace" on the project step.</div>
               </div>
-            ) : /\.pdf$/i.test(quote.customer_pdf)
-              ? <iframe title="Customer drawing" src={fileUrl(quote.customer_pdf)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', minHeight: 0 }} />
-              : <img src={fileUrl(quote.customer_pdf)} alt="Customer drawing" style={{ flex: 1, objectFit: 'contain', minHeight: 0 }} />}
+            ) : isCloudDoc(quote.customer_pdf)
+              ? <img src={cloudRaster(quote.customer_pdf)} alt="Customer drawing" style={{ flex: 1, objectFit: 'contain', minHeight: 0, background: '#fff', borderRadius: 8 }} />
+              : /\.pdf$/i.test(quote.customer_pdf)
+                ? <iframe title="Customer drawing" src={fileUrl(quote.customer_pdf)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', minHeight: 0 }} />
+                : <img src={fileUrl(quote.customer_pdf)} alt="Customer drawing" style={{ flex: 1, objectFit: 'contain', minHeight: 0 }} />}
           </div>
         </div>
       )}

@@ -18,8 +18,10 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $now = Carbon::now();
-        $monthStart = $now->copy()->startOfMonth();
-        $nextMonth  = $now->copy()->startOfMonth()->addMonth();
+        // Rolling 30-day window, not calendar month — a calendar month shows "0 quotes · -100%"
+        // every 1st of the month, which reads as a broken dashboard.
+        $monthStart = $now->copy()->subDays(30);
+        $nextMonth  = $now->copy();
 
         $base = fn () => Quote::query()->visibleTo($user);
 
@@ -55,7 +57,7 @@ class DashboardController extends Controller
                 'count' => $allQuotes->filter(fn ($q) => $q->created_at && $q->created_at >= $mStart && $q->created_at < $mEnd)->count(),
             ];
         }
-        $lastMonthStart = $monthStart->copy()->subMonth();
+        $lastMonthStart = $monthStart->copy()->subDays(30);   // the prior 30-day window
         $lastMonthCount = $allQuotes->filter(fn ($q) => $q->created_at && $q->created_at >= $lastMonthStart && $q->created_at < $monthStart)->count();
         $quotesDelta = $lastMonthCount ? (int) round(($totalQuotesMonth - $lastMonthCount) / $lastMonthCount * 100) : null;
 
@@ -84,7 +86,7 @@ class DashboardController extends Controller
             ->values();
 
         return response()->json([
-            'month_label'     => $now->format('F Y'),
+            'month_label'     => 'last 30 days',
             'cards'           => $statusCounts,
             'pipeline_value'  => $pipelineValue,
             'avg_quote_value' => $avgQuoteValue,
@@ -113,9 +115,10 @@ class DashboardController extends Controller
         }
 
         $now = Carbon::now();
+        // Rolling windows (7 / 30 days) so "week" can never show more than "month" —
+        // calendar windows produced Week=7 vs Month=0 right after a month rollover.
         $weekStart  = $now->copy()->subDays(7);
-        $monthStart = $now->copy()->startOfMonth();
-        $nextMonth  = $now->copy()->startOfMonth()->addMonth();
+        $monthStart = $now->copy()->subDays(30);
 
         $repStats = function (string $rep, Carbon $start, Carbon $end): array {
             $quotes = Quote::where('sales_rep', $rep)
@@ -131,12 +134,19 @@ class DashboardController extends Controller
             ];
         };
 
+        // Every rep who actually has quotes — including custom typed names — plus the
+        // standing list. A custom rep's sales must never vanish from reporting.
+        $reps = collect(AppConstants::SALES_REPS)
+            ->merge(Quote::query()->whereNotNull('sales_rep')->where('sales_rep', '!=', '')->distinct()->pluck('sales_rep'))
+            ->unique()
+            ->values();
+
         $out = [];
-        foreach (AppConstants::SALES_REPS as $rep) {
+        foreach ($reps as $rep) {
             $out[] = [
                 'name'    => $rep,
                 'weekly'  => $repStats($rep, $weekStart, $now),
-                'monthly' => $repStats($rep, $monthStart, $nextMonth),
+                'monthly' => $repStats($rep, $monthStart, $now),
             ];
         }
 

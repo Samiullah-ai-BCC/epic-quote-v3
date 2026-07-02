@@ -22,7 +22,7 @@ export function buildQuestions(t, ai = {}) {
     qs.push({ key: 'mounting', q: 'Mounting?', type: 'text', def: ai.mounting || t.mountDef || '', placeholder: t.mountDef, aiSet: !!ai.mounting })
     qs.push({ key: 'colorspecs', q: 'Color specs? (PMS / named colors)', type: 'text', def: ai.colorSpecs || null, placeholder: 'e.g. BLACK 6 C', aiSet: !!ai.colorSpecs })
     qs.push({ key: 'application', q: 'Application?', type: 'chips', options: ['EXTERIOR', 'INTERIOR'], def: (ai.application === 'EXTERIOR' || ai.application === 'INTERIOR') ? ai.application : 'EXTERIOR', aiSet: !!ai.application })
-    qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : '1200', placeholder: 'e.g. 5256', aiSet: ai.price != null })
+    qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : null, placeholder: 'e.g. 5256', aiSet: ai.price != null })
     return qs
   }
 
@@ -58,7 +58,7 @@ export function buildQuestions(t, ai = {}) {
   })
 
   qs.push({ key: 'application', q: 'Application?', type: 'chips', options: ['EXTERIOR', 'INTERIOR'], def: (ai.application === 'EXTERIOR' || ai.application === 'INTERIOR') ? ai.application : (t.app || 'EXTERIOR'), aiSet: !!ai.application })
-  qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : '1200', placeholder: 'e.g. 1200', aiSet: ai.price != null })
+  qs.push({ key: 'price', q: 'Enter the price (USD)', type: 'number', def: ai.price != null ? String(ai.price) : null, placeholder: 'e.g. 1200', aiSet: ai.price != null })
 
   return qs
 }

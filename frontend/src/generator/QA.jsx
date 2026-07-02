@@ -80,6 +80,7 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
           ) : (
             <input
               type={q.type === 'number' ? 'number' : 'text'}
+              min={q.type === 'number' ? 0 : undefined}
               placeholder={q.placeholder || ''}
               value={answers[q.key] ?? ''}
               onChange={(e) => setA(q.key, e.target.value)}

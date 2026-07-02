@@ -87,6 +87,9 @@ export default function AddQuoteModal({ onClose }) {
     setError('')
     if (!form.company_name.trim()) return setError('Company Name is required.')
     if (isAdmin() && !form.sales_rep) return setError('Please choose a Sales Representative.')
+    if (form.payment_link?.trim() && !/^https?:\/\/\S+\.\S+/i.test(form.payment_link.trim())) {
+      return setError('The payment link must be a real web address starting with https://')
+    }
 
     const payload = { ...form }
     if (files[0]) payload.customer_pdf = files[0]   // first file is the primary drawing
@@ -159,6 +162,11 @@ export default function AddQuoteModal({ onClose }) {
       <div className="field">
         <label>💳 Payment link (optional — paste it if you already have one)</label>
         <input type="url" placeholder="https://…" value={form.payment_link} onChange={set('payment_link')} />
+        {form.payment_link?.trim() && !/^https?:\/\/\S+\.\S+/i.test(form.payment_link.trim()) && (
+          <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 6 }}>
+            That's not a working link — it must start with https:// (this goes on the customer's proposal).
+          </p>
+        )}
       </div>
     </>
   )

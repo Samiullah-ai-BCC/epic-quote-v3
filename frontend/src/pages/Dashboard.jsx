@@ -71,7 +71,7 @@ export default function Dashboard() {
 
       <div className="kpis">
         <div className="kpi">
-          <div className="k">Quotes this month</div>
+          <div className="k">Quotes · last 30 days</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginTop: 5 }}>
             <div style={{ fontSize: 23, fontWeight: 700 }}>{dash?.totals?.total_quotes_month ?? '—'}</div>
             {dash?.quotes_delta != null && <div style={{ fontSize: 11, fontWeight: 600, color: dash.quotes_delta >= 0 ? '#97c459' : '#f0997b' }}>{dash.quotes_delta >= 0 ? '+' : ''}{dash.quotes_delta}%</div>}
@@ -157,7 +157,7 @@ export default function Dashboard() {
                 <td><b>{q.quote_id}</b></td>
                 <td>{q.company_name || '—'}</td>
                 <td className="muted">{q.sales_rep || '—'}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(q.price || 1200)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 600 }}>{q.price ? money(q.price) : '—'}</td>
                 <td style={{ textAlign: 'right' }}><span className={'pill pill-' + (COLOR[q.status] || 'gray')}>{q.status}</span></td>
               </tr>
             ))}

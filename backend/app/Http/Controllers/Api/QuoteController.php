@@ -75,11 +75,10 @@ class QuoteController extends Controller
         // Quote ID is auto-generated server-side (unique EC number). Quote source + order ID
         // were dropped as a UX/feature decision. Only validate a Quote ID if one was supplied.
         if ($qid !== '') {
-            if (!preg_match('/^[A-Za-z0-9_-]+$/', $qid)) {
-                return response()->json(['error' => 'Quote ID may only contain letters, numbers, hyphens and underscores'], 400);
-            }
-            if (strlen($qid) > 20) {
-                return response()->json(['error' => 'Quote ID must be 20 characters or fewer'], 400);
+            // Custom IDs must look like real quote IDs (EC + digits) — junk IDs ("dfh") pollute
+            // dashboards, reports and search, and can't be told apart from real quotes.
+            if (!preg_match('/^EC\d{4,12}$/i', $qid)) {
+                return response()->json(['error' => 'Quote ID must be EC followed by numbers (e.g. EC100123) — or leave it blank to auto-generate'], 400);
             }
             if (Quote::where('quote_id', $qid)->exists()) {
                 return response()->json(['error' => "Quote ID \"{$qid}\" already exists"], 400);
@@ -149,7 +148,7 @@ class QuoteController extends Controller
                 'quote_source'         => $quoteSource,
                 'status'               => 'To Do',
                 'tags'                 => [],
-                'price'                => 1200,   // default quote value until the rep sets a real price
+                'price'                => 0,   // no price yet — the UI shows "—" until the rep sets a real one (never a fake $1,200)
                 'created_by'           => $user->id,
             ]);
         });
@@ -233,6 +232,9 @@ class QuoteController extends Controller
 
         if (array_key_exists('price', $data) && is_numeric($data['price'])) {
             $newPrice = (float) $data['price'];
+            if ($newPrice < 0) {
+                return response()->json(['error' => 'Price cannot be negative.'], 422);
+            }
             if ($newPrice !== (float) ($quote->price ?? 0)) {
                 $changes[] = 'Final Price';
             }
@@ -325,7 +327,12 @@ class QuoteController extends Controller
         }
         $answers = $data['answers'] ?? [];
         if (isset($answers['price']) && $answers['price'] !== '' && is_numeric($answers['price'])) {
-            $quote->price = (float) $answers['price'];
+            $quote->price = max(0, (float) $answers['price']);   // a negative price is always a typo
+        }
+        // a junk payment link would ship a dead button on the customer's proposal
+        if (!empty($data['payment_link']) && !preg_match('#^https?://\S+\.\S+#i', $data['payment_link'])) {
+            unset($data['payment_link']);
+            $quote->generated_data = $data;
         }
         if (!empty($data['job_name'])) {
             $quote->job_name = $data['job_name'];

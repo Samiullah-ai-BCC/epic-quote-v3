@@ -303,7 +303,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     return () => { clearTimeout(t); window.removeEventListener('resize', fit) }
   }, [])
 
-  const price = Number((mode === 'custom' ? customSpec?.price : answers?.price) || 1200)
+  const price = Number((mode === 'custom' ? customSpec?.price : answers?.price) || 0)
   const itemDesc = mode === 'custom'
     ? (customSpec?.itemDesc || 'CUSTOM SIGNAGE')
     : ((tpl?.desc || 'SIGN') + ' FOR ' + (info.company || ''))
@@ -350,12 +350,13 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       pay: 'CLICK HERE TO MAKE PAYMENT',
     }
     const merged = { ...def, ...(savedState || {}) }
-    // Older saved proposals captured the previous $0 default for the money fields — fall back to
-    // the current default ($1,200 / $600) so they show a price instead of a stale zero.
-    const zero = money(0)
-    ;['unitPrice', 'totalPrice', 'subtotal', 'dep1', 'dep2'].forEach((k) => {
-      const sv = savedState?.[k]
-      if (sv === undefined || sv === '' || sv === zero) merged[k] = def[k]
+    // DERIVED blocks (money, client info, item description) must FOLLOW the wizard — a price or
+    // company changed on the specs/client step has to reach the customer's proposal. A saved copy
+    // only wins for a block the user hand-edited ON the proposal (tracked in __dirty). specBody
+    // and notes stay saved-first: they're the blocks people curate by hand (↻ Rebuild refreshes them).
+    const dirty = new Set(savedState?.__dirty || [])
+    ;['unitPrice', 'totalPrice', 'subtotal', 'dep1', 'dep2', 'infoLeft', 'infoRight', 'itemDesc'].forEach((k) => {
+      if (!dirty.has(k)) merged[k] = def[k]
     })
     return merged
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -376,8 +377,11 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
     scaleRef, selected: selId === rk, onSelect: () => setSelId(rk),
   })
 
+  // blocks the user typed into ON the proposal — only these keep their saved copy over wizard data
+  const dirtyRef = useRef(new Set(savedState?.__dirty || []))
+
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name) }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name), __dirty: [...dirtyRef.current] }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -399,7 +403,11 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = pageRef.current; if (!el) return
-    const h = () => queueSave()
+    const h = (e) => {
+      const k = e.target?.closest?.('[data-key]')?.dataset?.key
+      if (k) dirtyRef.current.add(k)   // hand-edited → this block now beats wizard-derived content
+      queueSave()
+    }
     el.addEventListener('input', h)
     return () => el.removeEventListener('input', h)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

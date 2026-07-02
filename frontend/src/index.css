@@ -94,6 +94,28 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
 .page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .page-head h1 { font-size: 25px; }
 
+/* Small screens: the fixed sidebar was eating 2/3 of a phone and squeezing every page
+   into an unreadable sliver. Stack it as a slim top bar instead. */
+@media (max-width: 900px) {
+  .app { flex-direction: column; }
+  .sidebar {
+    width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap;
+    align-items: center; gap: 2px; padding: 10px 12px; border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .brand-lock { padding: 0 10px 0 0; }
+  .brand-lock img { max-width: 110px; }
+  .sidebar .navlink { padding: 7px 10px; font-size: 12.5px; }
+  .sidebar .navlink.active::before { display: none; }
+  .sidebar .spacer { display: none; }
+  .sidebar .user { border-top: none; padding: 0 0 0 8px; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sidebar .user .role { display: none; }
+  .sidebar .user button { margin-top: 0 !important; width: auto !important; }
+  .main { padding: 16px 14px; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .dash-head { flex-wrap: wrap; }
+}
+
 /* ============================================================
    Cards / stats
 ============================================================ */

@@ -27,7 +27,11 @@ export default function Login() {
       await login(username, password)
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.errors?.username?.[0] || err.response?.data?.message || 'Login failed.')
+      if (err.response?.status === 429) {
+        setError('Too many attempts — wait a minute, then try again.')
+      } else {
+        setError(err.response?.data?.errors?.username?.[0] || err.response?.data?.message || 'Login failed.')
+      }
     } finally {
       setLoading(false)
     }
