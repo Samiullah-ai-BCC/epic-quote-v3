@@ -111,6 +111,9 @@ class UserController extends Controller
         }
 
         $username = $user->username;
+        // removing a user removes their trail too — they must disappear from the Activity
+        // Log and its analytics entirely, not linger as "Unknown" rows
+        ActivityLog::where('user_id', $user->id)->delete();
         $user->delete();
         ActivityLog::record($request->user()->id, 'user_deleted', $username);
 

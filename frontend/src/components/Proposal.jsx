@@ -560,7 +560,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
         'dim-h': { x: Math.max(2, a.x - 18), y: a.y, len: a.h, vert: true, label: p.l ? p.l + '"' : 'HEIGHT' },
       }
     })
-  }, [artworkPath]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [artworkPath, answers?.dimensions, customSpec?.dims]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const render = async () => {
     // capture at the page's true 816px size (drop the fit-to-fit scale during render)

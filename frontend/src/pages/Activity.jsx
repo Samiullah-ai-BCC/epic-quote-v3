@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useActivity } from '../hooks'
+import * as U from '../api/users'
 
 /* Team activity, zero abstraction: filter the raw feed by USER, QUOTE and ACTION, with a
    per-user analytics strip (who created / edited / deleted / re-tagged how much) computed
@@ -21,20 +23,26 @@ export default function Activity() {
   const shown = showLogins ? logs : logs.filter((l) => l.action !== 'login')
   const hiddenCount = logs.length - shown.length
 
-  // distinct values for the dropdowns, from the loaded window
-  const users = useMemo(() => [...new Set(logs.map((l) => l.user))].sort(), [logs])
+  // EVERY team member appears — including people with zero actions (that absence is
+  // information too). Union of the real user list and whoever shows up in the logs.
+  const { data: allUsers = [] } = useQuery({ queryKey: ['users'], queryFn: U.listUsers })
+  const users = useMemo(
+    () => [...new Set([...allUsers.map((u) => u.full_name || u.username), ...logs.map((l) => l.user)])].filter(Boolean).sort(),
+    [allUsers, logs]
+  )
   const actions = useMemo(() => [...new Set(logs.map((l) => l.action))].sort(), [logs])
 
-  // per-user analytics over the filtered window
+  // per-user analytics over the filtered window, zero-seeded with the full team
   const perUser = useMemo(() => {
     const m = {}
+    if (!user && !quote && !action) for (const name of users) m[name] = { total: 0 }
     for (const l of shown) {
       const u = (m[l.user] ||= { total: 0 })
       u.total++
       u[l.action] = (u[l.action] || 0) + 1
     }
     return Object.entries(m).sort((a, b) => b[1].total - a[1].total)
-  }, [shown])
+  }, [shown, users, user, quote, action])
 
   const setFilter = (setter, key) => (e) => {
     setter(e.target.value)
@@ -71,7 +79,9 @@ export default function Activity() {
             <div key={u} className="box" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => setFilter(setUser, 'user')({ target: { value: user === u ? '' : u } })} title="Click to filter by this user">
               <div style={{ fontWeight: 700, fontSize: 13 }}>{u} <span className="muted" style={{ fontWeight: 400 }}>· {c.total} action{c.total === 1 ? '' : 's'}</span></div>
               <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
-                {Object.entries(c).filter(([k]) => k !== 'total').sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k.replace(/_/g, ' ')}: ${n}`).join(' · ')}
+                {c.total === 0
+                  ? 'no actions yet'
+                  : Object.entries(c).filter(([k]) => k !== 'total').sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k.replace(/_/g, ' ')}: ${n}`).join(' · ')}
               </div>
             </div>
           ))}
