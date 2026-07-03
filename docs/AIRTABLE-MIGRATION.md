@@ -2,105 +2,138 @@
 
 **Goal (from the team meeting):** kill the existing Airtable dashboard / quote creation / managing / history and move the whole team onto the Estimator. Hard requirement: the Estimator must consume **every** Airtable feature the team actually uses AND be better — no desynchronized behavior, no abstraction, whatever it costs.
 
-**How this document works** (per Sami's rules):
-1. Section A = what the Estimator already has (native terms).
-2. Section B = what the Airtable base(s) contain (filled during the read-only tour).
-3. Section C = reconciliation: every Airtable feature → how it lands in our infra.
-4. Section D = Sami's known asks, pre-mapped.
-5. Section E = the phased build plan (updated as B/C fill in).
-6. Section F = open questions for Sami (anything vague/uncertain stops here, per rule 4).
-
-Status: **A and D drafted. B/C/E-details blocked on Airtable read access.**
+**Sources:** full read-only tour of the team's base **"Business sign-Epic Craftings USA Project"** on 2026-07-03 (all 11 tables, every field + select option, both interfaces, record volumes) + the estimator codebase. Confidential record values stay out of this document — structure and vocabulary only.
 
 ---
 
-## A. What the Estimator already has (current inventory, native terms)
+## A. What the Estimator already has (native terms)
 
 ### A1. Quote intake ("+ New quote" modal)
 - Two modes chosen at intake: **Quote Generator (AI)** and **Custom Quote Creator (manual mode)**.
-- AI mode: multi-file upload (drawings PDF/image, all files feed the AI) or paste-text extraction; Sales Rep (preset list + type-any-name "Other") and Payment link captured up front; Company required.
-- Quote IDs auto-generated `EC{counter}` server-side; custom IDs must be EC+digits, case-insensitive-unique. Counter already **continues past Airtable's highest ID** when AIRTABLE_* env vars are set (scaffold live, credentials pending).
+- AI mode: multi-file upload (all files feed the AI) or paste-text extraction; Sales Rep (preset + type-any-name) and Payment link up front; Company required.
+- Quote IDs auto-generated `EC{counter}`; custom IDs must be EC+digits, case-insensitive-unique; the counter **continues past Airtable's highest** when AIRTABLE_* env vars are set.
 
-### A2. The wizard (Generator page)
-- AI mode flow: Client Information → Project (AI summary of every retrieved field, "—" for unknowns, full-reading expander, Re-read, Replace-drawing with auto re-read) → Select Sign Type (41-type catalog + team custom types + type-your-own, saved for the whole team) → Specifications (page-per-type Q&A: split H×W(/D) dimension boxes AI-filled or required-manual, price required > $0, chips for trim/mount/illumination/colors) → Artwork & Notes → **Preview**.
-- Manual mode flow: Client Information → Custom Specifications (full catalog dropdown + team types + new-type-with-template, dims boxes synced into spec text, price gate, special requirements) → Preview.
-- **Live preview**: the real, editable proposal renders beside every step and updates ~1s after changes; edits in the panel auto-save and survive.
+### A2. The wizard
+- AI flow: Client Information → Project (AI summary, — for unknowns, full-reading expander, Re-read, Replace-with-auto-re-read) → Select Sign Type (41-type catalog + team custom types + type-your-own) → Specifications (typed Q&A: H×W(/D) dim boxes, required price > $0, chips) → Artwork & Notes → Preview.
+- Manual flow: Client Information → Custom Specifications (full catalog dropdown + new-type-with-template, dims synced into spec text, price gate, special requirements) → Preview.
+- **Live preview** beside every step, fully editable, ~1s updates.
 
-### A3. The proposal (preview step / live panel)
-- Print-perfect page matching the Canva template: company/client info blocks, item table, SPECIFICATIONS, PACKAGE INCLUDES (centered, captioned INSTALLATION TAPE / POWER SUPPLY), SIDE VIEW (tiling, team library with named uploads, explicit "No side view" that removes the section), totals + 50/50 deposits, terms, CLICK-HERE-TO-MAKE-PAYMENT (validated links only).
-- Everything editable in place; per-block dirty tracking (wizard-derived text follows the wizard unless hand-edited); ↻ Rebuild spec text; color swatches auto-anchored to FACE/RETURN color lines + color-picker from artwork; movable **size arrows** auto-seeded from dimensions over the artwork; artwork auto-cropped out of the customer drawing by the AI (padded, re-picked on Re-read, manual uploads never touched).
-- Output: real vector **Save as PDF** (browser print) and PNG image (letterbox-corrected).
+### A3. The proposal
+- Print-perfect page; per-block dirty tracking; ↻ Rebuild spec text; auto-anchored color swatches + artwork color picker; auto size arrows; AI-cropped artwork; side-view tiling + named team library + explicit "No side view"; validated payment-link button; vector Save-as-PDF + PNG.
 
-### A4. Dashboard (admin cockpit)
-- KPIs: Quotes · last 30 days (+delta vs prior 30, sparkline), Pipeline value, Avg quote value, Needs attention.
-- Needs-attention queue (status → next action, days waiting), clickable pipeline bar per status, recent-quotes table with search + status filter, extra "also waiting on…" chips.
-
-### A5. All Quotes
-- Search, status filter, inline edits (company/client/contact/rep), one primary **status** (10 statuses) + multi "waiting on…" chips (tags), file links (PDF/Art/Crunch), View / Edit / **History** / Delete (confirm).
-
-### A6. Users & roles
-- Roles today: **admin / manager / sales_rep** (role dropdown per user, reset PW, delete — deletion purges the user's activity trail). Non-admins only see their own quotes (`visibleTo`); admin-only pages: Users, Sales Reports, Activity Log.
-
-### A7. Activity Log & analytics
-- Every action recorded (create/edit/delete/status/tags/file uploads/AI runs/catalog saves/logins). Filters: user / quote ID / action; per-user analytics cards including zero-action members; `/activity?quote=…` deep link.
-
-### A8. Sales Reports
-- Per-rep (preset + every custom rep found on quotes): received / converted (Done) / conversion %, rolling 7 and 30 days.
+### A4–A8. Dashboard (KPIs/needs-attention/pipeline, rolling 30d), All Quotes (search/filter/inline edit/status+chips/History), Users & roles (admin/manager/sales_rep; visibleTo scoping), Activity Log (every action, user/quote/action filters, per-user analytics incl. zero-action members), Sales Reports (per-rep, rolling 7/30d).
 
 ### A9. Storage & integrations
-- Uploads → Cloudinary (permanent CDN) with local-disk fallback; drawings viewable in-app (CDN-rasterized PDFs/AI files).
-- Groq AI: extraction (multi-image), specs, side-view suggestion, artwork bounding box.
-- Airtable sync scaffold (A1). Shopify payment-link automation: agreed design, awaiting store domain/token + deposit-vs-full decision.
-
-### A10. Known gaps on our side (relevant to "better than Airtable")
-- No spreadsheet-style grid editing (bulk edit, column sort on every column, keyboard navigation, copy/paste ranges).
-- Price input is a plain number field (no currency masking/auto-format on re-entry — Sami's rule 7 example).
-- No per-role tailored views (designer vs payment-checker etc.) — everyone sees the same pages, only admin vs non-admin differs.
-- No order-fulfilment/delivery stages past "Done"; no due dates/assignments/attachments-per-stage.
-- No notifications/reminders (Airtable often has automations).
-- No CSV/Excel export.
+- Cloudinary permanent uploads; in-app drawing viewer; Groq AI (extraction, specs, side-view, artwork box); Airtable ID-sync scaffold; Shopify payment-link design agreed (pending credentials).
 
 ---
 
-## B. What's in Airtable (filled by the read-only tour — PENDING ACCESS)
+## B. What's in Airtable (the tour, zero abstraction)
 
-For each base: tables → fields (name, type, options/formulas) → views (grid/kanban/calendar/gallery, their filters/sorts/groupings = the de-facto role views) → automations/forms if visible → record volume. Structure only; confidential values stay out of this doc.
+Base: **Business sign-Epic Craftings USA Project** — one base, 11 tables, 2 interfaces. Live daily (new records the day of the tour).
 
-## C. Reconciliation table (PENDING B)
+### B1. `Quotes- working` — their quote pipeline. **3,371 records, active daily.**
+The Airtable twin of our All Quotes + wizard output. Fields that matter:
+- **Quote ID** (text; currently at **EC116561+** — far ahead of the estimator's counter) and **"Secondary Portal Quote ID"** — they already record OUR estimator IDs against their quotes.
+- **Status** — ONE multi-select with **47 options** doing five different jobs at once:
+  - real statuses: To Do, In progress, Done, Revision needed, Quote Approval Needed, Need To Share with Customer, No Response from Client, Rejected by Client, on hold, Ignored, Out Of Scope, Test Quote
+  - urgency: Rush, Super Rush
+  - **people as statuses** (assignment abuse): Faraz Awan, khola, khansa, alishan, mussawer, yasir, Rod, Ed Weikle, Usman Altaf
+  - **action reminders as statuses**: add price / Check Price / Calculate price, Review quote, need to reply rod, waiting for rod reply, Need to share with sir sami / Ed / ROD, review quote by sir sami, waiting for Sami sir reply, waiting for client response, artwork send to client for approval, Artwork needs to be Added, Need to embed payment link, check quote from China, check from production, Shared with Team USA
+  - **approval guards as statuses**: "Don't Work or Share with Anyone without Faraz's Approval", "Do not send without Faraz's approval"
+  - garbage: client names, "Email", stray values.
+- Money: Breakeven Production / Shipping / Total (formula), **Final Price**, **Profit Percentage** (formula), **Price Approved** (checkbox), **Approved By**.
+- People: **Account Manager** (Rod Muffet, Ed Weikle), **Added by / Created by / Submitted by** (Faraz, Khola, Khansa, Mussawer, Ali Shan), Assignee (dirty).
+- Files: PDF (drawings), Proposal (attachment), Source File, Crunched Dimensions.
+- Process: Quote Received Via (**Email, Client Portal, Google Ads, WhatsApp**), Quote Added Manually, Revision Notes, IMPORTANT UPDATES, internal Quotation Notes, Follow up Sent/Notes, Quote Followup Sent?, **Order Placed / Converted to Order** (checkboxes), Status Done Date + **Time Taken Hours (Status Done)** (formula), Quote Month Report (for monthly charts), Data Needed (link to Tasks).
+- Per-sign leftovers: returnDepth, signFont, trimColor, woodColor, Raceway Color, Backers Color, Dimensions (free text), Payment link (free text).
 
-| Airtable feature | Who uses it | Estimator equivalent today | Gap | How we build it (our infra) | Phase |
-|---|---|---|---|---|---|
+### B2. `Mastersheet` — the ORDER lifecycle. **1,370 records, ~170 fields, active daily.**
+Everything that happens after a quote converts. Order codes are a **different sequence: `BS-US-####`** (e.g. BS-US-2427; "RE" suffix = remake/reorder).
+- **Status** — one multi-select with ~50 options = the entire production+fulfilment pipeline crammed into one field: To do → CDR Needed → Detail Drawings Needed → Cutting needed/Cut → Welding → Paint → UV Printing → PVD → Vinyl Application → Assembly/Pre-Assembly → Q/A → Photo approval needed / Photo Rejected → Packed → Box Needed → Shipping needed → Shipped → Shipped to Philly → Delivered to Philly → Delivered to Customer → Done; branches: Repair/Repairing/Repaint/Re-UV, Damaged, Refunded, Cancelled, on hold, Stop Production, Decision Pending, Moved to China, USA-Production Moved, ISP (Inventory Shortage), Rush/Super Rush; plus garbage entries ("$2", "550.00", duplicates with different capitalization).
+- **Payments** (the deposit→remaining flow, mirrors our 50/50 proposal): Received Payment, Remaining Payment (+date, status Payment pending/complete, "Remaining Payment done"), Payment Method (Stripe/Shopify/BOA ×2/ACH/Meezan/none), Payment Received Via (+ per-account currency splits: shopify / EC LLC / EC Inc), **Shopify Order ID (Initial)** and **(Full)**, Payment Proof attachments, Payment Link Sent, Credit + Credit issued date + Credit Applied, Rod-specific payment fields (status Initial/Remaining/Complete, deposit, received formulas), Tax Certificate.
+- **Production**: Production Unit (**Pakistan / USA / China**), Moved to Production (+time, days-since formula), BOM Done, bom_production_cost / bom_shipping_cost (formulas), Actual Production/Shipment Cost Pakistan (+GMS variants), Amount Paid to China (+proof), Production/Shipment/Installation Cost (Signarama Philly), Philly Expense Details, Relevant Files + Instructions for Philly Office, USA Office Status (Waiting for shipment → Received → Dispatched → Delivered → Target task completed), IMPORTANT Notes for USA office, Amount Spent by USA office.
+- **Shipping**: two legs — Tracking (PAK to Philly) and Tracking (Philly to Client), Tracking ID/Number, Shipment Carrier (DHL/FedEx/UPS/USPS/Freightquote/Turkish Airlines Cargo + garbage), Shipping Company, Est Shipping Cost, Expected Delivery Date (Philly), Shipment date, Tracking Sent?, "Tracking id send to Shopify".
+- **Finance/profit** (formula suite): Total Breakeven, Total Cost (Proposal), Total Actual Cost (Pakistan-only / all factories), Estimated + Actual Profit (USD/%), Profit Factor (Estimated/Actual/Philly), Net Revenue (3% card fee deducted), Cost Difference (Proposal − Actual) for production and shipping, "Actual cost Estimated/Actual" flags, Finance Details Verified (checkbox), All Finance Details Added; **"FD - …" duplicate field set** (~18 fields) = a locked finance-department copy of the money columns.
+- **Customer-facing**: Design Image / Proof / Images shared with Customer / Feedback Review-Proofs attachments, Review Feedback (Positive/Negative), Feedback Date, Issue Reported Details, Message sent / Email Needs to be sent / Production Images Sent (checkboxes).
+- **Spec snapshot on the order**: Sign Type (100+ messy options), Dimensions + Width/Height/Depth numbers, Design Text, Color, Neon color, Backlit (LED colors/temps), Finish, 3D/2D, Acrylic Shape, Font, Background material, Usage (indoor/outdoor — exists TWICE as separate fields).
+- **Ownership**: Account Name (mixed garbage), Client's Segregation (**Rod's Clients / Ed Weikle's Clients / Epic cum Rod's Clients**), Rod Muffet / ED Weikle checkboxes, "To be added in rod report" / "Added in Rod Muffet report (Complete)".
+- Timestamps everywhere: Order Added (created), Order Date, Month Added (manual select — Jan 2025…Jul 2026), Last Modified (status) ×2, Orders Marked Shipped, Remaining Payment Received, Time since order Added (formula).
+
+### B3. `Side Views` — their side-view library (≈ our team side-view library): Sign Type Detail, Side View PNG/PDF attachments, Material Thickness (3/6/12/18/25 mm), Mounting (VHB, Flush, Stud, Raceway, ACM Backer, Flat Backer, Backer-board Cabinet), Backer Thickness (2–24 mm), Sign Type category (18 clean options: Flat Cut Acrylic/Aluminium, Face-Lit, Halo-Lit, Fabricated, Lightbox ×2, PushThrough, Side Lit, Face+Side Lit, Blade, Face+Halo, UV Neon, Open Face Neon, Marquee, Infinity, Metal on Acrylic, Vacuum Formed).
+
+### B4. `EC Catalouge Data` — sign-type catalog (≈ our catalog + team custom types): Sign Type, Specifications text, Example Pictures, Side View attachments, Status (Todo/In progress/Done — it's half-built).
+
+### B5. `Clients Data` — CRM/portal accounts: Team-vs-Client user type, **plain-text Password column (!!)**, active/pending status, company, country/state/city/zip, phone, website, Business Focus/Type (choice lists polluted by comma-joined combinations — dozens of pseudo-duplicates). This is the account table behind the **Client Portal** ("Quote Received Via: Client Portal").
+
+### B6. `Tasks Reporting` — internal task assignment linked to quotes AND orders: task name, Category (Order/Quote/Report/Social Media/Calculator/**Portal-Website**/Other), Todo/In-progress/Done, Deadline, Assigned to (Amna, Faraz, Ayesha, Ahmad, Mussawer), Assigned By (+ "Usman Boss"), attachments, comments, lookups pulling Quote ID + customer from the linked records.
+
+### B7. `Finances` — expense ledger: order code, Paid by (Futura Identities / EC Pakistan-Blue Cascade / EC inc.), amount USD + PKR, date, payment mode.
+
+### B8. `Todo Tasks` — trivial personal todos. `Credit info` — client credit workflow (amount, notes, status, issued/approved checkboxes, assignee, attachments). `Social Media Posting` — content pipeline (sign type, attachments, assignee, posted). `Interface Report` — one-row helper table feeding dashboard KPIs (Profit Factor, Production TAT, Negative Feedbacks — today/this-month).
+
+### B9. Interfaces (the role dashboards)
+- **REPORT → Profit & Loss Report**: order count, selling price sum, breakeven sum + % filled, estimated profit + factor + %, actual cost/profit/factor/%, pending-payments count + remaining-payment sum, remaining-payment-over-time line chart, revenue-by-month bar/line.
+- **EC USA → Rod Report (+copy)**: Rod-scoped payment ledger (order/customer/company/price/breakeven/payment status/received/date), initial vs remaining sums, Rod-clients vs Epic-cum-Rod splits, credit given (count/amount/detail rows), Net Revenue after 3% card fee.
+- **EC USA → Daily Report - Khola**: today's order count/revenue total + per production unit, samples count+cost, replacements count+cost, revenue-by-workshop chart, Profit Factor / Avg Production TAT / Negative Feedbacks (from Interface Report), same set for this-month.
+- **EC USA → Monthly Report**: month's counts/revenue overall + per Pakistan/USA/China, samples, replacements, workshop revenue breakdown, month-over-month revenue chart, **quotation count + quotation amount + quotes-by-month chart**.
+- No Airtable forms found (standaloneForms: []). Automations aren't visible via the connector (see F1).
+
+### B10. Data-quality disease (why the estimator wins)
+Free-for-all select fields have absorbed years of typos and misfiled data: prices, dates, phone numbers, email addresses and full shipping addresses stored as *select options*; duplicated options differing by case/spacing; two fields for the same thing (Usage ×2, several payment-received variants). Every one of these is impossible in the estimator's typed fields — this is the strongest selling point for the switch, and the reason import needs a cleaning pass.
 
 ---
 
-## D. Sami's known asks, pre-mapped to our infra
+## C. Reconciliation — every Airtable capability → estimator build
 
-**D1. Admin dashboard, 100% team transparency** — extend the existing Dashboard + Activity analytics into a per-member drill-down: per-rep KPIs (received/converted/value, response times from status history), live "what is each person working on now" from Activity, per-quote timelines. Infra: `ActivityLog` + `StatusHistory` already store the raw events; new admin page composes them.
+| # | Airtable capability | Estimator today | Gap → how we build it (our infra) | Phase |
+|---|---|---|---|---|
+| C1 | Quotes-working pipeline (3,371 quotes) | All Quotes + wizard | Import all records as quotes (EC ids preserved); "Secondary Portal Quote ID" proves the mapping | 1 |
+| C2 | 47-option status mess | 10 clean statuses + "waiting on…" chips | Split their 47 into: statuses (exists), urgency **Rush/Super-Rush flag** (new field+filter+red highlight), assignment (real `assigned_to` user field — new), action reminders (chips), approval guards (see C5) | 2–3 |
+| C3 | Breakeven/Final-Price/Profit%/Price-Approved | price only | Add breakeven production+shipping fields on the quote (specs page + All Quotes grid); profit % auto-computed; Price Approved checkbox + Approved By + approval timestamp in Activity | 3 |
+| C4 | Account Manager (Rod/Ed) + client segregation | sales_rep | Keep sales_rep as Account Manager; import segregation as a client attribute (CRM, C13) | 1 |
+| C5 | Approval guards ("don't share without Faraz's approval") | — | Real gate: quote flag `locked_until_approved` — blocks Save-as-PDF/PNG + payment-link + Share until a manager/admin approves (logged) | 3 |
+| C6 | Follow-ups (sent?, notes, date) | — | Follow-up fields on quote + dashboard "needs follow-up" queue (needs-attention style) + reminder (F2) | 4 |
+| C7 | Convert to Order (Order Placed, BS-US-#### code, "RE" remakes) | statuses stop at Done | **Orders module**: Convert button on a Done quote → order with own `BS-US-{counter}` id, carrying the quote snapshot; remake flow clones an order with "RE" suffix | 5 |
+| C8 | Production pipeline (~20 real stages, 3 production units) | — | Order status field (single, staged: Production → QC → Photo Approval → Packed → Shipped legs → Delivered) + step-specific chips (Cutting/Welding/Paint/UV/PVD/Vinyl/Assembly/Repair/Re-UV/ISP…) + Production Unit (Pakistan/USA/China) + StatusHistory timeline per order | 5 |
+| C9 | Payments (deposit/remaining, methods, accounts, proofs, Shopify order ids, credits) | payment link on proposal | Order payment panel: received/remaining amounts + dates, method + receiving account, proof uploads (Cloudinary), credit amount/date, Shopify order ids — auto-filled once Shopify integration lands | 5+Shopify |
+| C10 | Two-leg shipping + tracking + carriers + costs | — | Order shipping panel: leg 1 (PAK→Philly) and leg 2 (Philly→Client), tracking numbers, carrier select (clean list), est vs actual cost, shipment date, expected delivery, "tracking sent" flag | 5 |
+| C11 | Finance suite (actual costs per factory, profit formulas, FD-verified copy) | — | Order finance panel: cost inputs (Pakistan/China/Philly production+shipping+installation) → computed totals, estimated vs actual profit USD/% / factor, net revenue (card-fee aware); "Finance verified" lock that freezes the FD copy (admin-only edit after) | 6 |
+| C12 | Customer feedback (proofs, Positive/Negative, issue details) | — | Order feedback panel + Negative-feedback KPI on the admin dashboard | 6 |
+| C13 | Clients Data (CRM + portal accounts) | companies auto-created from intake | CRM page: clients list (import), business type/focus (clean multi-select), segregation, contact info; portal accounts imported with **forced password reset** (plain-text passwords must die at import) | 7 |
+| C14 | Client Portal (quote requests come via portal) | — | Confirm scope (F3): likely a customer-facing "request a quote" page creating a quote in AI mode with uploads | 7 |
+| C15 | Tasks Reporting | — | Lightweight Tasks page: task ↔ quote/order links, assignee, deadline, status, comments; "my tasks" on each user's dashboard | 4 |
+| C16 | Side Views table | Named side-view team library | Import their library (attachments → Cloudinary) incl. thickness/mounting metadata as searchable tags in the picker | 1 |
+| C17 | EC Catalouge Data | 41-type catalog + team custom types w/ templates | Import their entries as team custom types (spec text + example pictures + side view) | 1 |
+| C18 | Interfaces P&L / Rod / Daily / Monthly | Dashboard + Sales Reports | **Admin Reports pages** reproducing every widget: P&L (est vs actual), per-manager ledger w/ credits + net revenue, daily ops (per-unit counts/revenue, samples, replacements, TAT, negative feedback), monthly (workshop breakdown, month charts, quote counts/amounts). All from our own order+quote data — no Interface-Report helper table needed | 6 |
+| C19 | Finances ledger / Credit info / Social Media / Todo | — | Credit info folds into C9; Finances ledger = simple admin Expenses page (7); Social Media + Todo Tasks: propose keeping OUT of the estimator (F4) | 7 |
+| C20 | Grid ergonomics (Airtable's core comfort) | plain tables | The **Grid component** (D4): sortable/hideable columns, sticky header, keyboard nav, inline edit, multi-select + bulk actions, copy/paste, CSV export, currency masking (digits-only price, clean re-entry), used on All Quotes, Orders, CRM, Tasks | 2 |
+| C21 | Monthly bucketing (manual "Month Added"/"Quote Month Report" selects) | rolling windows | Auto-derived month grouping from real timestamps — the manual month-select disease disappears | 2 |
+| C22 | ID systems | EC counter (~100k) | Quotes: adopt Airtable's sequence (counter jumps to 116,5xx via the sync scaffold — collision-proof). Orders: new `BS-US-{n}` counter continuing theirs (~2,43x) | 1 |
 
-**D2. Role-based views (designer / quote generator+editor / payment checker / records+history)** — mirror of Airtable views. Infra: extend the `role` field beyond admin/manager/sales_rep, then per-role home pages that are *filters over the same quotes* (designer sees Artwork-Needed queue with drawings; payment checker sees Need-Payment-Link-Sent/paid states with the payment link tools; records role gets read-only History/All-Quotes). Exact roles copied from the Airtable views during the tour — not invented.
+## D. Sami's asks mapped (updated with tour findings)
+- **D1 Admin transparency dashboard** → C18 + existing Activity analytics; per-member drill-down of quotes touched, statuses moved, time-to-Done (their "Time Taken Hours" formula becomes real math from StatusHistory).
+- **D2 Role views** → the real roles discovered: **Admin/boss (Usman)**, **Account Managers** (Rod, Ed — payment-ledger view = Rod Report), **Quote team** (Faraz, Khola, Khansa, Mussawer, Ali Shan — pipeline view), **Finance** (FD fields, verified lock — Arham), **Production/Philly office** (order stages, instructions, files), **Tasks people** (Amna, Ayesha, Ahmad). Role field extends to: admin, account_manager, quote_maker, finance, production, viewer.
+- **D3 Fulfilment lifecycle** → C7–C12 (the Mastersheet IS this; now we know every stage by name).
+- **D4 Spreadsheet utils** → C20.
+- **D5 Zero desync** → two-way sync per field map (C1/C22) during parallel-run; last-write-wins + Activity-logged; full import at cut-over; Airtable then read-only until killed.
 
-**D3. Quote → order fulfilment → delivery lifecycle** — statuses currently end at Done. Add post-quote stages (order confirmed → production → QC → shipped → delivered — exact stages from Airtable) with the same pipeline/dashboard treatment. Infra: extend STATUS_OPTIONS + `StatusHistory`; the confirm-order endpoint already exists as a stub.
-
-**D4. Spreadsheet-grade table utils (rule 7)** — All Quotes (and any new grids) get: column sorting everywhere, column show/hide, sticky header, keyboard navigation, inline edit-on-click for every cell, copy/paste, multi-row select + bulk status/tag/delete, CSV export, currency-masked price cells (digits only; clearing and retyping reformats — Sami's explicit example), date formatting, row numbering. Build once as our own grid component, reuse on every table.
-
-**D5. Zero desync (rule 5)** — during transition both systems live: two-way sync (A1 scaffold) grows to full field mapping (status, price, rep, client fields, timestamps) with webhook-or-polling pull from Airtable + push on every estimator write, conflict rule last-write-wins with the Activity Log recording every sync. After cut-over: one-time full import of ALL historical Airtable records into the estimator (history preserved), then Airtable goes read-only until killed.
-
----
-
-## E. Phased plan (skeleton — final content after B/C)
-
-- **Phase 0 — Access + tour**: read-only Airtable access, full structure survey, fill B/C, resolve F questions with Sami. Output: this doc completed and approved.
-- **Phase 1 — Sync**: AIRTABLE_* credentials in Render; full field mapping both ways; historical import dry-run on local.
-- **Phase 2 — Grid**: the spreadsheet-grade table component (D4) replacing the All Quotes table; price masking everywhere.
-- **Phase 3 — Roles & views**: role model + per-role home pages copied from Airtable views (D2).
-- **Phase 4 — Admin transparency dashboard** (D1).
-- **Phase 5 — Fulfilment lifecycle** (D3) + any Airtable automations we must replicate (notifications/reminders).
-- **Phase 6 — Cut-over**: full import, parallel-run checklist, Airtable read-only, team sign-off, kill.
+## E. Phased plan (final shape)
+- **P0 done** — this document. → Sami approves + answers F.
+- **P1 Sync & import foundations**: field mapping Quotes-working ↔ quotes; counter adoption (116,5xx); side-views + catalog import; import dry-run locally on the real 3,371.
+- **P2 Grid + hygiene**: Grid component on All Quotes; currency masking; Rush/Super-Rush; auto month buckets.
+- **P3 Roles & quote-team parity**: assigned_to; breakeven/profit/approval fields; approval gate; role model + per-role home pages.
+- **P4 Follow-ups + Tasks**: follow-up queue + reminders; Tasks page.
+- **P5 Orders module**: convert-to-order, BS-US ids, production pipeline, payments, shipping, remakes.
+- **P6 Finance + Reports**: finance panel + verified lock; P&L/Rod/Daily/Monthly report pages; feedback KPIs.
+- **P7 CRM + Portal + cut-over**: clients import (password reset), portal scope, expenses page; parallel-run checklist; full import; Airtable read-only; kill.
 
 ## F. Open questions for Sami
-
-1. *(access)* — see chat: the connector didn't reach this session.
-2. Which Airtable plan are they on? (Determines whether automations/interfaces exist that I can't see via API and must be described by the team.)
-3. Are there Airtable **forms** the team or customers fill? (Those become estimator pages.)
-4. Who besides the quote team uses the base (production floor? accounting?) — decides which roles exist at cut-over.
-5. During parallel-run, which system is the source of truth when both edit the same quote within the same minute? (Proposed: last write wins + logged; confirm.)
+1. **Automations**: the connector can't see Airtable automations. Ask the team: do any automations run (emails on status change, Slack, reminders, Shopify tracking push — the "Tracking id send to Shopify" checkbox hints at one)? List them; each becomes an estimator job.
+2. **Reminders/notifications**: when a quote needs follow-up or an order stalls, how do they want to be told — in-app queue only, or email too?
+3. **Client Portal**: "Quote Received Via: Client Portal" + Clients Data with passwords + a Portal/Website task category — there IS a customer portal somewhere. What is it (the epiccraftings.com site? separate app?), and does the estimator replace it or integrate with it?
+4. **Social Media Posting + Todo Tasks tables**: keep them in Airtable/elsewhere, or must the estimator absorb these too? (My call: out of scope — they're not quote/order work.)
+5. **Order codes**: confirm orders keep the `BS-US-####` sequence (continuing from ~2,43x) and quotes keep EC-numbers continuing from 116,5xx.
+6. **The "FD -" finance copy**: confirm my reading — finance re-enters the money numbers as a verified snapshot that the quote team can't touch. (Estimator version: a "Finance verified" lock instead of duplicate columns.)
+7. **Who is Arham / GMS / Futura Identities / Blue Cascade** in role terms — finance role holders and paying entities? Needed for the Finance panel's account list.
+8. **Parallel-run conflict rule**: last-write-wins with everything logged — confirm.
