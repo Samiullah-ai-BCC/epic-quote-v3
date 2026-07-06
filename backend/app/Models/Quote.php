@@ -49,7 +49,7 @@ class Quote extends Model
     // V1 get_quote_or_403 / list filter: non-admins see only their own quotes
     public function scopeVisibleTo($query, User $user)
     {
-        if (!$user->isAdmin()) {
+        if (!$user->seesAllQuotes()) {
             $query->where('sales_rep', $user->full_name);
         }
         return $query;
@@ -57,7 +57,7 @@ class Quote extends Model
 
     public function isVisibleTo(User $user): bool
     {
-        return $user->isAdmin() || $this->sales_rep === $user->full_name;
+        return $user->seesAllQuotes() || $this->sales_rep === $user->full_name;
     }
 
     // V1 serialize_quote()

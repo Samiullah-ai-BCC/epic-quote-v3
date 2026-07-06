@@ -31,7 +31,7 @@
 | I11 | Grid v3: multi-row select + bulk status/assign/delete (T1) | ✅ | browser: 2 rows ticked → bulk bar, Assign Khansa + status On Hold hit both + persist, select-all header cb, bulk delete removed scratch EC100019 after confirm; originals restored |
 | I12 | Grid v4: copy/paste + CSV export of filtered rows (T1, T2) | ✅ | browser: CSV blob = 23-col header + 9 rows (RFC-4180 quoted, BOM), ⧉ Copy TSV w/ fallback, multi-line paste into a cell filled the column down (PASTE-A/B verified + restored); fixed heredoc-mangled 
  escapes that briefly broke the page |
-| I13 | Roles: quote_maker / account_manager / viewer + route guards + role-shaped home views (T14) | ⬜ | |
+| I13 | Roles: quote_maker / account_manager / viewer + route guards + role-shaped home views (T14) | ✅ | live viewer account: API write → 403 view-only (middleware on every write route), sees all 9 quotes read-only, grid = plain text + disabled controls, no Edit/Delete/bulk, dashboard shows 👁 View-only pill; users.role CHECK widened; test user removed |
 | I14 | Team transparency page: per-member cards, workload, drill-down (T15) | ⬜ | |
 | I15 | Real time-to-Done from StatusHistory, per quote + per person (T16) | ⬜ | |
 | I16 | Monthly reports: counts/amounts/conversion per real month + charts (T17) | ⬜ | |

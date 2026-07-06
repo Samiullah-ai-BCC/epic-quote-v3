@@ -11,7 +11,7 @@ Route::post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout'
 Route::get('/me', [App\Http\Controllers\Api\AuthController::class, 'me'])->middleware('auth:sanctum');
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
     Route::get('/constants', [App\Http\Controllers\Api\AuthController::class, 'constants']);
 
     // Users (admin only — V1 parity)

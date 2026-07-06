@@ -45,6 +45,19 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    // Managers/account managers/viewers see the whole book of business;
+    // quote makers and sales reps see their own quotes only.
+    public function seesAllQuotes(): bool
+    {
+        return in_array($this->role, ['admin', 'manager', 'account_manager', 'viewer'], true);
+    }
+
+    // Viewers are strictly read-only — every write endpoint refuses them.
+    public function isViewer(): bool
+    {
+        return $this->role === 'viewer';
+    }
+
     // Quotes this user created
     public function quotes()
     {

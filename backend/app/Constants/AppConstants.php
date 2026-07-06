@@ -33,7 +33,7 @@ class AppConstants
     public const QUOTE_SOURCES = ['Email', 'Client Portal', 'Website', 'Phone', 'Referral', 'Other'];
 
     // V1 ROLES
-    public const ROLES = ['admin', 'sales_rep', 'manager'];
+    public const ROLES = ['admin', 'manager', 'account_manager', 'quote_maker', 'sales_rep', 'viewer'];
 
     // V1 SIGN_TYPE_NAMES (29 — verbatim from app.js T array)
     public const SIGN_TYPE_NAMES = [

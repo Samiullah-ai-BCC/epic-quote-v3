@@ -6,9 +6,10 @@ import { fileUrl } from '../api/client'
 import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
 
 // Commits on blur only when the value actually changed
-function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown }) {
+function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown, readOnly }) {
   const [v, setV] = useState(value ?? '')
   const commit = () => { if (String(v) !== String(value ?? '')) onCommit(v) }
+  if (readOnly) return <span>{value === null || value === undefined || value === '' ? '—' : String(value)}</span>
   return (
     <input
       type={type}
@@ -36,7 +37,7 @@ function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPas
 
 export default function AllQuotes() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuthStore()
+  const { isAdmin, isViewer } = useAuthStore()
   const { data: constants } = useConstants()
   const update = useUpdateQuote()
   const updateStatus = useUpdateStatus()
@@ -72,6 +73,7 @@ export default function AllQuotes() {
   const reps = constants?.sales_reps || []
   const team = constants?.team || []
   const admin = isAdmin()
+  const readOnly = isViewer()   // viewer accounts: the grid becomes a pure report
 
   const patch = (id, field, value) => update.mutate({ id, patch: { [field]: value } })
 
@@ -183,7 +185,7 @@ export default function AllQuotes() {
           <table>
             <thead>
               <tr>
-                <th><input type="checkbox" checked={allVisibleSelected} title="Select every quote in the current view" style={{ width: 'auto' }} onChange={toggleAll} /></th>
+                <th>{!readOnly && <input type="checkbox" checked={allVisibleSelected} title="Select every quote in the current view" style={{ width: 'auto' }} onChange={toggleAll} />}</th>
                 <th title="Row number">#</th>
                 <SortTh k="quote_id" sort={sort}>Quote ID</SortTh>
                 {columns.has('company') && <SortTh k="company_name" sort={sort}>Company</SortTh>}
@@ -205,16 +207,16 @@ export default function AllQuotes() {
             <tbody>
               {sort.sorted.map((q, i) => (
                 <tr key={q.id} style={selected.has(q.quote_id) ? { background: 'rgba(249,166,0,0.07)' } : undefined}>
-                  <td><input type="checkbox" checked={selected.has(q.quote_id)} style={{ width: 'auto' }} onChange={() => toggleSel(q.quote_id)} /></td>
+                  <td>{!readOnly && <input type="checkbox" checked={selected.has(q.quote_id)} style={{ width: 'auto' }} onChange={() => toggleSel(q.quote_id)} />}</td>
                   <td className="muted" style={{ fontSize: 11 }}>{i + 1}</td>
                   <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>TEST</span>}{q.rush === 'Super Rush' && <span className="pill pill-coral" style={{ marginLeft: 6, fontSize: 10 }}>SUPER RUSH</span>}{q.rush === 'Rush' && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>RUSH</span>}</td>
-                  {columns.has('company') && <td><EditCell col="company" row={i} onPasteDown={pasteDown('company', i)} value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>}
-                  {columns.has('client') && <td><EditCell col="client" row={i} onPasteDown={pasteDown('client', i)} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
-                  {columns.has('contact') && <td><EditCell col="contact" row={i} onPasteDown={pasteDown('contact', i)} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
-                  {columns.has('job') && <td><EditCell col="job" row={i} onPasteDown={pasteDown('job', i)} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
-                  {columns.has('price') && <td><EditCell col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
-                  {columns.has('be') && <td><EditCell col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
-                  {columns.has('be') && <td><EditCell col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
+                  {columns.has('company') && <td><EditCell readOnly={readOnly} col="company" row={i} onPasteDown={pasteDown('company', i)} value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>}
+                  {columns.has('client') && <td><EditCell readOnly={readOnly} col="client" row={i} onPasteDown={pasteDown('client', i)} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
+                  {columns.has('contact') && <td><EditCell readOnly={readOnly} col="contact" row={i} onPasteDown={pasteDown('contact', i)} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
+                  {columns.has('job') && <td><EditCell readOnly={readOnly} col="job" row={i} onPasteDown={pasteDown('job', i)} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
+                  {columns.has('price') && <td><EditCell readOnly={readOnly} col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
+                  {columns.has('be') && <td><EditCell readOnly={readOnly} col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
+                  {columns.has('be') && <td><EditCell readOnly={readOnly} col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
                   {columns.has('profit') && <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: q.profit == null ? undefined : q.profit >= 0 ? '#97c459' : '#e5484d' }}>
                     {q.profit == null ? '—' : `$${Number(q.profit).toLocaleString()} (${q.profit_pct}%)`}
                   </td>}
@@ -227,13 +229,13 @@ export default function AllQuotes() {
                     ) : (q.sales_rep || '—')}
                   </td>}
                   {columns.has('assigned') && <td>
-                    <select value={q.assigned_to || ''} style={{ width: 110 }} title="Who is working this quote" onChange={(e) => patch(q.quote_id, 'assigned_to', e.target.value)}>
+                    <select disabled={readOnly} value={q.assigned_to || ''} style={{ width: 110 }} title="Who is working this quote" onChange={(e) => patch(q.quote_id, 'assigned_to', e.target.value)}>
                       <option value="">—</option>
                       {team.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </td>}
                   {columns.has('rush') && <td>
-                    <select value={q.rush || ''} style={{ width: 100, ...(q.rush === 'Super Rush' ? { borderColor: '#e5484d', color: '#e5484d', fontWeight: 700 } : q.rush === 'Rush' ? { borderColor: '#f9a600', color: '#f9a600', fontWeight: 600 } : {}) }} title="Rush level — rush quotes jump the needs-attention queue" onChange={(e) => patch(q.quote_id, 'rush', e.target.value)}>
+                    <select disabled={readOnly} value={q.rush || ''} style={{ width: 100, ...(q.rush === 'Super Rush' ? { borderColor: '#e5484d', color: '#e5484d', fontWeight: 700 } : q.rush === 'Rush' ? { borderColor: '#f9a600', color: '#f9a600', fontWeight: 600 } : {}) }} title="Rush level — rush quotes jump the needs-attention queue" onChange={(e) => patch(q.quote_id, 'rush', e.target.value)}>
                       <option value="">—</option>
                       <option value="Rush">Rush</option>
                       <option value="Super Rush">Super Rush</option>
@@ -241,19 +243,19 @@ export default function AllQuotes() {
                   </td>}
                   {columns.has('approval') && <td style={{ whiteSpace: 'nowrap' }}>
                     <label title={q.price_approved ? `Approved by ${q.approved_by}${q.approved_at ? ' on ' + new Date(q.approved_at).toLocaleDateString() : ''}` : 'Tick to approve the price (you + date are logged)'} style={{ cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!q.price_approved} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
+                      <input type="checkbox" disabled={readOnly} checked={!!q.price_approved} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
                     </label>{' '}
                     <label title={q.approval_locked ? 'LOCKED — PDF/PNG/payment link blocked until the price is approved. Click to unlock.' : 'Lock this quote until the price is approved'} style={{ cursor: 'pointer', opacity: q.approval_locked ? 1 : 0.5 }}>
-                      <input type="checkbox" checked={!!q.approval_locked} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
+                      <input type="checkbox" disabled={readOnly} checked={!!q.approval_locked} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
                     </label>
                   </td>}
                   {columns.has('order') && <td style={{ textAlign: 'center' }}>
                     <label title={q.order_confirmed ? `Order placed${q.order_placed_at ? ' on ' + new Date(q.order_placed_at).toLocaleDateString() : ''}` : 'Tick when the customer places the order (date is stamped)'} style={{ cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!q.order_confirmed} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'order_confirmed', e.target.checked)} /> 📦
+                      <input type="checkbox" disabled={readOnly} checked={!!q.order_confirmed} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'order_confirmed', e.target.checked)} /> 📦
                     </label>
                   </td>}
                   <td>
-                    <select value={q.status} style={{ width: 150 }} onChange={(e) => updateStatus.mutate({ id: q.quote_id, status: e.target.value })}>
+                    <select disabled={readOnly} value={q.status} style={{ width: 150 }} onChange={(e) => updateStatus.mutate({ id: q.quote_id, status: e.target.value })}>
                       {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                     {/* extra "also waiting on…" chips — a quote can wait on several people at once.
@@ -265,7 +267,7 @@ export default function AllQuotes() {
                           {t} ×
                         </span>
                       ))}
-                      <select value="" style={{ width: 26, padding: '0 2px', height: 20, fontSize: 11 }} title="Also waiting on…"
+                      <select disabled={readOnly} value="" style={{ width: 26, padding: '0 2px', height: 20, fontSize: 11 }} title="Also waiting on…"
                         onChange={(e) => { const t = e.target.value; if (t) updateTags.mutate({ id: q.quote_id, tags: [...new Set([...(q.tags || []), t])] }) }}>
                         <option value="">+</option>
                         {statuses.filter((s) => s !== q.status && s !== 'Done' && !(q.tags || []).includes(s)).map((s) => <option key={s} value={s}>{s}</option>)}
@@ -279,10 +281,10 @@ export default function AllQuotes() {
                   </td>}
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="ghost sm" onClick={() => setViewing(q)}>View</button>{' '}
-                    <button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>Edit</button>{' '}
+                    {!readOnly && <><button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>Edit</button>{' '}</>}
                     {admin && <><button className="ghost sm" title="Everything that ever happened to this quote" onClick={() => navigate(`/activity?quote=${q.quote_id}`)}>History</button>{' '}</>}
                     {admin && <><button className="ghost sm" title={q.is_test ? 'Unmark test — counts again in all numbers' : 'Mark as TEST — excluded from every KPI, pipeline and report'} onClick={() => patch(q.quote_id, 'is_test', !q.is_test)}>{q.is_test ? 'Untest' : 'Test'}</button>{' '}</>}
-                    <button className="danger sm" onClick={() => remove(q)}>Delete</button>
+                    {!readOnly && <button className="danger sm" onClick={() => remove(q)}>Delete</button>}
                   </td>
                 </tr>
               ))}

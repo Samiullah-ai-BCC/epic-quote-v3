@@ -68,7 +68,9 @@ export default function Dashboard() {
             {dateStr}{attnCount ? ` · ${attnCount} quote${attnCount > 1 ? 's' : ''} need you today` : ' · all clear'}
           </div>
         </div>
-        <button onClick={() => setShowAdd(true)}>+ New quote</button>
+        {user?.role !== 'viewer'
+          ? <button onClick={() => setShowAdd(true)}>+ New quote</button>
+          : <span className="pill pill-gray" title="Your account can see everything but change nothing">👁 View-only account</span>}
       </div>
 
       <div className="kpis">

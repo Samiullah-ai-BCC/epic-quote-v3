@@ -30,6 +30,7 @@ const useAuthStore = create(
       },
 
       isAdmin: () => get().user?.role === 'admin',
+      isViewer: () => get().user?.role === 'viewer',
       isAuthenticated: () => !!get().token,
     }),
     {
