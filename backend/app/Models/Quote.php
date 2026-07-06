@@ -89,6 +89,8 @@ class Quote extends Model
             'rush'                 => $this->rush ?? '',
             'breakeven_production' => $this->breakeven_production,
             'breakeven_shipping'   => $this->breakeven_shipping,
+            'profit'               => $this->profit(),
+            'profit_pct'           => $this->profitPct(),
             'price_approved'       => (bool) $this->price_approved,
             'approved_by'          => $this->approved_by ?? '',
             'approval_locked'      => (bool) $this->approval_locked,
@@ -105,6 +107,26 @@ class Quote extends Model
         }
 
         return $data;
+    }
+
+    /**
+     * Auto profit = price − (breakeven production + shipping). Internal only.
+     * Null until a price AND at least one breakeven exist — profit without
+     * costs entered would just echo the price and mislead.
+     */
+    public function profit(): ?float
+    {
+        $hasBe = $this->breakeven_production !== null || $this->breakeven_shipping !== null;
+        if (!$hasBe || !$this->price) {
+            return null;
+        }
+        return round((float) $this->price - (float) ($this->breakeven_production ?? 0) - (float) ($this->breakeven_shipping ?? 0), 2);
+    }
+
+    public function profitPct(): ?float
+    {
+        $p = $this->profit();
+        return $p === null ? null : round($p / (float) $this->price * 100, 1);
     }
 
     /**

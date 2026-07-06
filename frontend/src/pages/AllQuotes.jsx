@@ -83,6 +83,9 @@ export default function AllQuotes() {
               <tr>
                 <th>Quote ID</th><th>Company</th><th>Client</th><th>Contact</th>
                 <th>Job</th><th>Price</th>
+                <th title="Breakeven production cost — internal only">BE Prod</th>
+                <th title="Breakeven shipping cost — internal only">BE Ship</th>
+                <th title="Auto: price minus breakevens — internal only">Profit</th>
                 <th>Sales Rep</th><th>Assigned</th><th>Rush</th><th>Status</th><th>Files</th><th></th>
               </tr>
             </thead>
@@ -95,6 +98,11 @@ export default function AllQuotes() {
                   <td><EditCell value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>
                   <td><EditCell value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>
                   <td><EditCell value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>
+                  <td><EditCell value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>
+                  <td><EditCell value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: q.profit == null ? undefined : q.profit >= 0 ? '#97c459' : '#e5484d' }}>
+                    {q.profit == null ? '—' : `$${Number(q.profit).toLocaleString()} (${q.profit_pct}%)`}
+                  </td>
                   <td>
                     {admin ? (
                       <select value={q.sales_rep || ''} style={{ width: 110 }} onChange={(e) => patch(q.quote_id, 'sales_rep', e.target.value)}>
@@ -150,7 +158,7 @@ export default function AllQuotes() {
                   </td>
                 </tr>
               ))}
-              {quotes.length === 0 && <tr><td colSpan={12} className="center">No quotes found.</td></tr>}
+              {quotes.length === 0 && <tr><td colSpan={15} className="center">No quotes found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -164,7 +172,9 @@ export default function AllQuotes() {
               ['Company', viewing.company_name], ['Client', viewing.client_name],
               ['Contact', viewing.contact], ['Address', viewing.address],
               ['Job', viewing.job_name],
-              ['Price', viewing.price ? `$${Number(viewing.price).toLocaleString()}` : '—'], ['Sales Rep', viewing.sales_rep],
+              ['Price', viewing.price ? `$${Number(viewing.price).toLocaleString()}` : '—'],
+              ['Breakeven (production + shipping)', (viewing.breakeven_production != null || viewing.breakeven_shipping != null) ? `$${Number(viewing.breakeven_production || 0).toLocaleString()} + $${Number(viewing.breakeven_shipping || 0).toLocaleString()}` : '—'],
+              ['Profit (internal)', viewing.profit != null ? `$${Number(viewing.profit).toLocaleString()} (${viewing.profit_pct}%)` : '—'], ['Sales Rep', viewing.sales_rep],
               ['Status', viewing.status], ['Assigned To', viewing.assigned_to],
               ['Special Requirements', viewing.special_requirements],
               ['Created By', viewing.added_by], ['Finalized By', viewing.created_by_name],

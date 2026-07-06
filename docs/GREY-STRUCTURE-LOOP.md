@@ -22,7 +22,7 @@
 | I2 | New statuses: Rejected by Client, On Hold, Out of Scope + Test-quote flag excluded from all numbers (T6, T7) | ✅ | browser: 3 statuses in dropdown, On Hold persists after reload; TEST toggle → dashboard 9→8 quotes, pipeline −$1,200, 8→7 open; restored after. d157025 |
 | I3 | Assigned-to: dropdown on All Quotes + "my quotes" filter + dashboard rows (T4) | ✅ | browser: team dropdown (10 users) on All Quotes, assign persists reload, My-quotes filter → only assigned row, dashboard Assigned column shows name; change logged in activity |
 | I4 | Rush/Super Rush: setter UI + highlights + rush-first needs-attention + filter (T5) | ✅ | browser: Rush/Super Rush set + persist reload, colored badges on row, Rush-only filter → 2 rows, Super Rush jumps to top of needs-attention with badge; restored after |
-| I5 | Breakeven production/shipping + auto profit $ and % (internal only) (T8) | ⬜ | |
+| I5 | Breakeven production/shipping + auto profit $ and % (internal only) (T8) | ✅ | browser: BE 300+100 on $1,200 quote → Profit $800 (66.7%) auto, persists reload, clears to — when emptied; internal-only (never in proposal state) |
 | I6 | Price approval: approved checkbox + who/when logged; approval lock blocks PDF/PNG/payment link (T9) | ⬜ | |
 | I7 | Follow-ups: fields + dashboard needs-follow-up queue + mark done (T10) | ⬜ | |
 | I8 | Quote source at intake + filter (T11); the 3 note fields (T12); order-placed marker + date (T13) | ⬜ | |

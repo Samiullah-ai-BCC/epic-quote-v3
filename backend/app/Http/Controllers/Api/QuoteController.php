@@ -274,6 +274,31 @@ class QuoteController extends Controller
             }
         }
 
+        // Breakeven costs (internal only — never on the proposal/PDF). Profit is derived
+        // from these in toApi so every screen computes it the same way.
+        foreach (['breakeven_production', 'breakeven_shipping'] as $beField) {
+            if (array_key_exists($beField, $data)) {
+                $raw = $data[$beField];
+                if ($raw === null || $raw === '') {
+                    if ($quote->{$beField} !== null) {
+                        $changes[] = ucwords(str_replace('_', ' ', $beField)).' cleared';
+                    }
+                    $quote->{$beField} = null;
+                } elseif (is_numeric($raw)) {
+                    $val = (float) $raw;
+                    if ($val < 0 || $val > 10000000) {
+                        return response()->json(['error' => 'Breakeven must be between $0 and $10,000,000.'], 422);
+                    }
+                    if ($val !== (float) ($quote->{$beField} ?? -1)) {
+                        $changes[] = ucwords(str_replace('_', ' ', $beField)).": {$val}";
+                    }
+                    $quote->{$beField} = $val;
+                } else {
+                    return response()->json(['error' => 'Breakeven must be a number.'], 422);
+                }
+            }
+        }
+
         if (array_key_exists('rush', $data)) {
             $newRush = trim((string) ($data['rush'] ?? ''));
             if (!in_array($newRush, ['', 'Rush', 'Super Rush'], true)) {
