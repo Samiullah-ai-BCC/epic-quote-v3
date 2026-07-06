@@ -108,6 +108,8 @@ export default function Dashboard() {
                 <div className="na-sub">{q.job_name || ''}{q.assigned_to ? `${q.job_name ? ' · ' : ''}with ${q.assigned_to}` : ''}</div>
               </div>
               <div className="na-act">
+                {q.rush === 'Super Rush' && <span className="pill pill-coral" style={{ fontWeight: 700 }}>SUPER RUSH</span>}
+                {q.rush === 'Rush' && <span className="pill pill-amber" style={{ fontWeight: 600 }}>RUSH</span>}
                 <span className={'pill pill-' + (COLOR[q.status] || 'gray')}>{chip}</span>
                 {(q.tags || []).map((t) => <span key={t} className="pill pill-purple" style={{ fontSize: 10 }}>also: {ACTION[t] || t}</span>)}
                 <div className="na-val">{money(q.price)}</div>

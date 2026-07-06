@@ -32,12 +32,14 @@ export default function AllQuotes() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [mine, setMine] = useState(false)
+  const [rushOnly, setRushOnly] = useState(false)
   const [viewing, setViewing] = useState(null)
 
   const params = {}
   if (search) params.search = search
   if (status) params.status = status
   if (mine) params.assigned = 'me'
+  if (rushOnly) params.rush = '1'
   const { data: quotes = [], isLoading } = useQuotes(params)
 
   const statuses = constants?.statuses || []
@@ -66,6 +68,10 @@ export default function AllQuotes() {
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} style={{ width: 'auto' }} />
           My quotes
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }} title="Only Rush / Super Rush quotes">
+          <input type="checkbox" checked={rushOnly} onChange={(e) => setRushOnly(e.target.checked)} style={{ width: 'auto' }} />
+          Rush only
+        </label>
       </div>
 
       {isLoading ? (
@@ -77,13 +83,13 @@ export default function AllQuotes() {
               <tr>
                 <th>Quote ID</th><th>Company</th><th>Client</th><th>Contact</th>
                 <th>Job</th><th>Price</th>
-                <th>Sales Rep</th><th>Assigned</th><th>Status</th><th>Files</th><th></th>
+                <th>Sales Rep</th><th>Assigned</th><th>Rush</th><th>Status</th><th>Files</th><th></th>
               </tr>
             </thead>
             <tbody>
               {quotes.map((q) => (
                 <tr key={q.id}>
-                  <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>TEST</span>}</td>
+                  <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>TEST</span>}{q.rush === 'Super Rush' && <span className="pill pill-coral" style={{ marginLeft: 6, fontSize: 10 }}>SUPER RUSH</span>}{q.rush === 'Rush' && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>RUSH</span>}</td>
                   <td><EditCell value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>
                   <td><EditCell value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>
                   <td><EditCell value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>
@@ -101,6 +107,13 @@ export default function AllQuotes() {
                     <select value={q.assigned_to || ''} style={{ width: 110 }} title="Who is working this quote" onChange={(e) => patch(q.quote_id, 'assigned_to', e.target.value)}>
                       <option value="">—</option>
                       {team.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <select value={q.rush || ''} style={{ width: 100, ...(q.rush === 'Super Rush' ? { borderColor: '#e5484d', color: '#e5484d', fontWeight: 700 } : q.rush === 'Rush' ? { borderColor: '#f9a600', color: '#f9a600', fontWeight: 600 } : {}) }} title="Rush level — rush quotes jump the needs-attention queue" onChange={(e) => patch(q.quote_id, 'rush', e.target.value)}>
+                      <option value="">—</option>
+                      <option value="Rush">Rush</option>
+                      <option value="Super Rush">Super Rush</option>
                     </select>
                   </td>
                   <td>
@@ -137,7 +150,7 @@ export default function AllQuotes() {
                   </td>
                 </tr>
               ))}
-              {quotes.length === 0 && <tr><td colSpan={11} className="center">No quotes found.</td></tr>}
+              {quotes.length === 0 && <tr><td colSpan={12} className="center">No quotes found.</td></tr>}
             </tbody>
           </table>
         </div>

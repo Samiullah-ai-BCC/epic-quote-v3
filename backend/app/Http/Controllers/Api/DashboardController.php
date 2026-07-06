@@ -80,10 +80,15 @@ class DashboardController extends Controller
                 'price'        => (float) $q->price,
                 'status'       => $q->status,
                 'assigned_to'  => $q->assigned_to ?? '',
+                'rush'         => $q->rush ?? '',
                 'tags'         => $q->tags ?: [],
                 'days_waiting' => $q->updated_at ? (int) $q->updated_at->diffInDays($now) : 0,
             ])
-            ->sortByDesc('days_waiting')
+            // rush jumps the queue: Super Rush first, then Rush, then most-overdue
+            ->sort(function ($a, $b) {
+                $rank = fn ($r) => ['Super Rush' => 0, 'Rush' => 1][$r] ?? 2;
+                return [$rank($a['rush']), -$a['days_waiting']] <=> [$rank($b['rush']), -$b['days_waiting']];
+            })
             ->take(8)
             ->values();
 

@@ -36,6 +36,13 @@ class QuoteController extends Controller
             $q->where('assigned_to', $assigned === 'me' ? $request->user()->full_name : $assigned);
         }
 
+        // Rush filter: ?rush=1 → any rush level, ?rush=Rush / ?rush=Super Rush → exact
+        if ($rush = trim((string) $request->query('rush', ''))) {
+            $rush === '1'
+                ? $q->whereIn('rush', ['Rush', 'Super Rush'])
+                : $q->where('rush', $rush);
+        }
+
         if ($search = $request->query('search')) {
             $like = '%'.$search.'%';
             $q->where(function ($w) use ($like) {
@@ -264,6 +271,17 @@ class QuoteController extends Controller
             if ($newAssignee !== (string) ($quote->assigned_to ?? '')) {
                 $changes[] = 'Assigned to: '.($quote->assigned_to ?: '—').' -> '.($newAssignee ?: '—');
                 $quote->assigned_to = $newAssignee;
+            }
+        }
+
+        if (array_key_exists('rush', $data)) {
+            $newRush = trim((string) ($data['rush'] ?? ''));
+            if (!in_array($newRush, ['', 'Rush', 'Super Rush'], true)) {
+                return response()->json(['error' => 'Rush must be empty, "Rush" or "Super Rush"'], 400);
+            }
+            if ($newRush !== (string) ($quote->rush ?? '')) {
+                $changes[] = 'Rush: '.($quote->rush ?: '—').' -> '.($newRush ?: '—');
+                $quote->rush = $newRush;
             }
         }
 
