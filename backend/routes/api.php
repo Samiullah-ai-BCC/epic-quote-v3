@@ -36,10 +36,9 @@ Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
     Route::post('quotes/{quote}/crunched-artwork', [App\Http\Controllers\Api\QuoteController::class, 'uploadCrunchedArtwork']);
     Route::get('quotes/{quote}/generated', [App\Http\Controllers\Api\QuoteController::class, 'getGenerated']);
     Route::put('quotes/{quote}/generated', [App\Http\Controllers\Api\QuoteController::class, 'putGenerated']);
-    Route::get('quotes/{quote}/payment-link', [App\Http\Controllers\Api\QuoteController::class, 'getPaymentLink']);
-    Route::put('quotes/{quote}/payment-link', [App\Http\Controllers\Api\QuoteController::class, 'putPaymentLink']);
-    Route::post('quotes/{quote}/confirm-order', [App\Http\Controllers\Api\QuoteController::class, 'confirmOrder']);
-    Route::get('quotes/{quote}/pdf/download', [App\Http\Controllers\Api\QuoteController::class, 'downloadPdf']);
+    // (payment-link / confirm-order / pdf-download routes removed — they were never
+    //  implemented (501) and had no callers; order state is set via the normal quote
+    //  update and PDF export is client-side print.)
 
     // Companies / CRM — deferred to A8 (CompanyController not built yet; no frontend caller).
     // Re-enable when the CRM page + CompanyController land, to restore V1 parity.

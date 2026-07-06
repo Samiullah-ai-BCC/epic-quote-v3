@@ -40,6 +40,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'readonly.guard' => \App\Http\Middleware\BlockViewerWrites::class,
         ]);
 
+        // baseline security headers on every API response (+ strip X-Powered-By)
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
         // Pure Bearer-token auth (#130) — NOT cookie/CSRF SPA mode.
         // statefulApi() would force CSRF on requests from SANCTUM_STATEFUL_DOMAINS
         // (e.g. the vite dev origin), causing 419 on token logins.

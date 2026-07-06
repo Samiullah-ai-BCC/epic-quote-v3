@@ -635,17 +635,6 @@ class QuoteController extends Controller
         return response()->json(['path' => $stored[1]]);
     }
 
-    // --- Deferred to later phases (routes exist; not yet implemented) ---
-    public function getPaymentLink()       { return $this->pending('P8 payments'); }
-    public function putPaymentLink()       { return $this->pending('P8 payments'); }
-    public function confirmOrder()         { return $this->pending('P8 order confirmation'); }
-    public function downloadPdf()          { return $this->pending('P7 PDF generation'); }
-
-    private function pending(string $phase): JsonResponse
-    {
-        return response()->json(['error' => "Not implemented yet — {$phase}"], 501);
-    }
-
     private function safeFilename(\Illuminate\Http\UploadedFile $file): string
     {
         // strip directory components + unsafe chars (prevents path traversal / odd names)
