@@ -250,7 +250,9 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
 const LOUPE = 185, SRC = 38   // eyedropper magnifier: loupe diameter (px) and source pixels across it
                               // (~5.5px per pixel — pixels stay visible but you keep enough context to aim)
 
-export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, sideViews = [], onSideViews }) {
+export default function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, sideViews = [], onSideViews, approval }) {
+  // approval lock: while the quote is locked and the price unapproved, nothing goes out
+  const exportBlocked = !!(approval?.locked && !approval?.approved)
   const pageRef = useRef(null)
   const wrapRef = useRef(null)
   const [scale, setScale] = useState(1)
@@ -596,6 +598,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   }
 
   const downloadPNG = async () => {
+    if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
     setBusy('png')
     try {
       const c = await render()
@@ -607,6 +610,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   }
 
   const downloadPDF = () => {
+    if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
     // Real vector PDF via the browser's print pipeline: sharp, selectable text and a clickable
     // payment link. (An image-based PDF pixelates the text and the link isn't clickable.)
     flash("Opening your browser's Save-as-PDF…")
@@ -891,8 +895,9 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
 
       {/* actions */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-        <button className="ghost" disabled={busy} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>
-        <button disabled={busy} onClick={downloadPDF}>🖨️ Save as PDF</button>
+        {exportBlocked && <span style={{ alignSelf: 'center', color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
+        <button className="ghost" disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>
+        <button disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>🖨️ Save as PDF</button>
         {toast && <span style={{ alignSelf: 'center', color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
       </div>
     </div>

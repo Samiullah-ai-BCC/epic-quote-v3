@@ -86,7 +86,9 @@ export default function AllQuotes() {
                 <th title="Breakeven production cost — internal only">BE Prod</th>
                 <th title="Breakeven shipping cost — internal only">BE Ship</th>
                 <th title="Auto: price minus breakevens — internal only">Profit</th>
-                <th>Sales Rep</th><th>Assigned</th><th>Rush</th><th>Status</th><th>Files</th><th></th>
+                <th>Sales Rep</th><th>Assigned</th><th>Rush</th>
+                <th title="Price approval: ✓ = approved (who/when logged); 🔒 = locked — cannot send PDF/PNG/payment link until approved">Approval</th>
+                <th>Status</th><th>Files</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -124,6 +126,14 @@ export default function AllQuotes() {
                       <option value="Super Rush">Super Rush</option>
                     </select>
                   </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <label title={q.price_approved ? `Approved by ${q.approved_by}${q.approved_at ? ' on ' + new Date(q.approved_at).toLocaleDateString() : ''}` : 'Tick to approve the price (you + date are logged)'} style={{ cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!q.price_approved} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
+                    </label>{' '}
+                    <label title={q.approval_locked ? 'LOCKED — PDF/PNG/payment link blocked until the price is approved. Click to unlock.' : 'Lock this quote until the price is approved'} style={{ cursor: 'pointer', opacity: q.approval_locked ? 1 : 0.5 }}>
+                      <input type="checkbox" checked={!!q.approval_locked} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
+                    </label>
+                  </td>
                   <td>
                     <select value={q.status} style={{ width: 150 }} onChange={(e) => updateStatus.mutate({ id: q.quote_id, status: e.target.value })}>
                       {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -158,7 +168,7 @@ export default function AllQuotes() {
                   </td>
                 </tr>
               ))}
-              {quotes.length === 0 && <tr><td colSpan={15} className="center">No quotes found.</td></tr>}
+              {quotes.length === 0 && <tr><td colSpan={16} className="center">No quotes found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -174,7 +184,8 @@ export default function AllQuotes() {
               ['Job', viewing.job_name],
               ['Price', viewing.price ? `$${Number(viewing.price).toLocaleString()}` : '—'],
               ['Breakeven (production + shipping)', (viewing.breakeven_production != null || viewing.breakeven_shipping != null) ? `$${Number(viewing.breakeven_production || 0).toLocaleString()} + $${Number(viewing.breakeven_shipping || 0).toLocaleString()}` : '—'],
-              ['Profit (internal)', viewing.profit != null ? `$${Number(viewing.profit).toLocaleString()} (${viewing.profit_pct}%)` : '—'], ['Sales Rep', viewing.sales_rep],
+              ['Profit (internal)', viewing.profit != null ? `$${Number(viewing.profit).toLocaleString()} (${viewing.profit_pct}%)` : '—'],
+              ['Price Approval', viewing.price_approved ? `Approved by ${viewing.approved_by}${viewing.approved_at ? ' on ' + new Date(viewing.approved_at).toLocaleString() : ''}` : (viewing.approval_locked ? 'LOCKED — awaiting approval' : 'Not approved')], ['Sales Rep', viewing.sales_rep],
               ['Status', viewing.status], ['Assigned To', viewing.assigned_to],
               ['Special Requirements', viewing.special_requirements],
               ['Created By', viewing.added_by], ['Finalized By', viewing.created_by_name],

@@ -542,7 +542,12 @@ export default function Generator() {
             </div>
             <div className="field">
               <label>💳 Payment link (optional)</label>
-              <input type="url" placeholder="https://…" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} />
+              <input type="url" placeholder="https://…" value={paymentLink} disabled={quote?.approval_locked && !quote?.price_approved} onChange={(e) => setPaymentLink(e.target.value)} />
+              {quote?.approval_locked && !quote?.price_approved && (
+                <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 6 }}>
+                  🔒 This quote is locked — the price must be approved (All Quotes → Approval) before a payment link can be added.
+                </p>
+              )}
               {paymentLink.trim() !== '' && !/^https?:\/\/\S+\.\S+/i.test(paymentLink.trim()) && (
                 <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 6 }}>
                   That's not a working link — it must start with https:// (this goes on the customer's proposal).
@@ -804,6 +809,7 @@ export default function Generator() {
               logo={logo}
               aiResult={ai}
               paymentLink={paymentLink}
+              approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
               proposalNotes={proposalNotes}
               savedState={gd?.proposal_state}
               sideViews={sideViews}
@@ -834,6 +840,7 @@ export default function Generator() {
              logo={logo}
              aiResult={ai}
              paymentLink={paymentLink}
+             approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
              proposalNotes={proposalNotes}
              savedState={gd?.proposal_state}
              sideViews={sideViews}

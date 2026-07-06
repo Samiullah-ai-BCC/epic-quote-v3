@@ -274,6 +274,33 @@ class QuoteController extends Controller
             }
         }
 
+        // Price approval: who approved and when are stamped server-side, never client-supplied.
+        if (array_key_exists('price_approved', $data)) {
+            $approved = (bool) $data['price_approved'];
+            if ($approved !== (bool) $quote->price_approved) {
+                $quote->price_approved = $approved;
+                if ($approved) {
+                    $quote->approved_by = $user->full_name;
+                    $quote->approved_at = now();
+                    $changes[] = 'Price APPROVED by '.$user->full_name;
+                } else {
+                    $quote->approved_by = '';
+                    $quote->approved_at = null;
+                    $changes[] = 'Price approval REMOVED';
+                }
+            }
+        }
+
+        // Approval lock: while locked and unapproved, the quote cannot go out
+        // (PDF/PNG export and payment links are blocked).
+        if (array_key_exists('approval_locked', $data)) {
+            $locked = (bool) $data['approval_locked'];
+            if ($locked !== (bool) $quote->approval_locked) {
+                $quote->approval_locked = $locked;
+                $changes[] = $locked ? 'Approval lock ON' : 'Approval lock OFF';
+            }
+        }
+
         // Breakeven costs (internal only — never on the proposal/PDF). Profit is derived
         // from these in toApi so every screen computes it the same way.
         foreach (['breakeven_production', 'breakeven_shipping'] as $beField) {
@@ -402,6 +429,12 @@ class QuoteController extends Controller
         }
         // a junk payment link would ship a dead button on the customer's proposal
         if (!empty($data['payment_link']) && !preg_match('#^https?://\S+\.\S+#i', $data['payment_link'])) {
+            unset($data['payment_link']);
+            $quote->generated_data = $data;
+        }
+        // approval lock: an unapproved locked quote must not carry a payment link out the door.
+        // Stripped (not 422) so routine autosaves keep working; the UI explains the block.
+        if (!empty($data['payment_link']) && $quote->approval_locked && !$quote->price_approved) {
             unset($data['payment_link']);
             $quote->generated_data = $data;
         }
