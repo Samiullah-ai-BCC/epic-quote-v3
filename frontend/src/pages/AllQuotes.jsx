@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
 import useAuthStore from '../store/authStore'
 import { fileUrl } from '../api/client'
-import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav } from '../components/grid'
+import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
 
 // Commits on blur only when the value actually changed
-function EditCell({ value, onCommit, type = 'text', width = 120, col, row }) {
+function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown }) {
   const [v, setV] = useState(value ?? '')
   const commit = () => { if (String(v) !== String(value ?? '')) onCommit(v) }
   return (
@@ -19,6 +19,17 @@ function EditCell({ value, onCommit, type = 'text', width = 120, col, row }) {
       onChange={(e) => setV(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => (col != null ? gridKeyNav(e, col, row) : e.key === 'Enter' && e.currentTarget.blur())}
+      onPaste={(e) => {
+        // Excel-style: pasting a multi-line clipboard fills this column downwards, one row per line
+        if (!onPasteDown) return
+        const text = e.clipboardData.getData('text')
+        if (text.includes('\n')) {
+          e.preventDefault()
+          const values = text.replace(/\r/g, '').split('\n').filter((x, idx, arr) => x !== '' || idx < arr.length - 1)
+          setV(values[0] ?? '')
+          onPasteDown(values)
+        }
+      }}
     />
   )
 }
@@ -79,6 +90,40 @@ export default function AllQuotes() {
   const selIds = quotes.filter((q) => selected.has(q.quote_id)).map((q) => q.quote_id)
   const bulkStatus = (st) => { if (st) selIds.forEach((id) => updateStatus.mutate({ id, status: st })) }
   const bulkAssign = (name) => selIds.forEach((id) => update.mutate({ id, patch: { assigned_to: name } }))
+  // ---- Grid v4: export + copy + paste-down ----
+  const EXPORT_COLS = [
+    ['Quote ID', (q) => q.quote_id], ['Company', (q) => q.company_name], ['Client', (q) => q.client_name],
+    ['Contact', (q) => q.contact], ['Job', (q) => q.job_name], ['Price', (q) => q.price ?? ''],
+    ['Breakeven Production', (q) => q.breakeven_production ?? ''], ['Breakeven Shipping', (q) => q.breakeven_shipping ?? ''],
+    ['Profit', (q) => q.profit ?? ''], ['Profit %', (q) => q.profit_pct ?? ''],
+    ['Sales Rep', (q) => q.sales_rep], ['Assigned To', (q) => q.assigned_to], ['Rush', (q) => q.rush],
+    ['Price Approved', (q) => (q.price_approved ? 'yes' : 'no')], ['Approved By', (q) => q.approved_by],
+    ['Order Placed', (q) => (q.order_confirmed ? 'yes' : 'no')], ['Order Date', (q) => q.order_placed_at || ''],
+    ['Status', (q) => q.status], ['Source', (q) => q.quote_source],
+    ['Revision Notes', (q) => q.revision_notes], ['Important Notes', (q) => q.important_notes], ['Internal Notes', (q) => q.internal_notes],
+    ['Created', (q) => q.created_at || ''],
+  ]
+  const exportRows = () => (selIds.length ? sort.sorted.filter((q) => selected.has(q.quote_id)) : sort.sorted)
+  const exportCsv = () => downloadCsv(
+    `quotes-${new Date().toISOString().slice(0, 10)}.csv`,
+    EXPORT_COLS.map(([h]) => h),
+    exportRows().map((q) => EXPORT_COLS.map(([, f]) => f(q)))
+  )
+  const copyRows = async () => {
+    const ok = await copyTsv(EXPORT_COLS.map(([h]) => h), exportRows().map((q) => EXPORT_COLS.map(([, f]) => f(q))))
+    window.alert(ok ? `Copied ${exportRows().length} row(s) — paste straight into Excel/Sheets.` : 'Copy failed — your browser blocked clipboard access.')
+  }
+  // pasting a multi-line clipboard into a cell fills that column downwards (Excel-style)
+  const COL_FIELD = { company: 'company_name', client: 'client_name', contact: 'contact', job: 'job_name', price: 'price', bep: 'breakeven_production', bes: 'breakeven_shipping' }
+  const pasteDown = (col, startRow) => (values) => {
+    const field = COL_FIELD[col]
+    if (!field) return
+    values.forEach((val, offset) => {
+      const target = sort.sorted[startRow + offset]
+      if (target) patch(target.quote_id, field, val)
+    })
+  }
+
   const bulkDelete = () => {
     if (window.confirm(`Delete ${selIds.length} quote${selIds.length > 1 ? 's' : ''} (${selIds.join(', ')})? This cannot be undone.`)) {
       selIds.forEach((id) => del.mutate(id))
@@ -109,6 +154,8 @@ export default function AllQuotes() {
           <input type="checkbox" checked={rushOnly} onChange={(e) => setRushOnly(e.target.checked)} style={{ width: 'auto' }} />
           Rush only
         </label>
+        <button className="ghost sm" title="Download the current view (or just the ticked rows) as a spreadsheet file" onClick={exportCsv}>⬇ CSV</button>
+        <button className="ghost sm" title="Copy the current view (or just the ticked rows) — paste into Excel/Google Sheets" onClick={copyRows}>⧉ Copy</button>
         <ColumnPicker columns={columns} />
       </div>
 
@@ -161,13 +208,13 @@ export default function AllQuotes() {
                   <td><input type="checkbox" checked={selected.has(q.quote_id)} style={{ width: 'auto' }} onChange={() => toggleSel(q.quote_id)} /></td>
                   <td className="muted" style={{ fontSize: 11 }}>{i + 1}</td>
                   <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>TEST</span>}{q.rush === 'Super Rush' && <span className="pill pill-coral" style={{ marginLeft: 6, fontSize: 10 }}>SUPER RUSH</span>}{q.rush === 'Rush' && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>RUSH</span>}</td>
-                  {columns.has('company') && <td><EditCell col="company" row={i} value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>}
-                  {columns.has('client') && <td><EditCell col="client" row={i} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
-                  {columns.has('contact') && <td><EditCell col="contact" row={i} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
-                  {columns.has('job') && <td><EditCell col="job" row={i} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
-                  {columns.has('price') && <td><EditCell col="price" row={i} value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
-                  {columns.has('be') && <td><EditCell col="bep" row={i} value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
-                  {columns.has('be') && <td><EditCell col="bes" row={i} value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
+                  {columns.has('company') && <td><EditCell col="company" row={i} onPasteDown={pasteDown('company', i)} value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>}
+                  {columns.has('client') && <td><EditCell col="client" row={i} onPasteDown={pasteDown('client', i)} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
+                  {columns.has('contact') && <td><EditCell col="contact" row={i} onPasteDown={pasteDown('contact', i)} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
+                  {columns.has('job') && <td><EditCell col="job" row={i} onPasteDown={pasteDown('job', i)} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
+                  {columns.has('price') && <td><EditCell col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
+                  {columns.has('be') && <td><EditCell col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
+                  {columns.has('be') && <td><EditCell col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
                   {columns.has('profit') && <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: q.profit == null ? undefined : q.profit >= 0 ? '#97c459' : '#e5484d' }}>
                     {q.profit == null ? '—' : `$${Number(q.profit).toLocaleString()} (${q.profit_pct}%)`}
                   </td>}

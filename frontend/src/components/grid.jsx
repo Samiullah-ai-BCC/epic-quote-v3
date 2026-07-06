@@ -101,3 +101,37 @@ export function SortTh({ k, sort, children, title }) {
     </th>
   )
 }
+
+
+/* Grid v4: copy + CSV export. Fields with commas/quotes/newlines are quoted per RFC 4180. */
+export function toCsv(headers, rows) {
+  const esc = (v) => {
+    const t = v === null || v === undefined ? '' : String(v)
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t
+  }
+  return [headers.map(esc).join(','), ...rows.map((r) => r.map(esc).join(','))].join('\r\n')
+}
+
+export function downloadCsv(filename, headers, rows) {
+  const blob = new Blob(['﻿' + toCsv(headers, rows)], { type: 'text/csv;charset=utf-8' })   // BOM so Excel opens UTF-8 right
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+export async function copyTsv(headers, rows) {
+  const text = [headers.join('\t'), ...rows.map((r) => r.map((v) => (v ?? '')).join('\t'))].join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    // clipboard API can be blocked — textarea fallback works everywhere
+    const ta = document.createElement('textarea')
+    ta.value = text; document.body.appendChild(ta); ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
+  }
+}
