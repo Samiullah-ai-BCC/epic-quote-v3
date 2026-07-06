@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildQuestions, parseDims, composeDims } from './questions'
+import { buildQuestions, parseDims, composeDims, cleanNum } from './questions'
 import MoneyInput from '../components/MoneyInput'
 
 /* Single, consistent Specifications form. Every sign type shows ONE page of fields
@@ -36,7 +36,7 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
   const setA = (k, v) => setAnswers((s) => ({ ...s, [k]: v }))
   // update one dimension part and re-derive the canonical L×W×H string in lock-step
   const setDim = (part, v) => setAnswers((s) => {
-    const n = { ...s, [part]: v }
+    const n = { ...s, [part]: cleanNum(v) }   // dimensions are numbers only (#15)
     n.dimensions = composeDims(n.dim_l, n.dim_w, n.dim_h)
     return n
   })

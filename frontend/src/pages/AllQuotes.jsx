@@ -5,22 +5,35 @@ import useAuthStore from '../store/authStore'
 import { fileUrl } from '../api/client'
 import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
 
-// Commits on blur only when the value actually changed
-function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown, readOnly }) {
+// clean a currency entry to a plain numeric string (digits + one dot)
+const cleanMoney = (s) => {
+  let t = String(s).replace(/[^0-9.]/g, '')
+  const i = t.indexOf('.')
+  if (i !== -1) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, '').slice(0, 2)
+  return t
+}
+const fmtMoney = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+
+// Commits on blur only when the value actually changed.
+// `money` mode: shows $X,XXX.XX when idle, the plain number while editing, and cleans
+// input to digits — so deleting + retyping a price always re-formats itself (#19).
+function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown, readOnly, money }) {
   const [v, setV] = useState(value ?? '')
   const [focused, setFocused] = useState(false)
   // follow server updates (bulk paste, another user's edit) — but never clobber active typing
   useEffect(() => { if (!focused) setV(value ?? '') }, [value, focused])
   const commit = () => { setFocused(false); if (String(v) !== String(value ?? '')) onCommit(v) }
-  if (readOnly) return <span>{value === null || value === undefined || value === '' ? '—' : String(value)}</span>
+  if (readOnly) return <span>{value === null || value === undefined || value === '' ? '—' : (money ? fmtMoney(value) : String(value))}</span>
+  const display = money && !focused ? fmtMoney(v) : v
   return (
     <input
-      type={type}
-      value={v}
+      type={money ? 'text' : type}
+      inputMode={money ? 'decimal' : undefined}
+      value={display}
       style={{ width }}
       data-col={col}
       data-row={row}
-      onChange={(e) => setV(e.target.value)}
+      onChange={(e) => setV(money ? cleanMoney(e.target.value) : e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={commit}
       onKeyDown={(e) => (col != null ? gridKeyNav(e, col, row) : e.key === 'Enter' && e.currentTarget.blur())}
@@ -227,9 +240,9 @@ export default function AllQuotes() {
                   {columns.has('client') && <td><EditCell readOnly={readOnly} col="client" row={i} onPasteDown={pasteDown('client', i)} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
                   {columns.has('contact') && <td><EditCell readOnly={readOnly} col="contact" row={i} onPasteDown={pasteDown('contact', i)} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
                   {columns.has('job') && <td><EditCell readOnly={readOnly} col="job" row={i} onPasteDown={pasteDown('job', i)} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
-                  {columns.has('price') && <td><EditCell readOnly={readOnly} col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} type="number" width={80} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
-                  {columns.has('be') && <td><EditCell readOnly={readOnly} col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
-                  {columns.has('be') && <td><EditCell readOnly={readOnly} col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} type="number" width={70} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
+                  {columns.has('price') && <td><EditCell money readOnly={readOnly} col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} width={100} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
+                  {columns.has('be') && <td><EditCell money readOnly={readOnly} col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} width={90} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
+                  {columns.has('be') && <td><EditCell money readOnly={readOnly} col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} width={90} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
                   {columns.has('profit') && <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: q.profit == null ? undefined : q.profit >= 0 ? '#97c459' : '#e5484d' }}>
                     {q.profit == null ? '—' : `$${Number(q.profit).toLocaleString()} (${q.profit_pct}%)`}
                   </td>}

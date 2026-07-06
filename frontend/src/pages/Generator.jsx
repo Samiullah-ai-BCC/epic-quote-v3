@@ -6,7 +6,7 @@ import { getLogo } from '../api/meta'
 import { useConstants } from '../hooks'
 import useAuthStore from '../store/authStore'
 import { T } from '../generator/catalog'
-import { autoAnswerFromAI, parseDims, composeDims } from '../generator/questions'
+import { autoAnswerFromAI, parseDims, composeDims, cleanNum } from '../generator/questions'
 import { buildSpecLines } from '../generator/proposal'
 import { listCatalog, saveCatalogItem } from '../api/catalog'
 import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
@@ -419,7 +419,7 @@ export default function Generator() {
   const setCustomDim = (part, v) => {
     setCustomSpec((cs) => {
       const p = parseDims(cs?.dims)
-      p[part] = v
+      p[part] = cleanNum(v)   // dimensions are numbers only (#15)
       const dims = composeDims(p.l, p.w, p.h)
       let specText = cs?.specText || ''
       if (/^(.*DIMENSIONS[^:]*):.*$/im.test(specText)) {

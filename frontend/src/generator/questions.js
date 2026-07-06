@@ -71,6 +71,15 @@ export function buildQuestions(t, ai = {}) {
 }
 
 // Dimensions: keep L×W×H as separate values so the team can't mangle the format.
+// Numbers-only cleaner for dimension/measurement fields (#15): keep digits and a single
+// decimal point, drop everything else (letters, symbols, minus).
+export function cleanNum(v) {
+  let t = String(v ?? '').replace(/[^0-9.]/g, '')
+  const i = t.indexOf('.')
+  if (i !== -1) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, '')
+  return t
+}
+
 // parseDims splits an existing/AI string into parts; composeDims rebuilds the
 // canonical `20" x 20" x 3"` string (only the filled parts, always ` x `-joined).
 export function parseDims(str) {

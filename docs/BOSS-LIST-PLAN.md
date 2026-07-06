@@ -26,8 +26,8 @@ Never leave main red. Report problems-solved + problems-remaining each iteration
 | P0.1 | #23 sticky column headers in All Quotes actually stick on scroll | ✅ | browser: header delta 0 after scroll, no double-scroll; app shell now single-scroll (.main), grid table border-collapse:separate fixes sticky-th; dashboard/reports still scroll fine |
 | P0.2 | #25 Columns dropdown renders correctly (no grid overlap/push) | ✅ | root cause: checkboxes inherited text-input width:100%/padding, stretching to 220px & shoving labels right. Global checkbox/radio reset + explicit 16px in picker → compact 170px panel, checkbox+label adjacent. Bonus: all row checkboxes now consistent gold |
 | P0.3 | #24 Sales-report chart: per-bar hover details panel | ✅ | browser: hover any month → floating panel (created/quoted value/won/won value/conversion) + bar+label highlight; full-height hit area. Also fixed a P0.1 regression: .main flex-column squashed the chart panel (34px) → reverted .main to block, .fill-page fills height instead |
-| P0.4 | #19 price reformat bug (delete+retype) fixed in MoneyInput globally | ⬜ | |
-| P0.5 | #15 dimensions numeric-only (reuse the money/number input) | ⬜ | |
+| P0.4 | #19 price reformat bug (delete+retype) fixed in MoneyInput globally | ✅ | browser: grid price cell idle="$10,000,000.00", delete+retype "4200"+blur → "$4,200.00" auto. Root cause: grid used plain type=number (no format); added money mode to EditCell (fmt idle / clean on entry) for price + both breakevens; wizard already used MoneyInput |
+| P0.5 | #15 dimensions numeric-only (reuse the money/number input) | ✅ | shared cleanNum() in questions.js applied to setDim (QA wizard) + setCustomDim (manual mode) — letters/symbols stripped, one dot kept |
 | P0.6 | #7 delete admin-only (button + server destroy()) | ⬜ | |
 | P0.7 | #13 repless quotes visible to whole team + rep truly optional at intake | ⬜ | |
 | P0.8 | #11 move "New quote" button to All Quotes (off Dashboard) | ⬜ | |
