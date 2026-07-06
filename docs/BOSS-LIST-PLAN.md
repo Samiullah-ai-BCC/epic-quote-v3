@@ -24,7 +24,7 @@ Never leave main red. Report problems-solved + problems-remaining each iteration
 | # | Item | Status | Evidence |
 |---|---|---|---|
 | P0.1 | #23 sticky column headers in All Quotes actually stick on scroll | ✅ | browser: header delta 0 after scroll, no double-scroll; app shell now single-scroll (.main), grid table border-collapse:separate fixes sticky-th; dashboard/reports still scroll fine |
-| P0.2 | #25 Columns dropdown renders correctly (no grid overlap/push) | ⬜ | |
+| P0.2 | #25 Columns dropdown renders correctly (no grid overlap/push) | ✅ | root cause: checkboxes inherited text-input width:100%/padding, stretching to 220px & shoving labels right. Global checkbox/radio reset + explicit 16px in picker → compact 170px panel, checkbox+label adjacent. Bonus: all row checkboxes now consistent gold |
 | P0.3 | #24 Sales-report chart: per-bar hover details panel | ⬜ | |
 | P0.4 | #19 price reformat bug (delete+retype) fixed in MoneyInput globally | ⬜ | |
 | P0.5 | #15 dimensions numeric-only (reuse the money/number input) | ⬜ | |

@@ -65,9 +65,9 @@ export function ColumnPicker({ columns }) {
       {open && (
         <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 50, background: 'var(--panel, #171a21)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: 10, minWidth: 170, boxShadow: '0 8px 22px rgba(0,0,0,0.4)' }}>
           {columns.cols.map((c) => (
-            <label key={c.key} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, padding: '3px 0', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              <input type="checkbox" checked={columns.has(c.key)} style={{ width: 'auto' }} onChange={() => columns.toggle(c.key)} />
-              {c.label}
+            <label key={c.key} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', fontSize: 13, padding: '4px 2px', margin: 0, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+              <input type="checkbox" checked={columns.has(c.key)} style={{ width: 16, height: 16, minWidth: 16, flex: '0 0 16px', padding: 0, margin: 0 }} onChange={() => columns.toggle(c.key)} />
+              <span>{c.label}</span>
             </label>
           ))}
         </div>
