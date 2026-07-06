@@ -46,14 +46,16 @@ class Quote extends Model
         return 'quote_id';
     }
 
-    // Non-admins see quotes they OWN (sales_rep) or are ASSIGNED (assigned_to) — otherwise
-    // handing work to a rep via "Assign to" would give them a quote they can't open.
+    // Non-admins see quotes they OWN (sales_rep) or are ASSIGNED (assigned_to). Repless
+    // quotes (no sales rep = "N/A") are shared work, visible to the whole team (#13).
     public function scopeVisibleTo($query, User $user)
     {
         if (!$user->seesAllQuotes()) {
             $query->where(function ($q) use ($user) {
                 $q->where('sales_rep', $user->full_name)
-                  ->orWhere('assigned_to', $user->full_name);
+                  ->orWhere('assigned_to', $user->full_name)
+                  ->orWhereNull('sales_rep')
+                  ->orWhere('sales_rep', '');
             });
         }
         return $query;
@@ -63,7 +65,8 @@ class Quote extends Model
     {
         return $user->seesAllQuotes()
             || $this->sales_rep === $user->full_name
-            || $this->assigned_to === $user->full_name;
+            || $this->assigned_to === $user->full_name
+            || (string) ($this->sales_rep ?? '') === '';   // repless = team-wide (#13)
     }
 
     // V1 serialize_quote()

@@ -248,8 +248,8 @@ export default function AllQuotes() {
                   </td>}
                   {columns.has('rep') && <td>
                     {admin ? (
-                      <select value={q.sales_rep || ''} style={{ width: 110 }} onChange={(e) => patch(q.quote_id, 'sales_rep', e.target.value)}>
-                        <option value="">—</option>
+                      <select value={q.sales_rep || ''} style={{ width: 110 }} title="Sales rep — N/A makes it a shared quote" onChange={(e) => patch(q.quote_id, 'sales_rep', e.target.value)}>
+                        <option value="">— N/A —</option>
                         {reps.map((r) => <option key={r} value={r}>{r}</option>)}
                       </select>
                     ) : (q.sales_rep || '—')}

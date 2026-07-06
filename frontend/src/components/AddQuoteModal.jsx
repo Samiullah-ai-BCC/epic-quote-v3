@@ -86,7 +86,7 @@ export default function AddQuoteModal({ onClose }) {
     e.preventDefault()
     setError('')
     if (!form.company_name.trim()) return setError('Company Name is required.')
-    if (isAdmin() && !form.sales_rep) return setError('Please choose a Sales Representative.')
+    // Sales rep is optional (#13): blank = N/A (shared quote)
     if (form.payment_link?.trim() && !/^https?:\/\/\S+\.\S+/i.test(form.payment_link.trim())) {
       return setError('The payment link must be a real web address starting with https://')
     }
@@ -142,7 +142,7 @@ export default function AddQuoteModal({ onClose }) {
   const repPayFields = (
     <>
       <div className="field">
-        <label>Sales Representative {!isAdmin() && '(you)'}</label>
+        <label>Sales Representative {isAdmin() ? '(optional)' : '(you)'}</label>
         {isAdmin() ? (() => {
           const custom = repOther || (form.sales_rep && !reps.includes(form.sales_rep))
           return (
@@ -154,7 +154,7 @@ export default function AddQuoteModal({ onClose }) {
                   else { setRepOther(false); setForm((f) => ({ ...f, sales_rep: e.target.value })) }
                 }}
               >
-                <option value="">— select —</option>
+                <option value="">— N/A (no rep — shared) —</option>
                 {reps.map((r) => <option key={r} value={r}>{r}</option>)}
                 <option value="__other__">Other (type a name)…</option>
               </select>

@@ -29,7 +29,7 @@ Never leave main red. Report problems-solved + problems-remaining each iteration
 | P0.4 | #19 price reformat bug (delete+retype) fixed in MoneyInput globally | ✅ | browser: grid price cell idle="$10,000,000.00", delete+retype "4200"+blur → "$4,200.00" auto. Root cause: grid used plain type=number (no format); added money mode to EditCell (fmt idle / clean on entry) for price + both breakevens; wizard already used MoneyInput |
 | P0.5 | #15 dimensions numeric-only (reuse the money/number input) | ✅ | shared cleanNum() in questions.js applied to setDim (QA wizard) + setCustomDim (manual mode) — letters/symbols stripped, one dot kept |
 | P0.6 | #7 delete admin-only (button + server destroy()) | ✅ | API: rep deleting own quote → 403 "Only admins can delete quotes", admin → 200. Frontend row Delete now admin-only (was !readOnly); bulk delete already admin-only |
-| P0.7 | #13 repless quotes visible to whole team + rep truly optional at intake | ⬜ | |
+| P0.7 | #13 repless quotes visible to whole team + rep truly optional at intake | ✅ | API: admin creates rep="" quote → a random non-admin sees+opens it (200) but still 404 on a rep-owned quote. Rep validation relaxed (blank=N/A) in store()+update(); intake + grid rep dropdowns have "N/A"; non-admins still can't assign to others |
 | P0.8 | #11 move "New quote" button to All Quotes (off Dashboard) | ⬜ | |
 | P0.9 | #9 exiting a quote returns to the page you came from | ⬜ | |
 | P0.10 | #21 clicking the artwork area opens the file picker | ⬜ | |

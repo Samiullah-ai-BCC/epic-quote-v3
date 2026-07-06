@@ -79,16 +79,17 @@ class QuoteController extends Controller
         $orderId     = trim((string) $request->input('order_id', ''));
         $qid         = strtoupper(trim((string) $request->input('quote_id', '')));  // IDs are case-insensitive → normalize
 
-        // Non-admins can only create quotes assigned to themselves
-        if (!$user->isAdmin()) {
+        // Non-admins may leave the rep blank (N/A → shared quote) or own it themselves,
+        // but can never assign it to somebody else.
+        if (!$user->isAdmin() && $salesRep !== '') {
             $salesRep = $user->full_name;
         }
 
         // --- validation ---
         // Company is optional: AI mode is PDF-first and fills it from the drawing (workstream B).
-        // Sales rep can be any typed name (not limited to the preset list), just required + sane length.
-        if ($salesRep === '' || mb_strlen($salesRep) > 80) {
-            return response()->json(['error' => 'Sales Representative is required (max 80 chars)'], 400);
+        // Sales rep is OPTIONAL now (#13): blank = N/A. Only cap the length when one is given.
+        if (mb_strlen($salesRep) > 80) {
+            return response()->json(['error' => 'Sales Representative name is too long (max 80 chars)'], 400);
         }
         // Quote ID is auto-generated server-side (unique EC number). Quote source + order ID
         // were dropped as a UX/feature decision. Only validate a Quote ID if one was supplied.
@@ -219,12 +220,12 @@ class QuoteController extends Controller
             if (!$user->isAdmin()) {
                 return response()->json(['error' => 'Only admins can change the Sales Representative'], 403);
             }
-            $newRep = trim((string) $data['sales_rep']);
-            if ($newRep === '' || mb_strlen($newRep) > 80) {
-                return response()->json(['error' => 'Sales Representative is required (max 80 chars)'], 400);
+            $newRep = trim((string) $data['sales_rep']);   // '' = N/A (#13)
+            if (mb_strlen($newRep) > 80) {
+                return response()->json(['error' => 'Sales Representative name is too long (max 80 chars)'], 400);
             }
-            if ($newRep !== $quote->sales_rep) {
-                $changes[] = "Sales Rep: {$quote->sales_rep} -> {$newRep}";
+            if ($newRep !== (string) $quote->sales_rep) {
+                $changes[] = 'Sales Rep: '.($quote->sales_rep ?: 'N/A').' -> '.($newRep ?: 'N/A');
                 $quote->sales_rep = $newRep;
             }
         }
