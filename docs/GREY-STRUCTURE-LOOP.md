@@ -25,7 +25,7 @@
 | I5 | Breakeven production/shipping + auto profit $ and % (internal only) (T8) | ✅ | browser: BE 300+100 on $1,200 quote → Profit $800 (66.7%) auto, persists reload, clears to — when emptied; internal-only (never in proposal state) |
 | I6 | Price approval: approved checkbox + who/when logged; approval lock blocks PDF/PNG/payment link (T9) | ✅ | browser: lock → PNG/PDF buttons disabled + banner, payment input disabled w/ hint; API: link stripped while locked, approve stamps Administrator+timestamp, link then sticks, buttons re-enable; restored |
 | I7 | Follow-ups: fields + dashboard needs-follow-up queue + mark done (T10) | ✅ | browser: Follow-ups panel lists awaiting quotes oldest-first, inline notes persist reload, ✓ Sent drops row off queue instantly; restored after |
-| I8 | Quote source at intake + filter (T11); the 3 note fields (T12); order-placed marker + date (T13) | ⬜ | |
+| I8 | Quote source at intake + filter (T11); the 3 note fields (T12); order-placed marker + date (T13) | ✅ | browser: intake source dropdown in Custom form, Referral filter → 1 row, 📦 tick stamps date + persists, 3 note lanes save on blur + survive reload; fixed update() rejecting source-clear; restored |
 | I9 | Grid v1: reusable table — sortable columns, sticky header, row numbers (T1) on All Quotes | ⬜ | |
 | I10 | Grid v2: column show/hide + inline cell editing + keyboard nav (T1) | ⬜ | |
 | I11 | Grid v3: multi-row select + bulk status/assign/delete (T1) | ⬜ | |

@@ -36,6 +36,11 @@ class QuoteController extends Controller
             $q->where('assigned_to', $assigned === 'me' ? $request->user()->full_name : $assigned);
         }
 
+        // Quote-source filter (?source=Email …)
+        if ($source = trim((string) $request->query('source', ''))) {
+            $q->where('quote_source', $source);
+        }
+
         // Rush filter: ?rush=1 → any rush level, ?rush=Rush / ?rush=Super Rush → exact
         if ($rush = trim((string) $request->query('rush', ''))) {
             $rush === '1'
@@ -225,7 +230,9 @@ class QuoteController extends Controller
         }
 
         if (array_key_exists('quote_source', $data)) {
-            if (!in_array($data['quote_source'], AppConstants::QUOTE_SOURCES, true)) {
+            // '' clears the source ("not sure") — same as intake allows
+            $data['quote_source'] = (string) ($data['quote_source'] ?? '');
+            if ($data['quote_source'] !== '' && !in_array($data['quote_source'], AppConstants::QUOTE_SOURCES, true)) {
                 return response()->json(['error' => 'Invalid Quote Source'], 400);
             }
             if ($data['quote_source'] !== $quote->quote_source) {
@@ -271,6 +278,30 @@ class QuoteController extends Controller
             if ($newAssignee !== (string) ($quote->assigned_to ?? '')) {
                 $changes[] = 'Assigned to: '.($quote->assigned_to ?: '—').' -> '.($newAssignee ?: '—');
                 $quote->assigned_to = $newAssignee;
+            }
+        }
+
+        // The three note lanes (T12): revision asks, must-not-miss, internal-only.
+        foreach (['revision_notes', 'important_notes', 'internal_notes'] as $noteField) {
+            if (array_key_exists($noteField, $data)) {
+                $val = (string) ($data[$noteField] ?? '');
+                if (mb_strlen($val) > 5000) {
+                    return response()->json(['error' => 'Notes must be 5000 characters or fewer'], 400);
+                }
+                if ($val !== (string) ($quote->{$noteField} ?? '')) {
+                    $changes[] = ucwords(str_replace('_', ' ', $noteField)).' updated';
+                }
+                $quote->{$noteField} = $val;
+            }
+        }
+
+        // Order placed (T13): the marker stamps the date; unmarking clears it.
+        if (array_key_exists('order_confirmed', $data)) {
+            $placed = (bool) $data['order_confirmed'];
+            if ($placed !== (bool) $quote->order_confirmed) {
+                $quote->order_confirmed = $placed;
+                $quote->order_placed_at = $placed ? now() : null;
+                $changes[] = $placed ? 'ORDER PLACED' : 'Order-placed mark removed';
             }
         }
 

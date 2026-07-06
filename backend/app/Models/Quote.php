@@ -15,7 +15,8 @@ class Quote extends Model
         'job_name', 'special_requirements', 'customer_pdf',
         'sales_rep', 'quote_source', 'status', 'tags', 'price',
         'quote_type', 'generated_data', 'crunched_artwork',
-        'payment_link', 'order_confirmed',
+        'payment_link', 'order_confirmed', 'order_placed_at',
+        'revision_notes', 'important_notes', 'internal_notes',
         'airtable_id', 'assigned_to', 'rush', 'breakeven_production', 'breakeven_shipping',
         'price_approved', 'approved_by', 'approved_at', 'approval_locked', 'followup_sent', 'followup_notes', 'is_test',
         'created_by', 'final_created_by',
@@ -30,6 +31,7 @@ class Quote extends Model
             'order_confirmed' => 'boolean',
             'is_test'         => 'boolean',
             'approved_at'     => 'datetime',
+            'order_placed_at' => 'datetime',
         ];
     }
 
@@ -100,6 +102,10 @@ class Quote extends Model
             'followup_notes'       => $this->followup_notes,
             'is_test'              => (bool) $this->is_test,
             'order_confirmed'      => $this->order_confirmed,
+            'order_placed_at'      => $this->order_placed_at?->toIso8601String(),
+            'revision_notes'       => $this->revision_notes ?? '',
+            'important_notes'      => $this->important_notes ?? '',
+            'internal_notes'       => $this->internal_notes ?? '',
             'created_at'           => $this->created_at?->toIso8601String(),
             'updated_at'           => $this->updated_at?->toIso8601String(),
         ];

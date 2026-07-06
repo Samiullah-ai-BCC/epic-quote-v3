@@ -7,7 +7,7 @@ import useAuthStore from '../store/authStore'
 
 const EMPTY = {
   company_name: '', client_name: '', contact: '', address: '',
-  job_name: '', special_requirements: '', sales_rep: '', payment_link: '',
+  job_name: '', special_requirements: '', sales_rep: '', payment_link: '', quote_source: '',
 }
 
 // Turn a data URL (rasterized PDF page) into a File so the vision model can read it.
@@ -129,6 +129,13 @@ export default function AddQuoteModal({ onClose }) {
       </div>
       <div className="field"><label>Address</label><input value={form.address} onChange={set('address')} /></div>
       <div className="field"><label>Job Name</label><input value={form.job_name} onChange={set('job_name')} /></div>
+      <div className="field">
+        <label>Where did this quote come from?</label>
+        <select value={form.quote_source} onChange={set('quote_source')}>
+          <option value="">— not sure —</option>
+          {(constants?.quote_sources || []).map((qs) => <option key={qs} value={qs}>{qs}</option>)}
+        </select>
+      </div>
     </>
   )
   // Rep + payment link — not AI-driven, so always shown up front.

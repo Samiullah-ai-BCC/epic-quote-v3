@@ -30,7 +30,7 @@ class AppConstants
     public const SALES_REPS = ['Rod Muffet', 'ED'];
 
     // V1 QUOTE_SOURCES
-    public const QUOTE_SOURCES = ['Email', 'Client Portal'];
+    public const QUOTE_SOURCES = ['Email', 'Client Portal', 'Website', 'Phone', 'Referral', 'Other'];
 
     // V1 ROLES
     public const ROLES = ['admin', 'sales_rep', 'manager'];

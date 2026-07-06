@@ -33,6 +33,7 @@ export default function AllQuotes() {
   const [status, setStatus] = useState('')
   const [mine, setMine] = useState(false)
   const [rushOnly, setRushOnly] = useState(false)
+  const [sourceF, setSourceF] = useState('')
   const [viewing, setViewing] = useState(null)
 
   const params = {}
@@ -40,6 +41,7 @@ export default function AllQuotes() {
   if (status) params.status = status
   if (mine) params.assigned = 'me'
   if (rushOnly) params.rush = '1'
+  if (sourceF) params.source = sourceF
   const { data: quotes = [], isLoading } = useQuotes(params)
 
   const statuses = constants?.statuses || []
@@ -68,6 +70,10 @@ export default function AllQuotes() {
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} style={{ width: 'auto' }} />
           My quotes
         </label>
+        <select value={sourceF} onChange={(e) => setSourceF(e.target.value)} style={{ width: 'auto' }} title="Filter by where the quote came from">
+          <option value="">All sources</option>
+          {(constants?.quote_sources || []).map((qs) => <option key={qs} value={qs}>{qs}</option>)}
+        </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }} title="Only Rush / Super Rush quotes">
           <input type="checkbox" checked={rushOnly} onChange={(e) => setRushOnly(e.target.checked)} style={{ width: 'auto' }} />
           Rush only
@@ -88,6 +94,7 @@ export default function AllQuotes() {
                 <th title="Auto: price minus breakevens — internal only">Profit</th>
                 <th>Sales Rep</th><th>Assigned</th><th>Rush</th>
                 <th title="Price approval: ✓ = approved (who/when logged); 🔒 = locked — cannot send PDF/PNG/payment link until approved">Approval</th>
+                <th title="Customer placed the order — date is stamped automatically">Order</th>
                 <th>Status</th><th>Files</th><th></th>
               </tr>
             </thead>
@@ -134,6 +141,11 @@ export default function AllQuotes() {
                       <input type="checkbox" checked={!!q.approval_locked} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
                     </label>
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <label title={q.order_confirmed ? `Order placed${q.order_placed_at ? ' on ' + new Date(q.order_placed_at).toLocaleDateString() : ''}` : 'Tick when the customer places the order (date is stamped)'} style={{ cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!q.order_confirmed} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'order_confirmed', e.target.checked)} /> 📦
+                    </label>
+                  </td>
                   <td>
                     <select value={q.status} style={{ width: 150 }} onChange={(e) => updateStatus.mutate({ id: q.quote_id, status: e.target.value })}>
                       {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -168,7 +180,7 @@ export default function AllQuotes() {
                   </td>
                 </tr>
               ))}
-              {quotes.length === 0 && <tr><td colSpan={16} className="center">No quotes found.</td></tr>}
+              {quotes.length === 0 && <tr><td colSpan={17} className="center">No quotes found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -186,12 +198,28 @@ export default function AllQuotes() {
               ['Breakeven (production + shipping)', (viewing.breakeven_production != null || viewing.breakeven_shipping != null) ? `$${Number(viewing.breakeven_production || 0).toLocaleString()} + $${Number(viewing.breakeven_shipping || 0).toLocaleString()}` : '—'],
               ['Profit (internal)', viewing.profit != null ? `$${Number(viewing.profit).toLocaleString()} (${viewing.profit_pct}%)` : '—'],
               ['Price Approval', viewing.price_approved ? `Approved by ${viewing.approved_by}${viewing.approved_at ? ' on ' + new Date(viewing.approved_at).toLocaleString() : ''}` : (viewing.approval_locked ? 'LOCKED — awaiting approval' : 'Not approved')],
-              ['Follow-up', `${viewing.followup_sent ? 'Sent' : 'Not sent'}${viewing.followup_notes ? ' — ' + viewing.followup_notes : ''}`], ['Sales Rep', viewing.sales_rep],
+              ['Follow-up', `${viewing.followup_sent ? 'Sent' : 'Not sent'}${viewing.followup_notes ? ' — ' + viewing.followup_notes : ''}`],
+              ['Quote Source', viewing.quote_source],
+              ['Order', viewing.order_confirmed ? `Placed${viewing.order_placed_at ? ' on ' + new Date(viewing.order_placed_at).toLocaleString() : ''}` : 'Not placed yet'], ['Sales Rep', viewing.sales_rep],
               ['Status', viewing.status], ['Assigned To', viewing.assigned_to],
               ['Special Requirements', viewing.special_requirements],
               ['Created By', viewing.added_by], ['Finalized By', viewing.created_by_name],
             ].map(([k, v]) => (
               <div key={k} className="line" style={{ marginBottom: 6 }}><span className="muted">{k}:</span> {v || '—'}</div>
+            ))}
+            {/* the three note lanes — editable right here, saved when you click away */}
+            {[['revision_notes', 'Revision notes', 'What the client asked to change'],
+              ['important_notes', 'Important notes', 'Things the team must not miss'],
+              ['internal_notes', 'Internal notes', 'Internal-only — never shown to the client']].map(([field, label, hint]) => (
+              <div key={field} className="field" style={{ marginTop: 8 }}>
+                <label title={hint}>{label}</label>
+                <textarea
+                  defaultValue={viewing[field] || ''}
+                  rows={2}
+                  placeholder={hint + '… (saved when you click away)'}
+                  onBlur={(e) => { if (e.target.value !== (viewing[field] || '')) { patch(viewing.quote_id, field, e.target.value); setViewing({ ...viewing, [field]: e.target.value }) } }}
+                />
+              </div>
             ))}
             <div className="foot"><button onClick={() => setViewing(null)}>Close</button></div>
           </div>
