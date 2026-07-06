@@ -46,18 +46,24 @@ class Quote extends Model
         return 'quote_id';
     }
 
-    // V1 get_quote_or_403 / list filter: non-admins see only their own quotes
+    // Non-admins see quotes they OWN (sales_rep) or are ASSIGNED (assigned_to) — otherwise
+    // handing work to a rep via "Assign to" would give them a quote they can't open.
     public function scopeVisibleTo($query, User $user)
     {
         if (!$user->seesAllQuotes()) {
-            $query->where('sales_rep', $user->full_name);
+            $query->where(function ($q) use ($user) {
+                $q->where('sales_rep', $user->full_name)
+                  ->orWhere('assigned_to', $user->full_name);
+            });
         }
         return $query;
     }
 
     public function isVisibleTo(User $user): bool
     {
-        return $user->seesAllQuotes() || $this->sales_rep === $user->full_name;
+        return $user->seesAllQuotes()
+            || $this->sales_rep === $user->full_name
+            || $this->assigned_to === $user->full_name;
     }
 
     // V1 serialize_quote()
