@@ -19,7 +19,7 @@
 | # | Task (approved list ref) | Status | Verification evidence |
 |---|---|---|---|
 | I1 | MoneyInput component (digits-only, $-formatted, clean re-entry) applied to wizard price + custom specs price (T3) | ✅ | browser: junk→1234.56, blur→$1,234.56, focus→plain, clamp 10M, Next-gate OK |
-| I2 | New statuses: Rejected by Client, On Hold, Out of Scope + Test-quote flag excluded from all numbers (T6, T7) | ⬜ | |
+| I2 | New statuses: Rejected by Client, On Hold, Out of Scope + Test-quote flag excluded from all numbers (T6, T7) | ✅ | browser: 3 statuses in dropdown, On Hold persists after reload; TEST toggle → dashboard 9→8 quotes, pipeline −$1,200, 8→7 open; restored after. d157025 |
 | I3 | Assigned-to: dropdown on All Quotes + "my quotes" filter + dashboard rows (T4) | ⬜ | |
 | I4 | Rush/Super Rush: setter UI + highlights + rush-first needs-attention + filter (T5) | ⬜ | |
 | I5 | Breakeven production/shipping + auto profit $ and % (internal only) (T8) | ⬜ | |
