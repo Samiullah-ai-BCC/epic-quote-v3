@@ -105,7 +105,7 @@ export default function AddQuoteModal({ onClose }) {
         if (paths.length) gd.extra_uploads = paths
       }
       if (Object.keys(gd).length) { try { await putGenerated(created.quote_id, gd) } catch { /* non-fatal */ } }
-      navigate(`/quotes/${created.quote_id}/generate?mode=${choice}`)
+      navigate(`/quotes/${created.quote_id}/generate?mode=${choice}`, { state: { from: '/quotes' } })
     } catch (err) {
       const errs = err.response?.data?.errors
       setError(errs ? Object.values(errs)[0][0] : (err.response?.data?.error || err.response?.data?.message || 'Failed to create quote'))

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs } from '../api/quotes'
 import { getLogo } from '../api/meta'
@@ -105,6 +105,9 @@ function matchSignType(name) {
 export default function Generator() {
   const { quoteId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  // return to wherever the quote was opened from (#9), defaulting to All Quotes
+  const exitTo = location.state?.from || '/quotes'
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
   const [autoAi, setAutoAi] = useState(false)
@@ -216,7 +219,7 @@ export default function Generator() {
   const aiSuggestedName = ai && ai.signType ? (matchSignType(ai.signType)?.n || null) : null
   const goto = (s) => setStep(s)
   const next = () => goto(flow[flowIndex + 1])
-  const back = () => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate('/dashboard'))
+  const back = () => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo))
 
   const saveProgress = async (extra = {}) => {
     const payload = {
@@ -469,7 +472,7 @@ export default function Generator() {
           ? 'The quote may have been deleted, or the link is out of date.'
           : 'Something went wrong reaching the server. Check your connection and try again.'}
       </p>
-      <button onClick={() => navigate('/dashboard')}>Back to dashboard</button>
+      <button onClick={() => navigate(exitTo)}>← Back</button>
     </div>
   )
 
@@ -495,7 +498,7 @@ export default function Generator() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {quote?.customer_pdf && <button className="ghost" onClick={() => setShowDrawing(true)}>📎 View drawing</button>}
-          <button className="ghost" onClick={() => navigate('/dashboard')}>Exit</button>
+          <button className="ghost" onClick={() => navigate(exitTo)}>Exit</button>
         </div>
       </div>
 
@@ -818,7 +821,7 @@ export default function Generator() {
             />
             <div className="foot" style={{ marginTop: 14 }}>
               <button className="ghost" onClick={back}>Back</button>
-              <button onClick={async () => { await saveProgress(); navigate('/dashboard') }}>Save & Return to Dashboard</button>
+              <button onClick={async () => { await saveProgress(); navigate(exitTo) }}>Save & Return</button>
             </div>
           </div>
         )}

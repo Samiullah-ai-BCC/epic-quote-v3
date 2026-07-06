@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard, useQuotes, useConstants, useUpdateQuote } from '../hooks'
-import AddQuoteModal from '../components/AddQuoteModal'
 import useAuthStore from '../store/authStore'
 
 // status → pill colour (read status by colour, everywhere)
@@ -27,7 +26,6 @@ export default function Dashboard() {
   const { data: constants } = useConstants()
   const user = useAuthStore((s) => s.user)
   const update = useUpdateQuote()
-  const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
 
@@ -68,8 +66,9 @@ export default function Dashboard() {
             {dateStr}{attnCount ? ` · ${attnCount} quote${attnCount > 1 ? 's' : ''} need you today` : ' · all clear'}
           </div>
         </div>
+        {/* "New quote" lives on the All Quotes page now (#11) */}
         {user?.role !== 'viewer'
-          ? <button onClick={() => setShowAdd(true)}>+ New quote</button>
+          ? <button className="ghost" onClick={() => navigate('/quotes')}>View all quotes →</button>
           : <span className="pill pill-gray" title="Your account can see everything but change nothing">👁 View-only account</span>}
       </div>
 
@@ -116,7 +115,7 @@ export default function Dashboard() {
                 <span className={'pill pill-' + (COLOR[q.status] || 'gray')}>{chip}</span>
                 {(q.tags || []).map((t) => <span key={t} className="pill pill-purple" style={{ fontSize: 10 }}>also: {ACTION[t] || t}</span>)}
                 <div className="na-val">{money(q.price)}</div>
-                <button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>Open</button>
+                <button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/dashboard' } })}>Open</button>
               </div>
             </div>
           )
@@ -143,7 +142,7 @@ export default function Dashboard() {
               </div>
               <div className="na-act">
                 <div className="na-val">{money(q.price)}</div>
-                <button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>Open</button>
+                <button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/dashboard' } })}>Open</button>
                 {user?.role !== 'viewer' && <button className="sm" title="Mark the follow-up as sent — drops off this list" onClick={() => update.mutate({ id: q.quote_id, patch: { followup_sent: true } })}>✓ Sent</button>}
               </div>
             </div>
@@ -188,7 +187,7 @@ export default function Dashboard() {
             {recent.length === 0 ? (
               <tr><td colSpan={6} className="center" style={{ padding: 20 }}>No quotes found.</td></tr>
             ) : recent.map((q) => (
-              <tr key={q.id} onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>
+              <tr key={q.id} onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/dashboard' } })}>
                 <td><b>{q.quote_id}</b></td>
                 <td>{q.company_name || '—'}</td>
                 <td className="muted">{q.sales_rep || '—'}</td>
@@ -204,7 +203,6 @@ export default function Dashboard() {
         </table>
       </div>
 
-      {showAdd && <AddQuoteModal onClose={() => setShowAdd(false)} />}
     </div>
   )
 }

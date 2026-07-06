@@ -4,6 +4,7 @@ import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags
 import useAuthStore from '../store/authStore'
 import { fileUrl } from '../api/client'
 import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
+import AddQuoteModal from '../components/AddQuoteModal'
 
 // clean a currency entry to a plain numeric string (digits + one dot)
 const cleanMoney = (s) => {
@@ -68,6 +69,7 @@ export default function AllQuotes() {
   const [sourceF, setSourceF] = useState('')
   const [viewing, setViewing] = useState(null)
   const [selected, setSelected] = useState(() => new Set())   // quote_ids ticked for bulk actions
+  const [showAdd, setShowAdd] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const assignedF = searchParams.get('assigned') || ''       // drill-down from the Team page
 
@@ -156,11 +158,14 @@ export default function AllQuotes() {
   return (
     <div className="fill-page">
       <div className="page-head">
-        <h1>All Quotes</h1>
-        {assignedF && (
-          <span className="pill pill-purple" style={{ cursor: 'pointer' }} title="Click to clear this filter"
-            onClick={() => setSearchParams({})}>assigned to {assignedF} ✕</span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1>All Quotes</h1>
+          {assignedF && (
+            <span className="pill pill-purple" style={{ cursor: 'pointer' }} title="Click to clear this filter"
+              onClick={() => setSearchParams({})}>assigned to {assignedF} ✕</span>
+          )}
+        </div>
+        {!readOnly && <button onClick={() => setShowAdd(true)}>+ New quote</button>}
       </div>
 
       <div className="toolbar">
@@ -307,7 +312,7 @@ export default function AllQuotes() {
                   </td>}
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="ghost sm" onClick={() => setViewing(q)}>View</button>{' '}
-                    {!readOnly && <><button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`)}>Edit</button>{' '}</>}
+                    {!readOnly && <><button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/quotes' } })}>Edit</button>{' '}</>}
                     {admin && <><button className="ghost sm" title="Everything that ever happened to this quote" onClick={() => navigate(`/activity?quote=${q.quote_id}`)}>History</button>{' '}</>}
                     {admin && <><button className="ghost sm" title={q.is_test ? 'Unmark test — counts again in all numbers' : 'Mark as TEST — excluded from every KPI, pipeline and report'} onClick={() => patch(q.quote_id, 'is_test', !q.is_test)}>{q.is_test ? 'Untest' : 'Test'}</button>{' '}</>}
                     {admin && <button className="danger sm" onClick={() => remove(q)}>Delete</button>}
@@ -360,6 +365,8 @@ export default function AllQuotes() {
           </div>
         </div>
       )}
+
+      {showAdd && <AddQuoteModal onClose={() => setShowAdd(false)} />}
     </div>
   )
 }
