@@ -2,6 +2,8 @@
 
 **Goal (from the team meeting):** kill the existing Airtable dashboard / quote creation / managing / history and move the whole team onto the Estimator. Hard requirement: the Estimator must consume **every** Airtable feature the team actually uses AND be better — no desynchronized behavior, no abstraction, whatever it costs.
 
+**SCOPE DECISION (Sami, 2026-07-03):** only **`Quotes- working`** (the full quote→client journey) and **`Side Views`** migrate. Mastersheet/orders MAY come later — the C7–C12/C18-order rows below are parked, not planned. Roles = estimator accounts + permissions. Everything else in the base stays out of scope.
+
 **Sources:** full read-only tour of the team's base **"Business sign-Epic Craftings USA Project"** on 2026-07-03 (all 11 tables, every field + select option, both interfaces, record volumes) + the estimator codebase. Confidential record values stay out of this document — structure and vocabulary only.
 
 ---
@@ -137,3 +139,8 @@ Free-for-all select fields have absorbed years of typos and misfiled data: price
 6. **The "FD -" finance copy**: confirm my reading — finance re-enters the money numbers as a verified snapshot that the quote team can't touch. (Estimator version: a "Finance verified" lock instead of duplicate columns.)
 7. **Who is Arham / GMS / Futura Identities / Blue Cascade** in role terms — finance role holders and paying entities? Needed for the Finance panel's account list.
 8. **Parallel-run conflict rule**: last-write-wins with everything logged — confirm.
+
+
+**History for every change**: Even if something is changed or removed or added new, complete preview of everything must exist.
+**Multiple signs in one quote**: There can be multiple same or differen signs types in the same single quote, so everyone will be created as a complete preview within the same quote.
+**Unseen package includes elements**:There are also some package includes items not added in the local repo or either in the airtable, will put that as well after getting from the team.

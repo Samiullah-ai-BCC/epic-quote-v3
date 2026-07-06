@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Team catalog: custom sign types + uploaded side views, shared by both quote modes
     Route::get('catalog', [App\Http\Controllers\Api\CatalogController::class, 'index']);
     Route::post('catalog', [App\Http\Controllers\Api\CatalogController::class, 'store']);
+    Route::post('catalog/upload', [App\Http\Controllers\Api\CatalogController::class, 'upload']);
     Route::delete('catalog/{item}', [App\Http\Controllers\Api\CatalogController::class, 'destroy']);
 
     // Quotes

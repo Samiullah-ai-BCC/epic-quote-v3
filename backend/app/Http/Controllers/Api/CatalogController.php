@@ -46,6 +46,24 @@ class CatalogController extends Controller
         return response()->json($item);
     }
 
+    /** Upload a library file (side view etc.) not tied to any quote — permanent storage. */
+    public function upload(Request $request): JsonResponse
+    {
+        $request->validate(['file' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp,avif,svg|max:25600']);
+        $file = $request->file('file');
+        $filename = 'lib_'.substr(md5((string) microtime(true)), 0, 8).'_'.preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+
+        if (\App\Services\CloudinaryService::configured()) {
+            $url = \App\Services\CloudinaryService::upload($file->getRealPath(), 'epic-quote/library', 'auto');
+            if (!$url) {
+                return response()->json(['error' => 'Cloudinary upload failed.'], 502);
+            }
+            return response()->json(['path' => $url]);
+        }
+        $file->storeAs('library', $filename, 'public');
+        return response()->json(['path' => "/storage/library/{$filename}"]);
+    }
+
     public function destroy(Request $request, UserCatalogItem $item): JsonResponse
     {
         ActivityLog::record($request->user()->id, 'catalog_deleted', "{$item->kind}: {$item->name}");

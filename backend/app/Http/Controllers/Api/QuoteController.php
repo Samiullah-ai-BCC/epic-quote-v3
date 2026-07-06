@@ -156,7 +156,7 @@ class QuoteController extends Controller
 
         ActivityLog::record($user->id, 'quote_created', "{$quote->quote_id} for {$companyName}");
         // keep the team's Airtable in step (no-op until AIRTABLE_* env vars are set)
-        \App\Services\AirtableService::pushQuote($quote->quote_id, []);
+        \App\Services\AirtableQuoteSync::pushQuote($quote);
 
         return response()->json($quote->toApi(), 201);
     }
@@ -274,6 +274,7 @@ class QuoteController extends Controller
             'changed_at' => now(),
         ]);
         ActivityLog::record($request->user()->id, 'status_changed', "{$quote->quote_id} -> {$status}");
+        \App\Services\AirtableQuoteSync::pushQuote($quote);
 
         return response()->json($quote->toApi());
     }

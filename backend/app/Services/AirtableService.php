@@ -21,7 +21,7 @@ class AirtableService
 {
     public static function configured(): bool
     {
-        return (bool) (env('AIRTABLE_API_KEY') && env('AIRTABLE_BASE_ID') && env('AIRTABLE_TABLE'));
+        return (bool) (env('AIRTABLE_API_KEY') && env('AIRTABLE_BASE_ID') && env('AIRTABLE_QUOTES_TABLE', env('AIRTABLE_TABLE')));
     }
 
     private static function client(): Client
@@ -41,7 +41,7 @@ class AirtableService
         }
         try {
             $field = env('AIRTABLE_ID_FIELD', 'Quote ID');
-            $res = self::client()->get(rawurlencode(env('AIRTABLE_TABLE')), ['query' => [
+            $res = self::client()->get(rawurlencode(env('AIRTABLE_QUOTES_TABLE', env('AIRTABLE_TABLE'))), ['query' => [
                 'fields[]' => $field,
                 'sort[0][field]' => $field,
                 'sort[0][direction]' => 'desc',
@@ -69,7 +69,7 @@ class AirtableService
         }
         try {
             $idField = env('AIRTABLE_ID_FIELD', 'Quote ID');
-            self::client()->patch(rawurlencode(env('AIRTABLE_TABLE')), ['json' => [
+            self::client()->patch(rawurlencode(env('AIRTABLE_QUOTES_TABLE', env('AIRTABLE_TABLE'))), ['json' => [
                 'performUpsert' => ['fieldsToMergeOn' => [$idField]],
                 'records' => [['fields' => array_merge([$idField => $quoteId], $fields)]],
             ]]);
