@@ -261,6 +261,23 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
   const [toast, setToast] = useState('')
   const [pickingSV, setPickingSV] = useState(false)
   const [svLib, setSvLib] = useState([])   // team side-view library ({name, data:{path}}) — shared across quotes
+  const [svSearch, setSvSearch] = useState('')   // search across ~100 side-view cards
+  // category buckets so ~100 cards read as a catalog, not a wall (T18)
+  const svGroupOf = (label) => {
+    const t = String(label || '').toUpperCase()
+    if (/RACEWAY/.test(t)) return 'Channel Letters on Raceway'
+    if (/BACKER/.test(t)) return 'Channel Letters on Backer'
+    if (/CHANNEL|FRONT LIT|BACK LIT|BACKLIT|HALO|TRIM/.test(t)) return 'Channel Letters'
+    if (/MONUMENT/.test(t)) return 'Monuments'
+    if (/BLADE|PROJECTING/.test(t)) return 'Blade / Projecting'
+    if (/CABINET|LIGHT ?BOX|LIGHTBOX/.test(t)) return 'Cabinets / Lightboxes'
+    if (/PYLON|POLE/.test(t)) return 'Pylons'
+    if (/NEON/.test(t)) return 'Neon'
+    if (/PUSH.?THR/.test(t)) return 'Push-Thru'
+    if (/DIMENSIONAL|FLAT CUT|ACRYLIC|METAL LETTER|PVC|FOAM/.test(t)) return 'Dimensional Letters'
+    return 'Other'
+  }
+  const SV_GROUP_ORDER = ['Channel Letters', 'Channel Letters on Raceway', 'Channel Letters on Backer', 'Dimensional Letters', 'Cabinets / Lightboxes', 'Monuments', 'Blade / Projecting', 'Pylons', 'Push-Thru', 'Neon', 'Other']
   useEffect(() => {
     if (!pickingSV) return
     listCatalog('side_view').then(setSvLib).catch(() => {})
@@ -795,6 +812,12 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
           </button>
           {pickingSV && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+              <input
+                placeholder="Search side views… (e.g. raceway, monument)"
+                value={svSearch}
+                onChange={(e) => setSvSearch(e.target.value)}
+                style={{ width: '100%', maxWidth: 340 }}
+              />
               {/* explicit no-side-view: clears every pick and removes the section + headline */}
               <label style={{ width: 120, fontSize: 11, textAlign: 'center', cursor: 'pointer', border: sideViews.includes('__none__') ? '2px solid #f5a623' : '1px dashed #999', borderRadius: 6, padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 96, color: 'var(--text-dim, #888)' }}>
                 <input type="checkbox" checked={sideViews.includes('__none__')}
@@ -802,29 +825,38 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
                 <span style={{ fontSize: 20, lineHeight: 1.4 }}>🚫</span>
                 <span>No side view<br />(hides the section)</span>
               </label>
-              {SIDE_VIEWS.map((s) => {
-                const on = sideViews.includes(s.key)
-                return (
-                  <label key={s.key} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: on ? '2px solid #f5a623' : '1px solid #ccc', borderRadius: 6, padding: 4 }}>
-                    <input type="checkbox" checked={on} onChange={(e) => onSideViews(e.target.checked ? [...sideViews.filter((x) => x !== '__none__'), s.key] : sideViews.filter((x) => x !== s.key))} />
-                    <img src={`/side_views/${s.key}.png`} alt={s.label} style={{ width: '100%', height: 70, objectFit: 'contain' }} />
-                    <div>{s.label}</div>
-                  </label>
-                )
-              })}
-              {/* the team's own side-view library — uploaded once, available on every quote */}
-              {svLib.map((it) => {
-                const p = it.data?.path
-                if (!p) return null
-                const on = sideViews.includes(p)
-                return (
-                  <label key={'lib' + it.id} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: on ? '2px solid #f5a623' : '1px solid #ccc', borderRadius: 6, padding: 4 }}>
-                    <input type="checkbox" checked={on} onChange={(e) => onSideViews(e.target.checked ? [...sideViews.filter((x) => x !== '__none__'), p] : sideViews.filter((x) => x !== p))} />
-                    <img src={svSrc(p)} alt={it.name} style={{ width: '100%', height: 70, objectFit: 'contain' }} />
-                    <div>{it.name}</div>
-                  </label>
-                )
-              })}
+              {/* every card (built-ins + team library) searched and grouped by category */}
+              {(() => {
+                const cards = [
+                  ...SIDE_VIEWS.map((sv) => ({ key: sv.key, label: sv.label, src: `/side_views/${sv.key}.png` })),
+                  ...svLib.filter((it) => it.data?.path).map((it) => ({ key: it.data.path, label: it.name, src: svSrc(it.data.path) })),
+                ].filter((c) => !svSearch.trim() || String(c.label).toUpperCase().includes(svSearch.trim().toUpperCase()))
+                const groups = new Map()
+                cards.forEach((c) => {
+                  const g = svGroupOf(c.label)
+                  if (!groups.has(g)) groups.set(g, [])
+                  groups.get(g).push(c)
+                })
+                const ordered = SV_GROUP_ORDER.filter((g) => groups.has(g))
+                if (!cards.length) return <div className="muted" style={{ fontSize: 12, width: '100%' }}>No side views match “{svSearch}”.</div>
+                return ordered.map((g) => (
+                  <div key={g} style={{ width: '100%' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, margin: '8px 0 6px', color: 'var(--text-dim, #777)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{g} ({groups.get(g).length})</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {groups.get(g).map((c) => {
+                        const on = sideViews.includes(c.key)
+                        return (
+                          <label key={c.key} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: on ? '2px solid #f5a623' : '1px solid #ccc', borderRadius: 6, padding: 4 }}>
+                            <input type="checkbox" checked={on} onChange={(e) => onSideViews(e.target.checked ? [...sideViews.filter((x) => x !== '__none__'), c.key] : sideViews.filter((x) => x !== c.key))} />
+                            <img src={c.src} alt={c.label} style={{ width: '100%', height: 70, objectFit: 'contain' }} />
+                            <div>{c.label}</div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()}
               {/* one-off uploads on this quote that aren't in the library */}
               {sideViews.filter((k) => !SIDE_VIEWS.some((s) => s.key === k) && !svLib.some((it) => it.data?.path === k)).map((k) => (
                 <label key={k} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: '2px solid #f5a623', borderRadius: 6, padding: 4 }}>
