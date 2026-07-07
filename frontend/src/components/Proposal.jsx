@@ -751,10 +751,10 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
               {/* explicit "no side view" removes the whole section, headline included */}
               {!sideViews.includes('__none__') && (
                 <>
-                  <div style={secHead}>SIDE VIEW</div>
+                  <div style={secHead}>DIMENSIONS</div>
                   <div style={{ position: 'relative', height: 208 }}>
                     {sideViews.length === 0
-                      ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
+                      ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No dimensions selected ]</span>
                       : (() => {
                           // tile instead of stacking: one view fills the box; several share it in a 2-per-row grid
                           const list = sideViews.filter((k) => k !== '__none__')
@@ -810,12 +810,12 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
       {onSideViews && (
         <div style={{ margin: '12px 0' }}>
           <button type="button" className="ghost" onClick={() => setPickingSV((v) => !v)}>
-            {pickingSV ? 'Done choosing side views' : '+ Choose side views'}
+            {pickingSV ? 'Done choosing dimensions' : '+ Choose dimensions'}
           </button>
           {pickingSV && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
               <input
-                placeholder="Search side views… (e.g. raceway, monument)"
+                placeholder="Search dimensions… (e.g. raceway, monument)"
                 value={svSearch}
                 onChange={(e) => setSvSearch(e.target.value)}
                 style={{ width: '100%', maxWidth: 340 }}
@@ -825,7 +825,7 @@ export default function Proposal({ mode, tpl, answers, customSpec, info, artwork
                 <input type="checkbox" checked={sideViews.includes('__none__')}
                   onChange={(e) => onSideViews(e.target.checked ? ['__none__'] : [])} />
                 <span style={{ fontSize: 20, lineHeight: 1.4 }}>🚫</span>
-                <span>No side view<br />(hides the section)</span>
+                <span>No dimensions<br />(hides the section)</span>
               </label>
               {/* every card (built-ins + team library) searched and grouped by category */}
               {(() => {

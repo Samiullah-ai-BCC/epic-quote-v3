@@ -32,8 +32,8 @@ Never leave main red. Report problems-solved + problems-remaining each iteration
 | P0.7 | #13 repless quotes visible to whole team + rep truly optional at intake | ✅ | API: admin creates rep="" quote → a random non-admin sees+opens it (200) but still 404 on a rep-owned quote. Rep validation relaxed (blank=N/A) in store()+update(); intake + grid rep dropdowns have "N/A"; non-admins still can't assign to others |
 | P0.8 | #11 move "New quote" button to All Quotes (off Dashboard) | ✅ | browser: Dashboard shows "View all quotes →" (no New quote); All Quotes has "+ New quote" (opens AddQuoteModal). Modal+state moved from Dashboard to AllQuotes |
 | P0.9 | #9 exiting a quote returns to the page you came from | ✅ | browser: opened EC100011 from All Quotes → Exit → landed /quotes (not /dashboard). Generator reads location.state.from (default /quotes); AllQuotes/Dashboard/AddQuoteModal pass from= on open |
-| P0.10 | #21 clicking the artwork area opens the file picker | ⬜ | |
-| P0.11 | #1 rename proposal "Side Views" → "Dimensions" | ⬜ | |
+| P0.10 | #21 clicking the artwork area opens the file picker | ✅ | artwork step is now a clickable dashed dropzone → opens the file picker (+ drag-drop); mirrors the proven hidden-input+.click() pattern used for the customer-file upload; build clean |
+| P0.11 | #1 rename proposal "Side Views" → "Dimensions" | ✅ | browser: proposal section heading now "DIMENSIONS" (no "SIDE VIEW"); picker button "Choose dimensions", search + no-view labels renamed too |
 
 ## Phase 1 — Contact split (#22) + Company autofill (#12)
 | # | Item | Status | Evidence |
