@@ -407,6 +407,15 @@ export default function Generator() {
     goto('preview')
   }
 
+  // save the current step, then advance to the NEXT step in the flow (not straight to preview)
+  const saveNext = async () => {
+    setSaving(true)
+    try { await updateQuote(quoteId, { special_requirements: special }) } catch { /* non-fatal */ }
+    await saveProgress()
+    setSaving(false)
+    next()
+  }
+
   // typed custom sign type (AI mode) — use it AND save the name to the team catalog so it
   // shows up in both modes from now on
   const useTypedSignType = () => {
@@ -799,7 +808,7 @@ export default function Generator() {
                 return (
                   <>
                     {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}
-                    <button disabled={badPrice || noDims} onClick={toPreview}>{saving ? 'Saving…' : 'Next →'}</button>
+                    <button disabled={badPrice || noDims} onClick={saveNext}>{saving ? 'Saving…' : 'Next →'}</button>
                   </>
                 )
               })()}

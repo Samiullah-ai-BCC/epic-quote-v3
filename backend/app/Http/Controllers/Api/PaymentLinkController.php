@@ -62,13 +62,17 @@ class PaymentLinkController extends Controller
         $payload = ShopifyService::buildProductPayload($quote, $total, $imageBase64, $group);
         $result = ShopifyService::createProduct($payload);
 
-        if ($result === null) {
+        if (!($result['ok'] ?? false)) {
+            if (($result['reason'] ?? '') === 'not_configured') {
+                return response()->json([
+                    'error' => 'Shopify isn’t connected yet. An admin needs to add the store domain + token before links can be generated.',
+                    'not_configured' => true,
+                ], 503);
+            }
+            // surface Shopify's actual reason so it can be fixed (bad token, missing scope, etc.)
             return response()->json([
-                'error' => ShopifyService::configured()
-                    ? 'Shopify rejected the request — please try again or check the store settings.'
-                    : 'Shopify isn’t connected yet. An admin needs to add the store token before links can be generated.',
-                'not_configured' => !ShopifyService::configured(),
-            ], ShopifyService::configured() ? 502 : 503);
+                'error' => 'Shopify couldn’t create the product — '.($result['message'] ?? $result['reason'] ?? 'unknown error').'.',
+            ], 502);
         }
 
         // pick the variant that matches this kind
@@ -137,6 +141,7 @@ class PaymentLinkController extends Controller
             'token_set'   => !empty(config('services.shopify.token')),
             'webhook_set' => !empty(config('services.shopify.webhook_secret')),
             'domain'      => ShopifyService::domain(),   // normalized host (not secret)
+            'connection'  => ShopifyService::testConnection(),   // actually pings Shopify
         ]);
     }
 
