@@ -47,25 +47,27 @@ class ShopifyService
      * Build the REST product payload (pure — no network, unit-testable).
      * $kind: 'quote' (Full + Deposit variants), or 'balance' (single Balance variant).
      */
-    public static function buildProductPayload(Quote $quote, float $total, ?string $imageBase64, string $kind = 'quote'): array
+    public static function buildProductPayload(Quote $quote, float $total, ?string $imageBase64, string $kind = 'full'): array
     {
         $gd = $quote->generated_data ?: [];
         $itemDesc = $gd['custom_spec']['itemDesc'] ?? $quote->job_name ?: 'CUSTOM SIGNAGE';
         $signType = $gd['tpl_name'] ?? ($gd['custom_spec']['signType'] ?? '');
 
         $variants = self::variantsFor($total, $kind);
+        // title: "{ID} - {Title Case item} - {Payment part}" (#1, #4)
+        $title = trim($quote->quote_id.' - '.self::titleCase($itemDesc).' - '.self::kindLabel($kind));
 
         $product = [
-            'title'          => trim($quote->quote_id.' - '.$itemDesc),
+            'title'          => $title,
             'body_html'      => e($signType),
             'vendor'         => 'EpicCraftings',
             'product_type'   => $signType ?: 'Sign',
             'status'         => 'active',                 // purchasable
             'published_scope' => 'web',                   // Online Store
-            'tags'           => 'estimator,'.$quote->quote_id,
+            'tags'           => 'estimator,'.$quote->quote_id.','.$kind,
             // random handle suffix → the URL is unguessable (privacy): someone can't just
             // increment the quote number to find another customer's link.
-            'handle'         => \Illuminate\Support\Str::slug($quote->quote_id.' '.$itemDesc).'-'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8)),
+            'handle'         => \Illuminate\Support\Str::slug($title).'-'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8)),
             'variants'       => $variants,
         ];
 
@@ -79,29 +81,37 @@ class ShopifyService
         return ['product' => $product];
     }
 
-    /** Variant list for a total + kind. Deposit is half; ≤ $500 → full only. */
-    public static function variantsFor(float $total, string $kind = 'quote'): array
+    /** ONE variant matching the payment kind — so the product's price IS what the rep chose
+     *  (full → full price, deposit/balance → half). No more multi-variant products defaulting
+     *  to the cheapest option (#2). */
+    public static function variantsFor(float $total, string $kind = 'full'): array
     {
         $price = fn ($n) => number_format(round($n, 2), 2, '.', '');
         $base = [
-            // A payment link must ALWAYS be payable — so allow selling even at 0 stock
-            // ('continue'), otherwise the product reads "sold out" and the customer can't pay,
-            // and a paid deposit would block the balance. (Untracked stock, effectively.)
-            'inventory_policy'     => 'continue',
-            'requires_shipping'    => true,
-            'taxable'              => true,
+            // Always payable — allow selling even at 0 stock, so the product never reads "sold
+            // out" and a paid deposit doesn't block the balance.
+            'inventory_policy'  => 'continue',
+            'requires_shipping' => true,
+            'taxable'           => true,
         ];
+        $amount = $kind === 'full' ? $total : $total / 2;
+        return [['option1' => self::kindLabel($kind), 'price' => $price($amount)] + $base];
+    }
 
-        if ($kind === 'balance') {
-            return [['option1' => 'Balance (50%)', 'price' => $price($total / 2)] + $base];
-        }
+    /** Human label for a payment kind (goes in the title + variant). */
+    public static function kindLabel(string $kind): string
+    {
+        return match ($kind) {
+            'deposit' => '50% Deposit',
+            'balance' => 'Balance (50%)',
+            default   => 'Full Payment',
+        };
+    }
 
-        // quote: Full always; Deposit only when total > $500
-        $variants = [['option1' => 'Full Payment', 'price' => $price($total)] + $base];
-        if ($total > self::FULL_ONLY_MAX) {
-            $variants[] = ['option1' => '50% Deposit', 'price' => $price($total / 2)] + $base;
-        }
-        return $variants;
+    /** Title Case: first letter of each word capitalized, not ALL CAPS (#4). */
+    public static function titleCase(string $s): string
+    {
+        return \Illuminate\Support\Str::title(mb_strtolower(trim($s)));
     }
 
     /**

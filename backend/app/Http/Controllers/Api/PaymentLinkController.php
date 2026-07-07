@@ -57,9 +57,8 @@ class PaymentLinkController extends Controller
         $imageBase64 = $request->input('image');   // "data:image/png;base64,…"
         $imageRef = $imageBase64 ? $this->storeImage($imageBase64, $quote->quote_id.'-'.$kind) : null;
 
-        // build + create the Shopify product (dormant until configured)
-        $group = $kind === 'balance' ? 'balance' : 'quote';
-        $payload = ShopifyService::buildProductPayload($quote, $total, $imageBase64, $group);
+        // build + create the Shopify product for THIS payment kind (one variant, one price)
+        $payload = ShopifyService::buildProductPayload($quote, $total, $imageBase64, $kind);
         $result = ShopifyService::createProduct($payload);
 
         if (!($result['ok'] ?? false)) {
@@ -75,9 +74,8 @@ class PaymentLinkController extends Controller
             ], 502);
         }
 
-        // pick the variant that matches this kind
-        $wanted = $kind === 'deposit' ? '50% Deposit' : ($kind === 'balance' ? 'Balance (50%)' : 'Full Payment');
-        $variant = collect($result['variants'])->firstWhere('title', $wanted) ?? ($result['variants'][0] ?? null);
+        // the product has exactly one variant (this kind)
+        $variant = $result['variants'][0] ?? null;
         $amount = $kind === 'full' ? $total : round($total / 2, 2);
 
         $gd = $quote->generated_data ?: [];
