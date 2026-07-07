@@ -52,7 +52,7 @@ export default function Users() {
 
       {isLoading ? <div className="center">Loading…</div> : (
         <table>
-          <thead><tr><th>Username</th><th>Full Name</th><th>Email</th><th>Role</th><th>Last Login</th><th></th></tr></thead>
+          <thead><tr><th>Username</th><th>Full Name</th><th>Email</th><th>Role</th><th title="May generate Shopify payment links">💳 Links</th><th>Last Login</th><th></th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
@@ -63,6 +63,11 @@ export default function Users() {
                   <select defaultValue={u.role} style={{ width: 120 }} onChange={(e) => update.mutate({ id: u.id, patch: { role: e.target.value } })}>
                     {roles.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <input type="checkbox" title={u.role === 'admin' ? 'Admins can always create payment links' : 'Allow this user to create Shopify payment links'}
+                    disabled={u.role === 'admin'} checked={!!u.can_create_payment_links}
+                    onChange={(e) => update.mutate({ id: u.id, patch: { can_create_payment_links: e.target.checked } })} />
                 </td>
                 <td className="muted" style={{ whiteSpace: 'nowrap' }}>{u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>

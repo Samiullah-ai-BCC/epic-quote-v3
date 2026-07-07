@@ -64,6 +64,7 @@ class UserController extends Controller
             'full_name' => 'sometimes|nullable|string|max:120',
             'email'     => 'sometimes|nullable|email|max:120',
             'role'      => ['sometimes', Rule::in(AppConstants::ROLES)],
+            'can_create_payment_links' => 'sometimes|boolean',
         ]);
 
         $changes = [];
@@ -92,6 +93,11 @@ class UserController extends Controller
                 $changes[] = $field;
                 $user->{$field} = $data[$field] ?? '';
             }
+        }
+
+        if (array_key_exists('can_create_payment_links', $data) && (bool) $data['can_create_payment_links'] !== (bool) $user->can_create_payment_links) {
+            $user->can_create_payment_links = (bool) $data['can_create_payment_links'];
+            $changes[] = $user->can_create_payment_links ? 'granted payment-link creation' : 'revoked payment-link creation';
         }
 
         $user->save();

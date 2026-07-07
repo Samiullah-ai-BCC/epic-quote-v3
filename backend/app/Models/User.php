@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'role',
         'last_login',
+        'can_create_payment_links',
     ];
 
     protected $hidden = [
@@ -37,12 +38,19 @@ class User extends Authenticatable
         return [
             'password'   => 'hashed',
             'last_login' => 'datetime',
+            'can_create_payment_links' => 'boolean',
         ];
     }
 
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    // Admins always can; others only if the switch is flipped on for them.
+    public function canCreatePaymentLinks(): bool
+    {
+        return $this->isAdmin() || (bool) $this->can_create_payment_links;
     }
 
     // Managers/account managers/viewers see the whole book of business;
@@ -73,6 +81,7 @@ class User extends Authenticatable
             'full_name'  => $this->full_name,
             'email'      => $this->email ?? '',
             'role'       => $this->role,
+            'can_create_payment_links' => $this->canCreatePaymentLinks(),
             'last_login' => $this->last_login?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
