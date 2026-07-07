@@ -668,7 +668,9 @@ export default function Generator() {
         )}
 
         {step === 'specs' && tpl && (() => {
-          const noDims = !String(answers.dimensions || '').trim()
+          // dimensions are mandatory (#3): require both primary parts (H + W) actually filled,
+          // read from the raw fields so a collapsed composed string can't sneak through.
+          const noDims = !String(answers.dim_l ?? '').trim() || !String(answers.dim_w ?? '').trim()
           const priceNum = Number(answers.price)
           const badPrice = String(answers.price ?? '').trim() === '' || !Number.isFinite(priceNum) || priceNum <= 0
           const hint = noDims ? 'Enter the dimensions to continue' : badPrice ? 'Enter a real price (more than $0) to continue' : ''
@@ -803,7 +805,7 @@ export default function Generator() {
               {(() => {
                 const n = Number(customSpec?.price)
                 const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0
-                const noDims = !String(customSpec?.dims || '').trim()
+                const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w
                 const hint = noDims ? 'Enter the dimensions to continue' : badPrice ? 'Enter a real price (more than $0) to continue' : ''
                 return (
                   <>

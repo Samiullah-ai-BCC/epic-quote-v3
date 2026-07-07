@@ -119,6 +119,16 @@ export default function AddQuoteModal({ onClose }) {
     }
 
     const payload = { ...form }
+    // If this is a KNOWN company and the address you typed differs from the one on file,
+    // offer to update the company's saved details (#5) — otherwise the old address stays.
+    const known = companyHits.find((c) => c.name.toLowerCase() === form.company_name.trim().toLowerCase())
+    const newAddr = form.address.trim()
+    if (known && newAddr && newAddr !== (known.address || '').trim()) {
+      const msg = known.address
+        ? `You entered a different address for "${form.company_name}".\n\nOn file:  ${known.address}\nEntered:  ${newAddr}\n\nUpdate this company's saved address?`
+        : `"${form.company_name}" has no saved address yet.\n\nSave "${newAddr}" as this company's address?`
+      if (window.confirm(msg)) payload.update_company_address = true
+    }
     if (files[0]) payload.customer_pdf = files[0]   // first file is the primary drawing
     try {
       const created = await create.mutateAsync(payload)

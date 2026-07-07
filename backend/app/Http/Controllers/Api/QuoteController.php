@@ -113,6 +113,7 @@ class QuoteController extends Controller
         $quoteSource = (string) $request->input('quote_source', '');
         $orderId     = trim((string) $request->input('order_id', ''));
         $qid         = strtoupper(trim((string) $request->input('quote_id', '')));  // IDs are case-insensitive → normalize
+        $updateCompanyAddr = $request->boolean('update_company_address');   // (#5) rep confirmed overwriting the saved address
 
         // Non-admins may leave the rep blank (N/A → shared quote) or own it themselves,
         // but can never assign it to somebody else.
@@ -150,7 +151,7 @@ class QuoteController extends Controller
 
         $quote = DB::transaction(function () use (
             $companyName, $clientName, $contact, $email, $address, $jobName, $special,
-            $salesRep, $quoteSource, $orderId, $qid, $file, $user
+            $salesRep, $quoteSource, $orderId, $qid, $file, $user, $updateCompanyAddr
         ) {
             // auto-create company (case-insensitive dedup) — only when a name is supplied.
             // AI mode is PDF-first (no typed company yet); B fills it later via update.
@@ -161,7 +162,9 @@ class QuoteController extends Controller
                     $company = Company::create([
                         'name' => $companyName, 'address' => $address, 'email' => '', 'phone' => '',
                     ]);
-                } elseif ($address && !$company->address) {
+                } elseif ($address && (!$company->address || $updateCompanyAddr)) {
+                    // fill a blank address automatically, OR overwrite an existing one when the
+                    // rep explicitly confirmed the update in the intake (#5).
                     $company->update(['address' => $address]);
                 }
 
