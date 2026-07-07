@@ -57,6 +57,7 @@ Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
 
     // Payment links (Shopify) — private ledger + create
     Route::post('quotes/{quote}/payment-link', [App\Http\Controllers\Api\PaymentLinkController::class, 'store']);
+    Route::get('shopify/status', [App\Http\Controllers\Api\PaymentLinkController::class, 'shopifyStatus']);
     Route::get('payment-links', [App\Http\Controllers\Api\PaymentLinkController::class, 'index']);
     Route::put('payment-links/{paymentLink}/status', [App\Http\Controllers\Api\PaymentLinkController::class, 'updateStatus']);
 

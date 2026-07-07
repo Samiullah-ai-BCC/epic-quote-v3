@@ -124,6 +124,22 @@ class PaymentLinkController extends Controller
         return $filename;
     }
 
+    // GET /api/shopify/status — admin-only health check so you can SEE whether the server
+    // actually has the Shopify values (never exposes the secret itself).
+    public function shopifyStatus(Request $request): JsonResponse
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['error' => 'forbidden'], 403);
+        }
+        return response()->json([
+            'configured'  => ShopifyService::configured(),
+            'domain_set'  => !empty(config('services.shopify.domain')),
+            'token_set'   => !empty(config('services.shopify.token')),
+            'webhook_set' => !empty(config('services.shopify.webhook_secret')),
+            'domain'      => config('services.shopify.domain') ?: null,   // domain isn't secret
+        ]);
+    }
+
     // GET /api/payment-links — the private ledger, searchable, scoped to what the user can see.
     public function index(Request $request): JsonResponse
     {

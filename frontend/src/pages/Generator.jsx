@@ -18,7 +18,9 @@ import MoneyInput from '../components/MoneyInput'
 
 const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
-  custom: ['client', 'customspecs', 'preview'], // Back from the questions shows client details, not the dashboard
+  // manual mode gets the Artwork step too, so the sign image can be added/changed here
+  // (the proposal even points to it) — it was missing before.
+  custom: ['client', 'customspecs', 'artwork', 'preview'],
 }
 
 // Cloudinary-stored PDF/Illustrator drawings can't render in an <img>/<iframe> directly —
