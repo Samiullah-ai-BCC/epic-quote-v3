@@ -9,9 +9,10 @@ return [
 
     'guard' => ['web'],
 
-    // Tokens expire so a leaked/stolen token can't be used forever (default 12h;
-    // the SPA's 401 interceptor logs the user out and they re-login).
-    'expiration' => (int) env('SANCTUM_EXPIRATION_MINUTES', 720),
+    // Tokens expire so a leaked/stolen token can't be used forever (default 7 days — long
+    // enough that the team isn't logged out daily, short enough to bound a leak). The SPA's
+    // 401 interceptor now cleanly logs out on expiry instead of looping.
+    'expiration' => (int) env('SANCTUM_EXPIRATION_MINUTES', 10080),
 
     'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
 

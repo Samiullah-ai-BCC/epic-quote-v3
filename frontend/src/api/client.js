@@ -12,12 +12,19 @@ client.interceptors.request.use((config) => {
   return config
 })
 
+// On 401, clear BOTH token stores — the raw token AND the persisted auth store — or the
+// app rehydrates as "still authenticated", bounces back to the dashboard, 401s again, and
+// loops forever (~every 0.5s). Guard so simultaneous 401s only redirect once, and never
+// redirect if we're already on the login page.
+let redirecting = false
 client.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+    if (err.response?.status === 401 && !redirecting) {
+      redirecting = true
+      localStorage.removeItem('token')   // raw token (request interceptor)
+      localStorage.removeItem('auth')    // zustand-persisted { token, user } — MUST clear too
+      if (window.location.pathname !== '/login') window.location.href = '/login'
     }
     return Promise.reject(err)
   }
