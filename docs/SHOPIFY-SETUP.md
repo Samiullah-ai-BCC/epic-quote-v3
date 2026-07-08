@@ -34,8 +34,11 @@ Render → the **API** service → **Environment** → add:
 | `SHOPIFY_STORE_DOMAIN` | `your-store.myshopify.com` |
 | `SHOPIFY_API_TOKEN` | the `shpat_…` token from step 1 |
 | `SHOPIFY_API_VERSION` | `2025-07` (leave as-is unless Shopify tells you otherwise) |
+| `SHOPIFY_STOREFRONT_DOMAIN` | *(recommended)* your customer-facing domain, e.g. `epiccraftings.com` — links are built on this instead of `…myshopify.com`, skipping the redirect hop |
 | `SHOPIFY_WEBHOOK_SECRET` | the signing secret from step 2 |
 | `SHOPIFY_LOCATION_ID` | *(optional)* your US warehouse location id |
+
+> **On the "slow link" (40–50s):** timing shows the `…myshopify.com` → custom-domain redirect is ~0.6s — not the cause. The delay is Shopify **publishing/indexing a brand-new product** onto the storefront; it clears within about a minute and only affects the first open of a just-created product. Setting `SHOPIFY_STOREFRONT_DOMAIN` removes the redirect hop but can't remove Shopify's publish delay.
 
 Save → the API redeploys → payment links are live. **That's it.**
 

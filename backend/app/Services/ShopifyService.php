@@ -40,6 +40,22 @@ class ShopifyService
         return $d ?: null;
     }
 
+    /** Customer-facing storefront host for product links: the configured custom domain
+     *  (e.g. epiccraftings.com) if set, else the myshopify store domain. Using the custom
+     *  domain avoids the slow .myshopify.com → custom-domain redirect (#10). */
+    public static function storefrontHost(): ?string
+    {
+        $s = trim((string) config('services.shopify.storefront_domain'));
+        if ($s !== '') {
+            $s = preg_replace('#^https?://#i', '', $s);
+            $s = explode('/', $s)[0];
+            if ($s !== '') {
+                return $s;
+            }
+        }
+        return self::domain();
+    }
+
     /** Full amount at or below this → full payment only (no 50% deposit option). */
     public const FULL_ONLY_MAX = 500.0;
 
@@ -161,7 +177,8 @@ class ShopifyService
             'ok'         => true,
             'product_id' => (string) $p['id'],
             'handle'     => $p['handle'] ?? '',
-            'url'        => 'https://'.$domain.'/products/'.($p['handle'] ?? ''),
+            // customer link on the storefront/custom domain → no cross-domain redirect (#10)
+            'url'        => 'https://'.self::storefrontHost().'/products/'.($p['handle'] ?? ''),
             'variants'   => collect($p['variants'] ?? [])->map(fn ($v) => [
                 'id'    => (string) $v['id'],
                 'title' => $v['title'] ?? $v['option1'] ?? '',

@@ -54,6 +54,8 @@ services:
         sync: false
       - key: SHOPIFY_API_VERSION    # leave as-is — not a secret, has a default
         value: "2025-07"
+      - key: SHOPIFY_STOREFRONT_DOMAIN  # customer-facing domain e.g. epiccraftings.com — links skip the myshopify redirect (#10)
+        sync: false
       # OPTIONAL, only for auto-marking a link "Paid" when the customer pays (skip for now):
       - key: SHOPIFY_WEBHOOK_SECRET
         sync: false

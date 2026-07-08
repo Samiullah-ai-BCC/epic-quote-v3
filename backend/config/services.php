@@ -9,6 +9,10 @@ return [
     'shopify' => [
         // domain also accepts a bare store name or a full URL (normalized to xxx.myshopify.com below)
         'domain'  => env('SHOPIFY_STORE_DOMAIN'),
+        // the customer-facing storefront host (e.g. epiccraftings.com). When set, product links
+        // are built on THIS domain instead of xxx.myshopify.com — skipping the slow cross-domain
+        // redirect Shopify does on the .myshopify.com URL (#10). Falls back to the store domain.
+        'storefront_domain' => env('SHOPIFY_STOREFRONT_DOMAIN'),
         // accept either name — SHOPIFY_API_TOKEN (preferred) or SHOPIFY_API_KEY (common mistake)
         'token'   => env('SHOPIFY_API_TOKEN', env('SHOPIFY_API_KEY')),
         'version' => env('SHOPIFY_API_VERSION', '2025-07'),

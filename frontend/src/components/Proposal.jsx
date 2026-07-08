@@ -990,6 +990,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
             <div style={{ marginTop: 10, fontSize: 13 }}>
               Link ({plResult.kind}): <a href={plResult.url} target="_blank" rel="noreferrer">{plResult.url}</a>{' '}
               <button className="ghost sm" onClick={() => { navigator.clipboard?.writeText(plResult.url); flash('Link copied') }}>Copy</button>
+              <div className="muted" style={{ fontSize: 11, marginTop: 5 }}>Newly-created products can take up to ~1 minute to go live on the store — if it looks slow at first, give it a moment before sending to the customer.</div>
             </div>
           )}
           <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>Creates the product in Shopify with a clean image (no price block) and records it under Payment Links.</div>
