@@ -63,7 +63,7 @@ export function ColumnPicker({ columns }) {
     <div style={{ position: 'relative' }}>
       <button className="ghost sm" onClick={() => setOpen(!open)} title="Choose which columns to show">☰ Columns</button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 50, background: 'var(--panel, #171a21)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: 10, minWidth: 170, boxShadow: '0 8px 22px rgba(0,0,0,0.4)' }}>
+        <div style={{ position: 'absolute', right: 0, top: '110%', zIndex: 50, background: 'var(--navy-700)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, minWidth: 170, boxShadow: 'var(--shadow-lg)' }}>
           {columns.cols.map((c) => (
             <label key={c.key} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-start', fontSize: 13, padding: '4px 2px', margin: 0, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text)' }}>
               <input type="checkbox" checked={columns.has(c.key)} style={{ width: 16, height: 16, minWidth: 16, flex: '0 0 16px', padding: 0, margin: 0 }} onChange={() => columns.toggle(c.key)} />

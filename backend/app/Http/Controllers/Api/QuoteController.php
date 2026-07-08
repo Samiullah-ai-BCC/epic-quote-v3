@@ -72,24 +72,37 @@ class QuoteController extends Controller
         if ($q === '') {
             return response()->json([]);
         }
-        // Return ONLY name + address. Client/phone/email are per-quote, not per-company —
-        // autofilling them from an unrelated quote is what cross-contaminated the data.
-        // Address = the most recent NON-EMPTY address for the company (a blank latest quote
-        // shouldn't wipe a company's known address).
+        // Return name + address AND the distinct saved CONTACTS for the company (client name,
+        // phone, email) drawn from that company's own past quotes — most-recent first. This
+        // brings back every real contact the team already typed (#8/#9) instead of only the
+        // address, while still keeping companies separate by exact name (Signarama vs
+        // "Signarama Redmond" are different groups — no cross-contamination).
         $rows = Quote::query()
             ->visibleTo($request->user())
             ->where('company_name', 'like', '%'.$q.'%')
             ->where('company_name', '!=', '')
             ->orderByDesc('created_at')
-            ->limit(300)
-            ->get(['company_name', 'address'])
+            ->limit(400)
+            ->get(['company_name', 'client_name', 'address', 'contact', 'email'])
             ->groupBy(fn ($r) => mb_strtolower($r->company_name))
             ->take(8)
             ->map(function ($group) {
                 $withAddr = $group->first(fn ($r) => trim((string) $r->address) !== '');
+                // distinct contacts: dedupe by (client|phone|email); drop fully-empty rows
+                $contacts = $group
+                    ->map(fn ($r) => [
+                        'client_name' => trim((string) $r->client_name),
+                        'contact'     => trim((string) $r->contact),
+                        'email'       => trim((string) $r->email),
+                    ])
+                    ->filter(fn ($c) => $c['client_name'] !== '' || $c['contact'] !== '' || $c['email'] !== '')
+                    ->unique(fn ($c) => mb_strtolower($c['client_name'].'|'.$c['contact'].'|'.$c['email']))
+                    ->take(8)
+                    ->values();
                 return [
-                    'name'    => $group->first()->company_name,
-                    'address' => $withAddr->address ?? '',
+                    'name'     => $group->first()->company_name,
+                    'address'  => $withAddr->address ?? '',
+                    'contacts' => $contacts,
                 ];
             })
             ->values();

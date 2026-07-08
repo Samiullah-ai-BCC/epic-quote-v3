@@ -127,9 +127,7 @@ export default function Dashboard() {
             {dateStr}{attnCount ? ` · ${attnCount} quote${attnCount > 1 ? 's' : ''} need your attention today` : ' · all clear today'}
           </div>
         </div>
-        {isViewer
-          ? <span className="pill pill-gray" title="Your account can see everything but change nothing">View-only account</span>
-          : <button className="btn-new" onClick={() => navigate('/quotes', { state: { openNew: true } })}><IcPlus size={17} /> New quote</button>}
+        {isViewer && <span className="pill pill-gray" title="Your account can see everything but change nothing">View-only account</span>}
       </div>
 
       {/* ---- KPI row ---- */}

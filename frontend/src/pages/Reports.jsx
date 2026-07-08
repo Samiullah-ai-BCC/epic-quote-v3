@@ -49,10 +49,18 @@ function MonthlyReport() {
             )
           })}
         </svg>
-        {hover && (
+        {hover && (() => {
+          // flip the tooltip to the LEFT of the cursor for right-side months so it never
+          // runs off the chart's right edge (#2)
+          const frac = hover.x / W
+          const flip = frac > 0.6
+          return (
           <div style={{
             position: 'absolute', pointerEvents: 'none', zIndex: 20,
-            left: `calc(${(hover.x / W) * 100}% + 12px)`, top: Math.max(0, hover.y - 10),
+            ...(flip
+              ? { right: `calc(${(1 - frac) * 100}% + 12px)` }
+              : { left: `calc(${frac * 100}% + 12px)` }),
+            top: Math.max(0, hover.y - 10),
             background: '#ffffff', border: '1px solid var(--border)', color: 'var(--text)',
             borderRadius: 8, padding: '8px 11px', fontSize: 12, minWidth: 150, boxShadow: '0 8px 24px rgba(15,23,42,0.14)',
           }}>
@@ -63,7 +71,8 @@ function MonthlyReport() {
             <div>Won value: <b>{money(hover.m.done_value)}</b></div>
             <div>Conversion: <b>{hover.m.conversion == null ? '—' : hover.m.conversion + '%'}</b></div>
           </div>
-        )}
+          )
+        })()}
       </div>
       <div className="muted" style={{ fontSize: 11, margin: '6px 0 12px' }}>Grey = quotes created · Gold = quotes won that month · hover a month for details</div>
       <div style={{ overflowX: 'auto' }}>

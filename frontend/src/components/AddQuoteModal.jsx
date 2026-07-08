@@ -38,31 +38,43 @@ export default function AddQuoteModal({ onClose }) {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  // Company autofill (#12): known companies suggest as you type. We ONLY autofill the ADDRESS,
-  // because that is the one truly company-level value — client name, phone and email vary per
-  // quote/contact, and auto-filling them from another quote cross-contaminated the data. The
-  // address refreshes when you switch to a different known company, unless you've hand-edited it.
+  // Company autofill (#8/#9): known companies suggest as you type. When you land on an exact
+  // known company we bring back its address AND its most-recent saved contact (client name,
+  // phone, email) — every real contact the team typed before, kept per-company so Signarama and
+  // "Signarama Redmond" never share data. A field you've hand-edited is never overwritten; if a
+  // company has several past contacts a picker appears so you can choose one.
   const [companyHits, setCompanyHits] = useState([])
-  const autoFilledAddr = useRef('')
+  const [exactHit, setExactHit] = useState(null)   // the matched company (with .contacts) for the picker
+  const autoFilled = useRef({ address: '', client_name: '', contact: '', email: '' })
+  // apply a saved contact into any field the user hasn't manually changed
+  const applyAuto = (patch) => {
+    setForm((f) => {
+      const next = { ...f }
+      for (const k of Object.keys(patch)) {
+        const wasAuto = !f[k] || f[k] === autoFilled.current[k]
+        if (wasAuto) next[k] = patch[k] || ''
+      }
+      return next
+    })
+    autoFilled.current = { ...autoFilled.current, ...patch }
+  }
   const onCompanyChange = async (e) => {
     const name = e.target.value
     setForm((f) => ({ ...f, company_name: name }))
-    if (name.trim().length < 2) { setCompanyHits([]); return }
+    if (name.trim().length < 2) { setCompanyHits([]); setExactHit(null); return }
     try {
       const { data } = await client.get('/companies/suggest', { params: { q: name } })
       setCompanyHits(data || [])
       const hit = (data || []).find((c) => c.name.toLowerCase() === name.trim().toLowerCase())
+      setExactHit(hit || null)
       if (hit) {
-        setForm((f) => {
-          // keep the user's manual edit; otherwise set the new company's address (clearing the
-          // previously auto-filled one when the new company has none on file)
-          const userEdited = f.address && f.address !== autoFilledAddr.current
-          return userEdited ? f : { ...f, address: hit.address || '' }
-        })
-        autoFilledAddr.current = hit.address || ''
+        const c0 = (hit.contacts || [])[0] || {}
+        applyAuto({ address: hit.address || '', client_name: c0.client_name || '', contact: c0.contact || '', email: c0.email || '' })
       }
     } catch { /* suggestions are best-effort */ }
   }
+  // pick a specific saved contact from the dropdown
+  const applyContact = (c) => applyAuto({ client_name: c.client_name || '', contact: c.contact || '', email: c.email || '' })
 
   // Merge only into blank fields, so reading a second file (or a re-read) never wipes what's there.
   const mergeParty = (d) => setForm((f) => ({
@@ -159,8 +171,21 @@ export default function AddQuoteModal({ onClose }) {
         <datalist id="company-suggestions">
           {companyHits.map((c) => <option key={c.name} value={c.name} />)}
         </datalist>
-        {companyHits.some((c) => c.name.toLowerCase() === form.company_name.trim().toLowerCase()) && (
+        {exactHit && (
           <div className="muted" style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>✓ Known company — details autofilled (edit anything that changed)</div>
+        )}
+        {exactHit && (exactHit.contacts || []).length > 1 && (
+          <select
+            style={{ marginTop: 6, fontSize: 12 }}
+            onChange={(e) => { const c = exactHit.contacts[Number(e.target.value)]; if (c) applyContact(c) }}
+            defaultValue=""
+            title="Pick one of this company's saved contacts"
+          >
+            <option value="" disabled>Use a saved contact… ({exactHit.contacts.length})</option>
+            {exactHit.contacts.map((c, i) => (
+              <option key={i} value={i}>{[c.client_name, c.contact, c.email].filter(Boolean).join(' · ') || '(blank)'}</option>
+            ))}
+          </select>
         )}
       </div>
       <div className="grid2">
