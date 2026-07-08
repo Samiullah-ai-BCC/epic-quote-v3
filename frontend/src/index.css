@@ -1,41 +1,55 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 /* ============================================================
-   Epic Craftings — premium dark brand (matches epiccraftings.com):
-   near-black + gold #f9a600 + Inter.
+   Epic Craftings — clean light work-app (manager mockup):
+   soft off-white surfaces + navy sidebar + gold #f9a600 + Inter.
+   The public Landing (/) and the sign-in page stay premium dark.
+   The whole logged-in app is driven by these tokens, so the palette
+   lives here — repaint the app by editing this block, not each page.
 ============================================================ */
 :root {
-  --navy-900: #070a12;   /* app background (blueprint navy, matches sign-in) */
-  --navy-800: #0a1220;   /* sidebar */
-  --navy-700: #0d1626;   /* panels / cards */
-  --navy-600: #16233f;   /* hover / inputs */
-  --navy-500: #1f2e47;
-  --border:   #1c2a44;
-  --border-soft: #18243a;
+  /* content surfaces (light). The old --navy-* names are kept so every existing
+     rule keeps working; only their VALUES flipped from dark to light. */
+  --navy-900: #ffffff;   /* white — inputs & small inset surfaces */
+  --navy-800: #eef2f8;   /* light gray — table headers, search fields */
+  --navy-700: #ffffff;   /* white — cards / panels / modals */
+  --navy-600: #eef2f8;   /* light gray — hover / chips / tags */
+  --navy-500: #e2e8f2;   /* deeper hover */
+  --border:   #dbe1ea;
+  --border-soft: #eaeef4;
 
-  --text:      #e8edf5;
-  --text-dim:  #9fb0cd;
-  --text-faint:#6f84a8;
+  --app-bg:    #f4f6fa;  /* the page behind the cards */
+
+  --text:      #1a2233;  /* near-black body text */
+  --text-dim:  #5a6577;  /* secondary */
+  --text-faint:#8a94a6;  /* tertiary / placeholders */
+
+  /* dark sidebar — its OWN tokens so it stays navy while the app went light */
+  --side-bg:      #0b1424;
+  --side-hover:   #14203a;
+  --side-border:  #1b2942;
+  --side-text:    #e8edf5;
+  --side-dim:     #9fb0cd;
 
   --gold:   #f9a600;     /* brand gold (epiccraftings.com) */
   --gold-h: #ffbe33;
   --gold-soft: rgba(249, 166, 0, 0.14);
 
   --danger: #ef4444;
-  --ok:     #34d399;
-  --warn:   #fbbf24;
+  --ok:     #16a34a;
+  --warn:   #d97706;
 
   --radius: 12px;
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.65);
+  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.16);
   font-family: 'Inter', system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--navy-900); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--app-bg); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; }
 #root { min-height: 100vh; }
 
-h1, h2, h3 { color: #fff; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+h1, h2, h3 { color: #0f172a; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
 a { color: var(--gold); text-decoration: none; }
 
 /* ---- buttons ---- */
@@ -77,8 +91,8 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
    This gives every page a single, bounded scroll region (so sticky table headers work). */
 .app { display: flex; height: 100vh; overflow: hidden; }
 .sidebar {
-  width: 236px; flex-shrink: 0; background: var(--navy-800);
-  border-right: 1px solid var(--border-soft); padding: 18px 14px;
+  width: 236px; flex-shrink: 0; background: var(--side-bg);
+  border-right: 1px solid var(--side-border); padding: 18px 14px;
   display: flex; flex-direction: column; gap: 3px; position: sticky; top: 0; height: 100vh;
 }
 .brand-lock { display: flex; align-items: center; gap: 10px; padding: 6px 6px 20px; }
@@ -89,14 +103,17 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
 
 .sidebar .navlink {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
-  color: var(--text-dim); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s;
+  color: var(--side-dim); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s;
 }
-.sidebar .navlink:hover { background: var(--navy-700); color: var(--text); }
+.sidebar .navlink:hover { background: var(--side-hover); color: var(--side-text); }
 .sidebar .navlink.active { background: var(--gold-soft); color: var(--gold); }
 .sidebar .navlink.active::before { content: ''; width: 3px; height: 16px; background: var(--gold); border-radius: 2px; margin-left: -12px; margin-right: 9px; }
 .sidebar .spacer { flex: 1; }
-.sidebar .user { padding: 12px 10px 4px; border-top: 1px solid var(--border-soft); }
-.sidebar .user .name { color: var(--text); font-weight: 700; font-size: 13px; }
+.sidebar .user { padding: 12px 10px 4px; border-top: 1px solid var(--side-border); }
+.sidebar .user .name { color: var(--side-text); font-weight: 700; font-size: 13px; }
+/* ghost buttons inside the dark sidebar need light text/border (the global ghost is dark-on-light) */
+.sidebar button.ghost { color: var(--side-text); border-color: var(--side-border); }
+.sidebar button.ghost:hover { background: var(--side-hover); box-shadow: none; }
 .sidebar .user .role { color: var(--gold); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 
 /* fill the width so the vertical scrollbar always sits at the viewport's right edge
@@ -118,7 +135,7 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
   .sidebar {
     width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap;
     align-items: center; gap: 2px; padding: 10px 12px; border-right: none;
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--side-border);
   }
   .brand-lock { padding: 0 10px 0 0; }
   .brand-lock img { max-width: 110px; }
@@ -143,7 +160,7 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
 }
 .stat:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: var(--shadow); }
 .stat.active { border-color: var(--gold); background: linear-gradient(180deg, var(--gold-soft), var(--navy-700)); }
-.stat .num { font-size: 26px; font-weight: 800; color: #fff; }
+.stat .num { font-size: 26px; font-weight: 800; color: var(--text); }
 .stat .lbl { color: var(--text-dim); font-size: 11.5px; margin-top: 3px; font-weight: 500; }
 
 .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -151,7 +168,7 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
   background: linear-gradient(135deg, var(--navy-700), var(--navy-800));
   border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 18px 20px;
 }
-.totals .box .v { font-size: 24px; font-weight: 800; color: #fff; }
+.totals .box .v { font-size: 24px; font-weight: 800; color: var(--text); }
 .totals .box .k { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
 
 /* ---- toolbar ---- */
@@ -169,7 +186,7 @@ label { color: var(--text-dim); font-size: 12px; font-weight: 600; display: bloc
 }
 .qcard:hover { border-color: var(--border); box-shadow: var(--shadow); }
 .qcard .top { display: flex; justify-content: space-between; align-items: start; }
-.qcard .qid { font-weight: 800; color: #fff; font-size: 15px; letter-spacing: .01em; }
+.qcard .qid { font-weight: 800; color: var(--text); font-size: 15px; letter-spacing: .01em; }
 .qcard .price { color: var(--gold); font-weight: 800; font-size: 15px; }
 .qcard .line { font-size: 13px; color: var(--text-dim); }
 .qcard .line b { color: var(--text); font-weight: 600; }
@@ -205,7 +222,7 @@ td input:focus, td select:focus { background: var(--navy-900); }
 .modal .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .modal .field { margin-bottom: 13px; }
 .modal .foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
-.err { color: #fca5a5; font-size: 13px; margin: 8px 0 0; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: 6px; padding: 8px 10px; }
+.err { color: #b42318; font-size: 13px; margin: 8px 0 0; background: #fdecea; border: 1px solid #f6c9c4; border-radius: 6px; padding: 8px 10px; }
 .muted { color: var(--text-faint); }
 .center { display: flex; align-items: center; justify-content: center; padding: 48px; color: var(--text-dim); }
 
@@ -298,8 +315,13 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .kpi .k { font-size: 12px; color: var(--text-dim); }
 .kpi .v { font-size: 23px; font-weight: 700; margin-top: 5px; }
 .kpi .sub { font-size: 11px; color: var(--text-faint); margin-top: 8px; }
-.kpi.attn { border-color: #3a2f0a; }
-.kpi.attn .k, .kpi.attn .v { color: var(--gold); }
+.kpi.attn { border-color: rgba(249,166,0,.55); background: var(--gold-soft); }
+.kpi.attn .k, .kpi.attn .v { color: #b07d05; }
+/* featured KPI (mockup): the first card is a dark navy hero with the sparkline */
+.kpi.feature { background: var(--side-bg); border-color: var(--side-bg); }
+.kpi.feature .k { color: var(--side-dim); }
+.kpi.feature .v, .kpi.feature > div > div:first-child { color: #fff; }
+.kpi.feature .sub { color: #8ea0be; }
 .panel { background: var(--navy-700); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--border); }
 .panel-head b { font-size: 14px; }
@@ -314,14 +336,14 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .na-val { font-size: 13px; font-weight: 600; min-width: 60px; text-align: right; }
 .na-empty { padding: 18px 16px; color: var(--text-dim); font-size: 13px; }
 .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; display: inline-block; }
-.pill-gray { background: rgba(159,176,205,.15); color: #9fb0cd; }
-.pill-blue { background: rgba(55,138,221,.16); color: #6fb0f0; }
-.pill-amber { background: rgba(249,166,0,.15); color: #f9a600; }
-.pill-coral { background: rgba(216,90,48,.18); color: #f0997b; }
-.pill-teal { background: rgba(29,158,117,.17); color: #5dcaa5; }
-.pill-purple { background: rgba(127,119,221,.2); color: #afa9ec; }
-.pill-green { background: rgba(99,153,34,.18); color: #97c459; }
-.pill-pink { background: rgba(237,147,177,.2); color: #f2a7c2; }
+.pill-gray { background: #eef1f6; color: #5a6577; }
+.pill-blue { background: #e4f0fc; color: #1e6fb8; }
+.pill-amber { background: #fdf0d6; color: #a9750a; }
+.pill-coral { background: #fce4da; color: #c2521f; }
+.pill-teal { background: #d8f2e9; color: #0f7a5a; }
+.pill-purple { background: #ece9fb; color: #6152cf; }
+.pill-green { background: #e6f2d6; color: #567f1a; }
+.pill-pink { background: #fce2ec; color: #c14d7e; }
 .pipe { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--navy-600); }
 .pipe-seg { cursor: pointer; min-width: 2px; }
 .seg-gray { background: #3a4a66; } .seg-blue { background: #378add; } .seg-amber { background: #ba7517; }

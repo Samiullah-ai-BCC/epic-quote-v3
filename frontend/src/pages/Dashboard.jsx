@@ -73,7 +73,7 @@ export default function Dashboard() {
       </div>
 
       <div className="kpis">
-        <div className="kpi">
+        <div className="kpi feature">
           <div className="k">Quotes · last 30 days</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginTop: 5 }}>
             <div style={{ fontSize: 23, fontWeight: 700 }}>{dash?.totals?.total_quotes_month ?? '—'}</div>
