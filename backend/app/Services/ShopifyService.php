@@ -117,7 +117,7 @@ class ShopifyService
     {
         return match ($kind) {
             'deposit' => '50% Deposit',
-            'balance' => 'Balance (50%)',
+            'balance' => 'Remaining Balance (50%)',
             default   => 'Full Payment',
         };
     }

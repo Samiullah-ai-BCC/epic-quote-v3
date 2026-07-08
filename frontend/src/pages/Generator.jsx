@@ -182,9 +182,12 @@ export default function Generator() {
       getLogo().then((l) => setLogoUrl(l.logo)).catch(() => {})
 
       // Mode comes from the intake choice (?mode=ai|custom) or the persisted quote_type — never re-asked.
+      // AI mode is DORMANT for now (#8): anything without an explicit generator mode defaults to
+      // CUSTOM, so the AI path is bypassed. Existing AI quotes (quote_type='generator') still open
+      // in AI mode, so no data breaks — re-enable by restoring the mode picker below.
       const modeParam = searchParams.get('mode')
       const resolvedMode = g.quote_type
-        || (modeParam === 'custom' ? 'custom' : modeParam === 'ai' ? 'generator' : null)
+        || (modeParam === 'ai' ? 'generator' : 'custom')
       if (resolvedMode) {
         setMode(resolvedMode)
         if (resolvedMode === 'custom') {
@@ -225,6 +228,7 @@ export default function Generator() {
   const goto = (s) => setStep(s)
   const next = () => goto(flow[flowIndex + 1])
   const back = () => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo))
+  const saveAndReturn = async () => { await saveProgress(); navigate(exitTo) }   // #4 (top-bar action)
 
   const saveProgress = async (extra = {}) => {
     const payload = {
@@ -492,21 +496,29 @@ export default function Generator() {
     </div>
   )
 
-  // mode picker (#55)
-  if (!mode) {
-    return (
-      <div className="center" style={{ flexDirection: 'column', gap: 16 }}>
-        <h2>How do you want to build {quoteId}?</h2>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <button onClick={() => { setMode('generator'); setStep('project') }}>Quote Generator (AI)</button>
-          <button className="ghost" onClick={() => { setMode('custom'); setStep('customspecs') }}>Custom Quote Creator</button>
-        </div>
-      </div>
-    )
-  }
+  // mode picker (#55) — DORMANT (#8): AI mode is paused, so we never ask; the loader resolves
+  // every quote to a mode (custom by default). Restore this block + the null fallback above to
+  // bring the AI generator back.
+  // if (!mode) {
+  //   return (
+  //     <div className="center" style={{ flexDirection: 'column', gap: 16 }}>
+  //       <h2>How do you want to build {quoteId}?</h2>
+  //       <div style={{ display: 'flex', gap: 16 }}>
+  //         <button onClick={() => { setMode('generator'); setStep('project') }}>Quote Generator (AI)</button>
+  //         <button className="ghost" onClick={() => { setMode('custom'); setStep('customspecs') }}>Custom Quote Creator</button>
+  //       </div>
+  //     </div>
+  //   )
+  // }
+  if (!mode) return <div className="center">Loading…</div>
 
   return (
     <>
+      {/* top-left wizard controls — Back + Save & Return on every step (#4) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button className="ghost sm" onClick={back}>← Back</button>
+        <button className="ghost sm" onClick={saveAndReturn} disabled={saving}>{saving ? 'Saving…' : '💾 Save & Return'}</button>
+      </div>
       <div className="page-head">
         <div>
           <h1>{mode === 'custom' ? 'Custom Quote Creator' : 'Quote Generator'}</h1>
@@ -514,7 +526,6 @@ export default function Generator() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {quote?.customer_pdf && <button className="ghost" onClick={() => setShowDrawing(true)}>📎 View drawing</button>}
-          <button className="ghost" onClick={() => navigate(exitTo)}>Exit</button>
         </div>
       </div>
 
@@ -567,7 +578,7 @@ export default function Generator() {
             </div>
             {/* payment link is created later on the proposal via Shopify (#2) — not asked up front */}
             <div className="foot">
-              <button className="ghost" onClick={back}>Back</button>
+              <span />{/* Back moved to the top-left bar (#4) */}
               <button onClick={saveClient}>Next →</button>
             </div>
           </div>
@@ -619,7 +630,7 @@ export default function Generator() {
                 </div>
               )}
             </div>
-            <div className="foot"><button className="ghost" onClick={back}>Back</button><button onClick={() => goto('signtype')}>Next →</button></div>
+            <div className="foot"><span />{/* Back moved to the top-left bar (#4) */}<button onClick={() => goto('signtype')}>Next →</button></div>
           </div>
         )}
 
@@ -666,7 +677,7 @@ export default function Generator() {
               </div>
             </div>
             <div className="foot">
-              <button className="ghost" onClick={back}>Back</button>
+              <span />{/* Back moved to the top-left bar (#4) */}
             </div>
           </div>
         )}
@@ -683,7 +694,7 @@ export default function Generator() {
               <h3>Specifications — {tpl.n}</h3>
               <QA tpl={tpl} ai={ai} initialAnswers={answers} onComplete={finishSpecs} />
               <div className="foot">
-                <button className="ghost" onClick={back}>Back</button>
+                <span />{/* Back moved to the top-left bar (#4) */}
                 {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}
                 <button disabled={!Object.keys(answers).length || noDims || badPrice} onClick={() => next()}>Next: Upload Artwork →</button>
               </div>
@@ -725,7 +736,7 @@ export default function Generator() {
               <textarea rows={3} value={proposalNotes} onChange={(e) => setProposalNotes(e.target.value)} placeholder="e.g. install timeline, special finish, access notes…" />
             </div>
             <div className="foot">
-              <button className="ghost" onClick={back}>Back</button>
+              <span />{/* Back moved to the top-left bar (#4) */}
               <button className="ghost" onClick={() => { setArtworkPath(null); toPreview() }}>Skip artwork</button>
               <button onClick={toPreview}>{saving ? 'Saving…' : 'Next →'}</button>
             </div>
@@ -816,7 +827,7 @@ export default function Generator() {
               <textarea rows={2} value={special} onChange={(e) => setSpecial(e.target.value)} placeholder="e.g. rush order, special finish, permits…" />
             </div>
             <div className="foot">
-              <button className="ghost" onClick={back}>Back</button>
+              <span />{/* Back moved to the top-left bar (#4) */}
               {(() => {
                 const n = Number(customSpec?.price)
                 const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0
@@ -857,10 +868,6 @@ export default function Generator() {
               onSideViews={setSideViews}
               onSave={(proposalState) => saveProgress({ proposal_state: proposalState, side_views: sideViews })}
             />
-            <div className="foot" style={{ marginTop: 14 }}>
-              <button className="ghost" onClick={back}>Back</button>
-              <button onClick={async () => { await saveProgress(); navigate(exitTo) }}>Save & Return</button>
-            </div>
           </div>
         )}
        </div>

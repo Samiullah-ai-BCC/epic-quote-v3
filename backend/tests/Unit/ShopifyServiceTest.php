@@ -41,5 +41,5 @@ it('Title-cases text (first letter of each word, not ALL CAPS)', function () {
 it('labels the payment kind for the title', function () {
     expect(ShopifyService::kindLabel('full'))->toBe('Full Payment');
     expect(ShopifyService::kindLabel('deposit'))->toBe('50% Deposit');
-    expect(ShopifyService::kindLabel('balance'))->toBe('Balance (50%)');
+    expect(ShopifyService::kindLabel('balance'))->toBe('Remaining Balance (50%)');
 });

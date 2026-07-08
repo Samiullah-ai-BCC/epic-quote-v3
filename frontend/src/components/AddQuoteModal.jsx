@@ -27,7 +27,9 @@ export default function AddQuoteModal({ onClose }) {
   const create = useCreateQuote()
   const { user, isAdmin } = useAuthStore()
 
-  const [choice, setChoice] = useState(null)     // null | 'custom' | 'ai'
+  // AI mode is paused (#8): open straight into Custom and skip the "AI vs Custom" chooser.
+  // Set back to useState(null) to bring the chooser (and AI mode) back.
+  const [choice, setChoice] = useState('custom') // null | 'custom' | 'ai'
   const [source, setSource] = useState('file')   // ai: 'file' | 'text' (inline toggle, same page)
   const [form, setForm] = useState(EMPTY)
   const [files, setFiles] = useState([])         // one or more uploaded files
@@ -327,20 +329,16 @@ export default function AddQuoteModal({ onClose }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose(false)}>
       <form className="modal modal-quote" onSubmit={submit}>
-        <h2>New Quote — Custom</h2>
+        <h2>New Quote</h2>
         {extractedFields}
         {repPayFields}
-        {/* Special requirements moved to the Custom Specifications page (the step before the
-            preview) — intake stays about who the client is, not the job's fine print. */}
-        <div className="field">
-          <label>Customer's sign drawing(s) (optional, PDF or image)</label>
-          <input type="file" accept=".pdf,image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files || []))} />
-        </div>
+        {/* Artwork is NOT asked here anymore (#5) — it's collected once, on the Artwork step near
+            the end of the wizard. Special requirements live on the Custom Specifications page. */}
 
         {error && <p className="err">{error}</p>}
 
         <div className="foot">
-          <button type="button" className="ghost" onClick={back}>← Back</button>
+          <button type="button" className="ghost" onClick={() => onClose(false)}>Cancel</button>
           <button type="submit" disabled={create.isPending}>
             {create.isPending ? 'Creating…' : 'Create & Continue →'}
           </button>

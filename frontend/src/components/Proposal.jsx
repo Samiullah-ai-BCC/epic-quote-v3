@@ -257,45 +257,6 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
   )
 }
 
-// Named sign colours → hex, so a colour written in the spec text renders IN that colour (#1).
-const COLOR_HEX = {
-  'ORANGE RED': '#ff3d1f', 'ROYAL BLUE': '#1d4ed8', 'SKY BLUE': '#38bdf8', 'LIGHT BLUE': '#5aa9e6',
-  'DARK BLUE': '#1e3a8a', 'LIME GREEN': '#65a30d', 'HOT PINK': '#ec4899', 'BLACK': '#111111',
-  'WHITE': '#ffffff', 'RED': '#e02424', 'ORANGE': '#f97316', 'YELLOW': '#eab308', 'AMBER': '#f59e0b',
-  'GREEN': '#16a34a', 'BLUE': '#2563eb', 'NAVY': '#1e3a8a', 'PURPLE': '#7c3aed', 'VIOLET': '#7c3aed',
-  'PINK': '#ec4899', 'BROWN': '#8b5e3c', 'GREY': '#6b7280', 'GRAY': '#6b7280', 'SILVER': '#b8bcc4',
-  'GOLD': '#d4a017', 'TEAL': '#0d9488', 'MAROON': '#7f1d1d', 'BEIGE': '#c8ad7f', 'IVORY': '#c9c6ae',
-}
-// Wrap every recognised colour word in `value` with a coloured, bold span. Light colours get a
-// dark outline so WHITE/YELLOW stay legible on the white proposal. "RGB" → rainbow gradient text.
-function colorizeColors(value) {
-  const names = Object.keys(COLOR_HEX).sort((a, b) => b.length - a.length)   // multi-word first
-  const re = new RegExp('\\b(RGB|' + names.join('|') + ')\\b', 'gi')
-  return String(value).replace(re, (m) => {
-    const key = m.toUpperCase()
-    if (key === 'RGB') {
-      return `<span style="font-weight:800;background:linear-gradient(90deg,#e02424,#eab308,#16a34a,#2563eb,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent">RGB</span>`
-    }
-    const hex = COLOR_HEX[key]
-    const light = ['#ffffff', '#eab308', '#b8bcc4', '#c9c6ae', '#c8ad7f'].includes(hex)
-    const shadow = light ? ';text-shadow:0 0 1px rgba(0,0,0,.75)' : ''
-    return `<span style="color:${hex};font-weight:700${shadow}">${m}</span>`
-  })
-}
-
-// Render a swatch's name as a coloured span using the swatch's OWN colour (single source of
-// truth for a colour the rep set on a chip). RGB → rainbow gradient text.
-function swatchNameSpan(sw) {
-  const nm = (sw.name || '').trim() || (sw.color === 'RGB' ? 'RGB CHANGING COLOR' : '')
-  if (!nm) return ''
-  if (sw.color === 'RGB') {
-    return `<span style="font-weight:800;background:linear-gradient(90deg,#e02424,#eab308,#16a34a,#2563eb,#7c3aed);-webkit-background-clip:text;background-clip:text;color:transparent">${esc(nm)}</span>`
-  }
-  const hex = sw.color || '#111111'
-  const shadow = swatchText(hex) === '#111' ? ';text-shadow:0 0 1px rgba(0,0,0,.75)' : ''   // light fill → outline
-  return `<span style="color:${hex};font-weight:700${shadow}">${esc(nm)}</span>`
-}
-
 const HD_SCALE = 3   // html2canvas DPI factor for PNG/PDF downloads (~288dpi on a Letter page — crisp text)
 const LOUPE = 185, SRC = 38   // eyedropper magnifier: loupe diameter (px) and source pixels across it
                               // (~5.5px per pixel — pixels stay visible but you keep enough context to aim)
@@ -480,25 +441,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
       const isColor = hasColor && (/FACE/i.test(clean) || /RETURN/i.test(clean) || /TRIM/i.test(clean) || /NEON/i.test(clean))
       // Colour lines: keep the colour name(s) and render them IN colour (#1) instead of dropping
       // the value. Label stays plain; the value after the colon is colourised.
-      if (isColor) {
-        const m = clean.match(/^(.*?:)\s*(.*)$/)
-        const label = m ? m[1] : clean, val = m ? m[2] : ''
-        let colored = val.trim() ? colorizeColors(esc(val)) : ''
-        // no colour typed on the line → pull the names from the matching SWATCHES so the swatch
-        // colours also read as coloured text in the specs (#1). FACE→face chip, RETURN/TRIM→
-        // rettrim chip, NEON→every custom chip.
-        if (!colored) {
-          const pick = /FACE/i.test(label) ? swatches.filter((s) => s.id === 'face')
-            : /RETURN|TRIM/i.test(label) ? swatches.filter((s) => s.id === 'rettrim')
-            : /NEON/i.test(label) ? swatches.filter((s) => !['face', 'rettrim'].includes(s.id))
-            : []
-          colored = pick.map(swatchNameSpan).filter(Boolean).join(', ')
-        }
-        return '• ' + esc(label) + (colored ? ' ' + colored : '')
-      }
+      // On colour lines drop the colour word after the colon — the draggable SWATCH shows the
+      // colour (the rep asked for the swatch chips only, not duplicated text).
+      if (isColor) return '• ' + esc(clean.replace(/:\s*.*$/, ':'))
       return esc(clean)
     }).join('<br>')
-  }, [mode, tpl, answers, customSpec, aiResult, swatches])
+  }, [mode, tpl, answers, customSpec, aiResult])
 
   const today = new Date()
   const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
