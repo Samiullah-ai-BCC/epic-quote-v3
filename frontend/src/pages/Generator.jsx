@@ -15,6 +15,7 @@ import { fileUrl } from '../api/client'
 import QA from '../generator/QA'
 import Proposal from '../components/Proposal'
 import MoneyInput from '../components/MoneyInput'
+import ArtworkCropper from '../components/ArtworkCropper'
 
 const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
@@ -132,6 +133,7 @@ export default function Generator() {
   const [answers, setAnswers] = useState({})
   const [artworkPath, setArtworkPath] = useState(null)
   const [artErr, setArtErr] = useState('')
+  const [cropping, setCropping] = useState(false)   // #5 big-canvas crop editor open?
   const [paymentLink, setPaymentLink] = useState('')
   const [sideViews, setSideViews] = useState([])   // chosen side-view keys
   const [customSpec, setCustomSpec] = useState(null)
@@ -253,8 +255,9 @@ export default function Generator() {
     await saveProgress()        // also persists the payment link
     next()
   }
-  const onArtwork = async (e) => {
-    const f = e.target.files[0]; if (!f) return
+  // Upload + persist a chosen/edited artwork File (shared by the file picker and the crop tool #5).
+  const commitArtworkFile = async (f) => {
+    if (!f) return
     setArtErr('')
     setArtworkPath(URL.createObjectURL(f))   // show the picked image immediately, straight from the local file
     try {
@@ -266,6 +269,7 @@ export default function Generator() {
       setArtErr('Shown locally, but the server upload failed: ' + (err.response?.data?.message || err.message || 'unknown error'))
     }
   }
+  const onArtwork = (e) => commitArtworkFile(e.target.files[0])
   const onCustomerFile = async (e) => {
     const f = e.target.files[0]; if (!f) return
     const path = await uploadCustomerFile(quoteId, f)
@@ -690,6 +694,15 @@ export default function Generator() {
         {step === 'artwork' && (
           <div className="step">
             <h3>Artwork &amp; Notes</h3>
+            {cropping && artworkPath ? (
+              // #5 — crop/edit on THIS bigger canvas (easier than the small preview-page crop)
+              <ArtworkCropper
+                src={fileUrl(artworkPath)}
+                busy={saving}
+                onCancel={() => setCropping(false)}
+                onApply={async (file) => { await commitArtworkFile(file); setCropping(false) }}
+              />
+            ) : (<>
             {/* the whole area is clickable — clicking it opens the file picker (#21) */}
             <div
               onClick={() => artInput.current?.click()}
@@ -703,6 +716,8 @@ export default function Generator() {
                 : <div style={{ color: 'var(--text-dim)', padding: '24px 8px' }}><div style={{ fontSize: 26 }}>🖼️</div>Click to choose artwork<div style={{ fontSize: 11, marginTop: 4 }}>or drop an image here</div></div>}
               <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: 8 }}>{artworkPath ? 'Click to replace' : ''}</div>
             </div>
+            {artworkPath && <button className="ghost" style={{ marginTop: 10 }} onClick={() => { setArtErr(''); setCropping(true) }}>✂ Crop / edit image</button>}
+            </>)}
             <input ref={artInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onArtwork} />
             {artErr && <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 8 }}>{artErr}</p>}
             <div className="field" style={{ marginTop: 18 }}>

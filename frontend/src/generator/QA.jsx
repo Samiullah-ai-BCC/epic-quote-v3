@@ -65,6 +65,12 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
               ))}
               <span className="dims-unit">in</span>
             </div>
+          ) : q.type === 'color' ? (
+            <ColorField
+              options={q.options}
+              value={answers[q.key] ?? ''}
+              onChange={(v) => setA(q.key, v)}
+            />
           ) : q.type === 'chips' ? (
             <div className="chip-row">
               {q.options.map((opt) => (
@@ -96,6 +102,62 @@ export default function QA({ tpl, ai, initialAnswers = {}, onComplete }) {
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// A color answer: quick BLACK / WHITE / RGB chips + a real custom colour with an eyedropper
+// (browser EyeDropper API) so the rep can capture the sign's ACTUAL face colour right here in
+// the wizard (#4), instead of being forced to pick black or white. RGB = colour-changing (#10).
+const isHex = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''))
+function ColorField({ options = [], value, onChange }) {
+  const custom = isHex(value)
+  const pickEyedropper = async () => {
+    if (window.EyeDropper) {
+      try {
+        const { sRGBHex } = await new window.EyeDropper().open()
+        if (sRGBHex) onChange(sRGBHex.toUpperCase())
+      } catch { /* user pressed Esc — keep the current value */ }
+    } else {
+      // Safari/Firefox: fall back to the native colour input below
+      onChange(isHex(value) ? value : '#1E90FF')
+    }
+  }
+  return (
+    <div className="chip-row" style={{ alignItems: 'center' }}>
+      {options.map((opt) => (
+        <button
+          type="button"
+          key={opt}
+          className={'chip' + (value === opt ? ' sel' : '')}
+          onClick={() => onChange(opt)}
+          style={opt === 'RGB' ? {
+            background: value === 'RGB' ? undefined : 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)',
+            color: value === 'RGB' ? undefined : '#111', fontWeight: 700,
+          } : undefined}
+          title={opt === 'RGB' ? 'RGB colour-changing (neon) — shows a colour-wheel swatch on the proposal' : undefined}
+        >
+          {opt}
+        </button>
+      ))}
+      <button
+        type="button"
+        className={'chip' + (custom ? ' sel' : '')}
+        onClick={pickEyedropper}
+        title="Pick the sign's real colour with the eyedropper"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 22 1-1h3l9-9" /><path d="M3 21v-3l9-9" /><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" /></svg>
+        {custom ? value : 'Custom'}
+      </button>
+      {/* native swatch: sets the value directly and doubles as the fallback where EyeDropper is unsupported */}
+      <input
+        type="color"
+        value={isHex(value) ? value : '#000000'}
+        onChange={(e) => onChange(e.target.value.toUpperCase())}
+        title="Or pick from a colour wheel"
+        style={{ width: 30, height: 28, padding: 0, border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer', background: 'none' }}
+      />
     </div>
   )
 }

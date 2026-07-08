@@ -53,7 +53,10 @@ export function buildQuestions(t, ai = {}) {
       let aiCol = null
       if (/FACE/.test(c.l) && ai.faceColor) aiCol = ai.faceColor
       else if (/RETURN|TRIM/.test(c.l) && ai.returnColor) aiCol = ai.returnColor
-      qs.push({ key: 'color_' + i, q: 'Color Specs — ' + c.l + '?', type: 'chips', options: ['BLACK', 'WHITE'], def: (aiCol === 'BLACK' || aiCol === 'WHITE') ? aiCol : null, aiSet: !!aiCol })
+      // type 'color': BLACK / WHITE quick picks + a real eyedropper/custom color (#4). Neon faces
+      // can be RGB colour-changing (#10), so those sign types get an RGB option too.
+      const options = ['BLACK', 'WHITE', ...(t.neon ? ['RGB'] : [])]
+      qs.push({ key: 'color_' + i, q: 'Color Specs — ' + c.l + '?', type: 'color', options, def: (aiCol === 'BLACK' || aiCol === 'WHITE') ? aiCol : null, aiSet: !!aiCol })
     } else if (c.fixed === 'TBD') {
       // raceway/backer colors used to be locked to "TBD" — the customer usually DOES
       // tell us; make it answerable (blank keeps the old leave-it-empty behavior)

@@ -8,7 +8,7 @@ import client from '../api/client'
 
 const EMPTY = {
   company_name: '', client_name: '', contact: '', email: '', address: '',
-  job_name: '', special_requirements: '', sales_rep: '', payment_link: '', quote_source: '',
+  job_name: '', special_requirements: '', sales_rep: '', quote_source: '',
 }
 
 // Turn a data URL (rasterized PDF page) into a File so the vision model can read it.
@@ -113,10 +113,8 @@ export default function AddQuoteModal({ onClose }) {
     e.preventDefault()
     setError('')
     if (!form.company_name.trim()) return setError('Company Name is required.')
-    // Sales rep is optional (#13): blank = N/A (shared quote)
-    if (form.payment_link?.trim() && !/^https?:\/\/\S+\.\S+/i.test(form.payment_link.trim())) {
-      return setError('The payment link must be a real web address starting with https://')
-    }
+    // Sales rep is optional (#13): blank = N/A (shared quote). Payment links are created
+    // later from the proposal via Shopify — they're never pasted in at intake anymore.
 
     const payload = { ...form }
     // If this is a KNOWN company and the address you typed differs from the one on file,
@@ -132,10 +130,9 @@ export default function AddQuoteModal({ onClose }) {
     if (files[0]) payload.customer_pdf = files[0]   // first file is the primary drawing
     try {
       const created = await create.mutateAsync(payload)
-      // Keep the rest: extra files + payment link, all in generated_data (nothing is lost).
+      // Keep the extra uploaded files in generated_data (nothing is lost).
       const extras = files.slice(1)
       const gd = {}
-      if (form.payment_link?.trim()) gd.payment_link = form.payment_link.trim()
       if (extras.length) {
         const paths = []
         for (const f of extras) { try { paths.push(await uploadExtraFile(created.quote_id, f)) } catch { /* skip a bad one */ } }
@@ -209,15 +206,6 @@ export default function AddQuoteModal({ onClose }) {
             </>
           )
         })() : (<input value={user?.full_name || ''} disabled />)}
-      </div>
-      <div className="field">
-        <label>💳 Payment link (optional — paste it if you already have one)</label>
-        <input type="url" placeholder="https://…" value={form.payment_link} onChange={set('payment_link')} />
-        {form.payment_link?.trim() && !/^https?:\/\/\S+\.\S+/i.test(form.payment_link.trim()) && (
-          <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 6 }}>
-            That's not a working link — it must start with https:// (this goes on the customer's proposal).
-          </p>
-        )}
       </div>
     </>
   )

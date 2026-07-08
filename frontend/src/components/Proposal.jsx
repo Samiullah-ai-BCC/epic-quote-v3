@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
 import { parseDims } from '../generator/questions'
 import { SIDE_VIEWS } from '../generator/sideviews'
@@ -215,13 +216,16 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
     const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up) }
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
   }
+  const isRGB = sw.color === 'RGB'                     // colour-changing neon (#10)
   const has = !!sw.color
-  const bg = has ? sw.color : '#e5e5e5'
+  // RGB fills the swatch like a colour wheel; the label is forced to "RGB CHANGING COLOR".
+  const bg = isRGB ? 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)' : (has ? sw.color : '#e5e5e5')
+  const label = isRGB ? 'RGB CHANGING COLOR' : (sw.name || '')
   return (
     <div data-rk={rk} onMouseDown={startDrag}
       style={{ position: 'absolute', left: sw.x, top: sw.y, width: sw.w, height: sw.h, cursor: 'move' }}>
-      <div style={{ width: '100%', height: '100%', background: bg, color: swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box' }}>
-        {sw.name || ''}
+      <div style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
+        {label}
       </div>
       {selected && (
         <>
@@ -230,8 +234,12 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
             style={{ position: 'absolute', right: -5, top: '50%', marginTop: -8, width: 9, height: 16, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: 2, cursor: 'ew-resize', zIndex: 71 }} />
           <div className="adj-ui" onMouseDown={(e) => e.stopPropagation()}
             style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 70, background: '#fff', border: '1px solid #8b5cf6', borderRadius: 6, padding: 8, display: 'flex', gap: 6, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', textTransform: 'none', width: 246 }}>
-            <input type="color" value={has ? sw.color : '#000000'} onChange={(e) => onChange({ ...sw, color: e.target.value })}
+            <input type="color" value={isRGB || !has ? '#000000' : sw.color} onChange={(e) => onChange({ ...sw, color: e.target.value })}
               title="Pick color" style={{ width: 34, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
+            {/* RGB colour-changing toggle (#10) — for neon signs whose colour isn't static */}
+            <button type="button" onClick={() => onChange({ ...sw, color: isRGB ? '' : 'RGB' })}
+              title="RGB colour-changing (neon)"
+              style={{ border: isRGB ? '2px solid #8b5cf6' : '1px solid #ccc', borderRadius: 4, cursor: 'pointer', width: 30, height: 30, padding: 0, background: 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)', fontSize: 0 }}>RGB</button>
             {canPick && (
               <button type="button" onClick={onPick} title="Pick a color from the artwork (works in every browser)"
                 style={{ border: '1px solid #ccc', background: '#fff', borderRadius: 4, cursor: 'pointer', padding: '4px 5px', display: 'flex', alignItems: 'center' }}>
@@ -455,7 +463,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
       dep2: money(price / 2),
       terms: TERMS_HTML,
       pay: 'CLICK HERE TO MAKE PAYMENT',
-      pkgLabel1: 'INSTALLATION TAPE',
+      pkgLabel1: 'INSTALLATION TEMPLATE',
       pkgLabel2: 'POWER SUPPLY',
     }
     const merged = { ...def, ...(savedState || {}) }
@@ -562,6 +570,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     setSwatches((arr) => {
       let changed = false
       const next = arr.map((s) => {
+        if (s.moved) return s                    // rep dragged it by hand → stop re-anchoring (#1)
         const t = target[s.id]
         if (t && (s.x !== t.x || s.y !== t.y)) { changed = true; return { ...s, x: t.x, y: t.y } }
         return s
@@ -652,17 +661,36 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     } finally { setPlBusy('') }
   }
 
-  const downloadPDF = () => {
+  // Real one-click PDF download (#7) — not the Ctrl+P print dialog. Renders the proposal to a
+  // canvas, drops it on a single Letter page, and (crucially) lays a REAL clickable link
+  // annotation over the "CLICK HERE TO MAKE PAYMENT" button so the Shopify link works in the
+  // downloaded file (#6) — image-based PDFs otherwise lose the href.
+  const downloadPDF = async () => {
     if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
-    // Real vector PDF via the browser's print pipeline. Zoom the page so the whole proposal
-    // fits ONE Letter page (#8) — never spilling to a second.
-    const el = pageRef.current
-    if (el) {
-      const PAGE_H = 1040   // ~one Letter page minus print margins, in px
-      el.style.setProperty('--pz', String(Math.min(1, PAGE_H / Math.max(el.scrollHeight, 1))))
-    }
-    flash("Opening your browser's Save-as-PDF…")
-    setTimeout(() => window.print(), 150)
+    setBusy('pdf')
+    try {
+      const el = pageRef.current
+      const canvas = await render()                         // full proposal (price block included)
+      const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
+      const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight()
+      const fit = Math.min(pw / canvas.width, ph / canvas.height)   // fit the whole page, one sheet (#8)
+      const w = canvas.width * fit, h = canvas.height * fit
+      const ox = (pw - w) / 2, oy = 0
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', ox, oy, w, h)
+      // clickable payment link over the pay button
+      const a = paymentLink ? el.querySelector('[data-pay-link]') : null
+      if (a) {
+        const sc = scaleRef.current || 1                    // page is shown scaled on screen
+        const pageRect = el.getBoundingClientRect(), r = a.getBoundingClientRect()
+        // html2canvas rendered `el` unscaled at scale:2 → 1 unscaled css px = 2 canvas px = 2*fit pt
+        const k = 2 * fit
+        const lx = ox + ((r.left - pageRect.left) / sc) * k
+        const ly = oy + ((r.top - pageRect.top) / sc) * k
+        pdf.link(lx, ly, (r.width / sc) * k, (r.height / sc) * k, { url: paymentLink })
+      }
+      pdf.save(`${info.quoteId || 'quote'}.pdf`)
+      flash('PDF downloaded' + (a ? ' — payment link is clickable' : ''))
+    } catch (e) { flash('PDF failed: ' + e.message) } finally { setBusy('') }
   }
 
   return (
@@ -823,7 +851,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 </>}
               </div>
               {(paymentLink && /^https?:\/\//i.test(paymentLink))   // only real web links render as a button (never javascript:/data:)
-                ? <a href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
+                ? <a data-pay-link href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
                 : E('pay', { marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5 })}
             </div>
           </div>
@@ -831,11 +859,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
           {/* draggable color swatches — the filled block prints; the picker chrome (.adj-ui) does not */}
           {swatches.map((sw) => ((sw.id === 'rettrim' && hideRet) ? null : (sw.id === 'face' || sw.id === 'rettrim' || sw.color || sw.name || sw.keep || selId === 'swatch-' + sw.id) ? (
             <AdjSwatch key={sw.id} rk={'swatch-' + sw.id} sw={sw} scaleRef={scaleRef}
-              locked={sw.id === 'face' || sw.id === 'rettrim'}
+              locked={false}
               selected={selId === 'swatch-' + sw.id} onSelect={() => setSelId('swatch-' + sw.id)}
               onChange={(n) => setSwatches((arr) => arr.map((x) => (x.id === sw.id ? n : x)))}
               onRemove={() => { setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null) }}
-              onDragEnd={() => snapRow(sw.id)}
+              onDragEnd={() => { snapRow(sw.id); if (sw.id === 'face' || sw.id === 'rettrim') setSwatches((arr) => arr.map((x) => (x.id === sw.id ? { ...x, moved: true } : x))) }}
               onPick={() => { artCanvasRef.current = null; setPickFor(sw.id) }} canPick={!!artworkPath} />
           ) : null))}
         </div>
@@ -878,7 +906,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
         {exportBlocked && <span style={{ alignSelf: 'center', color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
         <button className="ghost" disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>
-        <button disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>🖨️ Save as PDF</button>
+        <button disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>{busy === 'pdf' ? 'Building PDF…' : '⬇ Download PDF'}</button>
         {toast && <span style={{ alignSelf: 'center', color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
       </div>
 
@@ -887,9 +915,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
         <div style={{ marginTop: 18, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>💳 Shopify payment link</div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* all three payment options carry the SAME prominent style (#8) — deposit / balance
+                are just as important as full payment, so none is visually demoted */}
             <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
-            {price > 500 && <button className="ghost" disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
-            {price > 500 && <button className="ghost" disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Balance (50%)'}</button>}
+            {price > 500 && <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
+            {price > 500 && <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Balance (50%)'}</button>}
             {price > 0 && price <= 500 && <span className="muted" style={{ fontSize: 12 }}>≤ $500 → full payment only</span>}
           </div>
           {plResult && (

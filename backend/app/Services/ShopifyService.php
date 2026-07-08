@@ -59,7 +59,8 @@ class ShopifyService
 
         $product = [
             'title'          => $title,
-            'body_html'      => e($signType),
+            // Show the sign SPECS beneath the "Pay now" CTA (#9), not a bare sign-type tag.
+            'body_html'      => self::specsHtml($gd, $signType),
             'vendor'         => 'EpicCraftings',
             'product_type'   => $signType ?: 'Sign',
             'status'         => 'active',                 // purchasable
@@ -95,7 +96,20 @@ class ShopifyService
             'taxable'           => true,
         ];
         $amount = $kind === 'full' ? $total : $total / 2;
-        return [['option1' => self::kindLabel($kind), 'price' => $price($amount)] + $base];
+        // No option1 → Shopify uses the default variant, so the storefront shows NO "Full Payment"
+        // selector tag (#9). The payment kind already lives in the product title.
+        return [['price' => $price($amount)] + $base];
+    }
+
+    /** Build the storefront product description (#9): the sign specs, shown under the CTA. */
+    public static function specsHtml(array $gd, string $signType = ''): string
+    {
+        $specs = trim((string) ($gd['custom_spec']['specText'] ?? ($gd['ai']['fullSpec'] ?? '')));
+        if ($specs === '') {
+            return e($signType);   // fall back to the sign type when there's no spec text yet
+        }
+        // Preserve line breaks; escape everything (no HTML injection from user-entered specs).
+        return nl2br(e($specs));
     }
 
     /** Human label for a payment kind (goes in the title + variant). */

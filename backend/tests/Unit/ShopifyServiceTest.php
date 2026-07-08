@@ -3,24 +3,24 @@
 use App\Models\Quote;
 use App\Services\ShopifyService;
 
-it('makes a single Full Payment variant at the full price', function () {
+it('makes a single Full Payment variant at the full price, with NO option tag (#9)', function () {
     $v = ShopifyService::variantsFor(3500.0, 'full');
     expect($v)->toHaveCount(1);
-    expect($v[0]['option1'])->toBe('Full Payment');
+    expect($v[0])->not->toHaveKey('option1');
     expect($v[0]['price'])->toBe('3500.00');
 });
 
 it('makes a single 50% Deposit variant at half', function () {
     $v = ShopifyService::variantsFor(3500.0, 'deposit');
     expect($v)->toHaveCount(1);
-    expect($v[0]['option1'])->toBe('50% Deposit');
+    expect($v[0])->not->toHaveKey('option1');
     expect($v[0]['price'])->toBe('1750.00');
 });
 
 it('makes a single Balance variant at half', function () {
     $v = ShopifyService::variantsFor(3500.0, 'balance');
     expect($v)->toHaveCount(1);
-    expect($v[0]['option1'])->toBe('Balance (50%)');
+    expect($v[0])->not->toHaveKey('option1');
     expect($v[0]['price'])->toBe('1750.00');
 });
 
