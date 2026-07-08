@@ -82,6 +82,7 @@ export default function AddQuoteModal({ onClose }) {
     company_name: f.company_name || d.company_name || '',
     client_name: f.client_name || d.client_name || '',
     contact: f.contact || d.contact || '',
+    email: f.email || d.email || '',          // was dropped — email never made it in from autofill
     address: f.address || d.address || '',
     job_name: f.job_name || d.job_name || '',
   }))

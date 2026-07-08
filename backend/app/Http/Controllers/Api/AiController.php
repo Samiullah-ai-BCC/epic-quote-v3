@@ -149,7 +149,8 @@ Respond ONLY with a JSON object (no markdown, no preamble); use empty string "" 
 {
  "companyName": "the RETAIL sign company that sent this (OUR client) — read it from the logo/company name in the corner",
  "clientName": "the end customer (the drawing's 'Client:' field)",
- "contact": "the retail company's email and/or phone",
+ "phone": "the retail company's phone number only (digits/formatting), else \"\"",
+ "email": "the retail company's email address only, else \"\"",
  "address": "the retail company's mailing address",
  "jobName": "the sign TYPE / description (e.g. Two-Sided Push Thru Blade Sign), NOT the project title"
 }
@@ -161,10 +162,24 @@ PROMPT;
             return response()->json(['error' => 'Extraction failed: '.$e->getMessage()], 502);
         }
 
+        // Split phone vs email into their OWN fields (they used to be mashed into one "contact"
+        // field, so the email was lost when the quote's phone-only contact stripped it). Tolerate
+        // an old-style combined "contact" by pulling an email out of it as a fallback.
+        $phone = $ai['phone'] ?? '';
+        $email = $ai['email'] ?? '';
+        if ($email === '' && !empty($ai['contact']) && preg_match('/[\w.+-]+@[\w.-]+\.\w+/', $ai['contact'], $mm)) {
+            $email = $mm[0];
+            $phone = $phone ?: trim(str_replace($email, '', $ai['contact']));
+        }
+        if ($phone === '' && !empty($ai['contact'])) {
+            $phone = $ai['contact'];
+        }
+
         return response()->json([
             'company_name' => $ai['companyName'] ?? '',
             'client_name'  => $ai['clientName'] ?? '',
-            'contact'      => $ai['contact'] ?? '',
+            'contact'      => $phone,
+            'email'        => $email,
             'address'      => $ai['address'] ?? '',
             'job_name'     => $ai['jobName'] ?? '',
         ]);
