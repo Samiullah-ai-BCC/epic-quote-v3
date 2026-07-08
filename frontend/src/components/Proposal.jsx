@@ -55,6 +55,10 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
     ix: init.ix ?? 0, iy: init.iy ?? 0, iw: init.iw ?? init.w, ih: init.ih ?? init.h,
   }))
   const rootRef = useRef(null)
+  // A broken / degenerate source (e.g. a 1×1 placeholder thumbnail) must NOT be stretched by a
+  // saved crop window — that paints the whole box with the single pixel's colour (the "red box"
+  // bug). Detect it and hide the image so the empty area shows through instead.
+  const [broken, setBroken] = useState(false)
   const start = (kind, handle) => (e) => {
     e.preventDefault(); e.stopPropagation(); onSelect()
     const sx = e.clientX, sy = e.clientY, b0 = { ...box }, sc = scaleRef.current || 1
@@ -101,8 +105,17 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
       style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
         <img src={src} alt={alt} draggable={false} crossOrigin={cors ? 'anonymous' : undefined}
-          onLoad={(lockAspect && !lay) ? (e) => { const r = e.target.naturalWidth / e.target.naturalHeight; if (r > 0) setBox((b) => { const h = Math.max(20, Math.round(b.w / r)); const fitted = { ...b, h, ix: 0, iy: 0, iw: b.w, ih: h }; setTimeout(() => onLay(fitted), 0); return fitted }) } : undefined}
-          style={{ position: 'absolute', left: box.ix, top: box.iy, width: box.iw, height: box.ih, objectFit: 'contain', display: 'block', pointerEvents: 'none' }} />
+          onError={() => setBroken(true)}
+          onLoad={(e) => {
+            // a 1×1 (or empty) source is a broken/placeholder thumbnail — don't stretch it
+            if (e.target.naturalWidth <= 1 || e.target.naturalHeight <= 1) { setBroken(true); return }
+            if (broken) setBroken(false)
+            if (lockAspect && !lay) {
+              const r = e.target.naturalWidth / e.target.naturalHeight
+              if (r > 0) setBox((b) => { const h = Math.max(20, Math.round(b.w / r)); const fitted = { ...b, h, ix: 0, iy: 0, iw: b.w, ih: h }; setTimeout(() => onLay(fitted), 0); return fitted })
+            }
+          }}
+          style={{ position: 'absolute', left: box.ix, top: box.iy, width: box.iw, height: box.ih, objectFit: 'contain', display: broken ? 'none' : 'block', pointerEvents: 'none' }} />
       </div>
       {selected && (
         <>

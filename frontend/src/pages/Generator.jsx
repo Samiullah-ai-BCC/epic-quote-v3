@@ -17,6 +17,8 @@ import Proposal from '../components/Proposal'
 import MoneyInput from '../components/MoneyInput'
 import ArtworkCropper from '../components/ArtworkCropper'
 
+const MAX_PRICE = 20000   // #2 — no quote may exceed $20,000 (also clamped server-side)
+
 const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
   // manual mode gets the Artwork step too, so the sign image can be added/changed here
@@ -689,8 +691,9 @@ export default function Generator() {
           // read from the raw fields so a collapsed composed string can't sneak through.
           const noDims = !String(answers.dim_l ?? '').trim() || !String(answers.dim_w ?? '').trim()
           const priceNum = Number(answers.price)
-          const badPrice = String(answers.price ?? '').trim() === '' || !Number.isFinite(priceNum) || priceNum <= 0
-          const hint = noDims ? 'Enter the dimensions to continue' : badPrice ? 'Enter a real price (more than $0) to continue' : ''
+          const overMax = Number.isFinite(priceNum) && priceNum > MAX_PRICE
+          const badPrice = String(answers.price ?? '').trim() === '' || !Number.isFinite(priceNum) || priceNum <= 0 || overMax
+          const hint = noDims ? 'Enter the dimensions to continue' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
           return (
             <div className="step">
               <h3>Specifications — {tpl.n}</h3>
@@ -834,9 +837,10 @@ export default function Generator() {
               <span />{/* Back moved to the top-left bar (#4) */}
               {(() => {
                 const n = Number(customSpec?.price)
-                const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0
+                const overMax = Number.isFinite(n) && n > MAX_PRICE
+                const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0 || overMax
                 const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w
-                const hint = noDims ? 'Enter the dimensions to continue' : badPrice ? 'Enter a real price (more than $0) to continue' : ''
+                const hint = noDims ? 'Enter the dimensions to continue' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
                 return (
                   <>
                     {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}

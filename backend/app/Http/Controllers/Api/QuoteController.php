@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\Storage;
 
 class QuoteController extends Controller
 {
+    /** Hard maximum any single quote may be priced at (#2). Enforced here (clamp) + in the wizard. */
+    public const MAX_QUOTE_PRICE = 20000;
+
     // GET /api/quotes — list with search + status filter, scoped to non-admins (#40,#41,#52)
     public function index(Request $request): JsonResponse
     {
@@ -319,8 +322,8 @@ class QuoteController extends Controller
 
         if (array_key_exists('price', $data) && is_numeric($data['price'])) {
             $newPrice = (float) $data['price'];
-            if ($newPrice < 0 || $newPrice > 10000000) {
-                return response()->json(['error' => 'Price must be between $0 and $10,000,000.'], 422);
+            if ($newPrice < 0 || $newPrice > self::MAX_QUOTE_PRICE) {
+                return response()->json(['error' => 'Price must be between $0 and $'.number_format(self::MAX_QUOTE_PRICE).'.'], 422);
             }
             if ($newPrice !== (float) ($quote->price ?? 0)) {
                 $changes[] = 'Final Price';
@@ -562,7 +565,9 @@ class QuoteController extends Controller
             $priceIn = $data['custom_spec']['price'];
         }
         if ($priceIn !== null) {
-            $quote->price = min(10000000, max(0, (float) $priceIn));   // clamp to a sane range
+            // hard cap: no quote may exceed MAX_QUOTE_PRICE (#20k). Clamp as a safety net; the
+            // wizard also blocks it up front with a message.
+            $quote->price = min(self::MAX_QUOTE_PRICE, max(0, (float) $priceIn));
         }
         // a junk payment link would ship a dead button on the customer's proposal
         if (!empty($data['payment_link']) && !preg_match('#^https?://\S+\.\S+#i', $data['payment_link'])) {
