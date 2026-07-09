@@ -5,6 +5,7 @@ import useAuthStore from '../store/authStore'
 import { fileUrl } from '../api/client'
 import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
 import AddQuoteModal from '../components/AddQuoteModal'
+import RevisionHistory from '../components/RevisionHistory'
 
 // clean a currency entry to a plain numeric string (digits + one dot)
 const cleanMoney = (s) => {
@@ -72,6 +73,7 @@ export default function AllQuotes() {
   // the dashboard's "+ New quote" button arrives with state.openNew → open the modal straight away
   const location = useLocation()
   const [showAdd, setShowAdd] = useState(!!location.state?.openNew)
+  const [historyFor, setHistoryFor] = useState(null)   // quote_id whose field-level history is open
   useEffect(() => { if (location.state?.openNew) window.history.replaceState({}, '') }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [searchParams, setSearchParams] = useSearchParams()
   const assignedF = searchParams.get('assigned') || ''       // drill-down from the Team page
@@ -316,7 +318,7 @@ export default function AllQuotes() {
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button className="ghost sm" onClick={() => setViewing(q)}>View</button>{' '}
                     {!readOnly && <><button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/quotes' } })}>Edit</button>{' '}</>}
-                    {admin && <><button className="ghost sm" title="Everything that ever happened to this quote" onClick={() => navigate(`/activity?quote=${q.quote_id}`)}>History</button>{' '}</>}
+                    {admin && <><button className="ghost sm" title="Field-level change history (who changed what, when)" onClick={() => setHistoryFor(q.quote_id)}>History</button>{' '}</>}
                     {admin && <><button className="ghost sm" title={q.is_test ? 'Unmark test — counts again in all numbers' : 'Mark as TEST — excluded from every KPI, pipeline and report'} onClick={() => patch(q.quote_id, 'is_test', !q.is_test)}>{q.is_test ? 'Untest' : 'Test'}</button>{' '}</>}
                     {admin && <button className="danger sm" onClick={() => remove(q)}>Delete</button>}
                   </td>
@@ -370,6 +372,7 @@ export default function AllQuotes() {
       )}
 
       {showAdd && <AddQuoteModal onClose={() => setShowAdd(false)} />}
+      {historyFor && <RevisionHistory quoteId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
 }

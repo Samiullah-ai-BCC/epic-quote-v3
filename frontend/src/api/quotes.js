@@ -41,6 +41,10 @@ const fileForm = (file) => { const fd = new FormData(); fd.append('file', file);
 // server can't parse the file and the upload fails (this is why artwork wasn't persisting).
 const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } }
 
+// Field-level revision history for a quote (Airtable-style: who / what / when).
+export const getRevisions = (quoteId) =>
+  client.get(`/quotes/${quoteId}/revisions`).then((r) => r.data)
+
 export const uploadArtwork = (quoteId, file) =>
   client.post(`/quotes/${quoteId}/artwork`, fileForm(file), MULTIPART).then((r) => r.data.path)
 
