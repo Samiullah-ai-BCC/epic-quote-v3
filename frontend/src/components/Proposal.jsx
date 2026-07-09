@@ -600,6 +600,29 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     })
   }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // #8 — keep the dimension arrows glued to the artwork in real time: when the artwork moves or
+  // is resized, the arrows re-hug its edges (or the marked sign box), scaling their LENGTH while
+  // keeping the typed label/number. First sight is skipped so saved arrow positions load intact.
+  const lastArtRef = useRef(null)
+  useEffect(() => {
+    const a = layout.artwork
+    if (!a || (!layout['dim-w'] && !layout['dim-h'])) return
+    const key = `${a.x},${a.y},${a.w},${a.h}`
+    const prev = lastArtRef.current
+    lastArtRef.current = key
+    if (prev === null || prev === key) return   // first sight (respect saved positions) or no change
+    const sb = signBox && Number.isFinite(signBox.w) ? signBox : null
+    const rect = sb
+      ? { x: a.x + sb.x * a.w, y: a.y + sb.y * a.h, w: sb.w * a.w, h: sb.h * a.h }
+      : { x: a.x, y: a.y, w: a.w, h: a.h }
+    setLayout((L) => {
+      const n = { ...L }
+      if (n['dim-w']) n['dim-w'] = { ...n['dim-w'], x: Math.round(rect.x), y: Math.max(2, Math.round(rect.y - 16)), len: Math.max(24, Math.round(rect.w)) }
+      if (n['dim-h']) n['dim-h'] = { ...n['dim-h'], x: Math.max(2, Math.round(rect.x - 18)), y: Math.round(rect.y), len: Math.max(24, Math.round(rect.h)) }
+      return n
+    })
+  }, [layout.artwork, signBox]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Dimension arrows are NOT auto-added — the customer's artwork often already shows them,
   // and adding a second set is wrong (#7). Use the "+ Dimensions" button to add them by hand.
 
@@ -768,7 +791,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
 
           {/* item details */}
           <div style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
-          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative', background: artBg }}>
+          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
               ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
