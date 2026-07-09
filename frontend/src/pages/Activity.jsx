@@ -12,11 +12,17 @@ export default function Activity() {
   const [historyFor, setHistoryFor] = useState(null)
 
   // refetch on an interval so the "x minutes ago" column and new edits stay current
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, error } = useQuery({
     queryKey: ['activity-feed'],
     queryFn: getActivityFeed,
     refetchInterval: 60_000,
+    retry: false,
   })
+  const errMsg = isError
+    ? (error?.response?.status === 404
+        ? 'The activity feed endpoint is not live on the server (HTTP 404). The backend needs to be restarted/redeployed with the latest code (and its route cache cleared).'
+        : (error?.response?.data?.error || error?.message || 'Could not load the activity feed.'))
+    : ''
 
   const money = (n) => (n > 0 ? '$' + Number(n).toLocaleString() : '—')
 
@@ -46,9 +52,15 @@ export default function Activity() {
         />
       </div>
 
+      {errMsg && (
+        <div className="err" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8 }}>
+          ⚠ {errMsg}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="center">Loading…</div>
-      ) : (
+      ) : isError ? null : (
         <div style={{ overflowX: 'auto' }}>
           <table className="grid">
             <thead>
