@@ -586,6 +586,21 @@ class QuoteController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // GET /api/quotes/{quote}/revisions — the field-level history (who/what/when) for this quote.
+    public function revisions(Request $request, Quote $quote): JsonResponse
+    {
+        if (!$quote->isVisibleTo($request->user())) {
+            return response()->json(['error' => 'forbidden'], 403);
+        }
+        $revs = \App\Models\QuoteRevision::where('quote_id', $quote->id)
+            ->latest('created_at')
+            ->limit(300)
+            ->get()
+            ->map->toApi();
+
+        return response()->json($revs);
+    }
+
     /**
      * Recursively strip active/executable HTML from every string in a nested array
      * (proposal_state blocks, notes, etc.). Removes <script>/<style> blocks, event-handler
