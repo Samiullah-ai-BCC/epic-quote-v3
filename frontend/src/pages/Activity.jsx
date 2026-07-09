@@ -1,111 +1,99 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { useActivity } from '../hooks'
-import * as U from '../api/users'
+import { getActivityFeed } from '../api/quotes'
+import { timeAgo, fullTime } from '../utils/timeAgo'
+import RevisionHistory from '../components/RevisionHistory'
 
-/* Team activity, zero abstraction: filter the raw feed by USER, QUOTE and ACTION, with a
-   per-user analytics strip (who created / edited / deleted / re-tagged how much) computed
-   over exactly what's on screen. /activity?quote=EC100123 deep-links a single quote's history. */
+/* Airtable-style activity log: a live grid of EVERY quote with its latest change in the last
+   columns (what changed · who · how long ago), newest first. Click any row to open that quote's
+   full version history (field diffs + the rendered proposal image at each version). */
 export default function Activity() {
-  const [sp, setSp] = useSearchParams()
-  const [user, setUser] = useState(sp.get('user') || '')
-  const [quote, setQuote] = useState(sp.get('quote') || '')
-  const [action, setAction] = useState(sp.get('action') || '')
-  const [showLogins, setShowLogins] = useState(false)
+  const [search, setSearch] = useState('')
+  const [historyFor, setHistoryFor] = useState(null)
 
-  const params = {}
-  if (user) params.user = user
-  if (quote) params.quote = quote
-  if (action) params.action = action
-  const { data: logs = [], isLoading } = useActivity(params)
+  // refetch on an interval so the "x minutes ago" column and new edits stay current
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ['activity-feed'],
+    queryFn: getActivityFeed,
+    refetchInterval: 60_000,
+  })
 
-  const shown = showLogins ? logs : logs.filter((l) => l.action !== 'login')
-  const hiddenCount = logs.length - shown.length
+  const money = (n) => (n > 0 ? '$' + Number(n).toLocaleString() : '—')
 
-  // EVERY team member appears — including people with zero actions (that absence is
-  // information too). Union of the real user list and whoever shows up in the logs.
-  const { data: allUsers = [] } = useQuery({ queryKey: ['users'], queryFn: U.listUsers })
-  const users = useMemo(
-    () => [...new Set([...allUsers.map((u) => u.full_name || u.username), ...logs.map((l) => l.user)])].filter(Boolean).sort(),
-    [allUsers, logs]
-  )
-  const actions = useMemo(() => [...new Set(logs.map((l) => l.action))].sort(), [logs])
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((r) =>
+      [r.quote_id, r.company, r.job_name, r.assigned_to, r.changed_by, r.last_change]
+        .filter(Boolean).some((s) => String(s).toLowerCase().includes(q))
+    )
+  }, [rows, search])
 
-  // per-user analytics over the filtered window, zero-seeded with the full team
-  const perUser = useMemo(() => {
-    const m = {}
-    if (!user && !quote && !action) for (const name of users) m[name] = { total: 0 }
-    for (const l of shown) {
-      const u = (m[l.user] ||= { total: 0 })
-      u.total++
-      u[l.action] = (u[l.action] || 0) + 1
-    }
-    return Object.entries(m).sort((a, b) => b[1].total - a[1].total)
-  }, [shown, users, user, quote, action])
-
-  const setFilter = (setter, key) => (e) => {
-    setter(e.target.value)
-    const next = new URLSearchParams(sp)
-    if (e.target.value) next.set(key, e.target.value); else next.delete(key)
-    setSp(next, { replace: true })
-  }
+  const edited = rows.filter((r) => r.changed_at).length
 
   return (
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <h1>Activity Log</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={user} onChange={setFilter(setUser, 'user')} style={{ width: 150 }}>
-            <option value="">All users</option>
-            {users.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
-          <input placeholder="Quote ID (e.g. EC100123)" value={quote} onChange={setFilter(setQuote, 'quote')} style={{ width: 180 }} />
-          <select value={action} onChange={setFilter(setAction, 'action')} style={{ width: 160 }}>
-            <option value="">All actions</option>
-            {actions.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <label className="muted" style={{ fontSize: 13, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={showLogins} onChange={(e) => setShowLogins(e.target.checked)} style={{ marginRight: 6, verticalAlign: '-2px' }} />
-            Show logins{!showLogins && hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ''}
-          </label>
+        <div>
+          <h1 style={{ marginBottom: 2 }}>Activity Log</h1>
+          <div className="muted" style={{ fontSize: 13 }}>{rows.length} quote{rows.length === 1 ? '' : 's'} · {edited} with tracked changes</div>
         </div>
+        <input
+          placeholder="Search quote, company, person…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: 260 }}
+        />
       </div>
-
-      {/* per-user analytics for whatever is filtered on screen */}
-      {perUser.length > 0 && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-          {perUser.map(([u, c]) => (
-            <div key={u} className="box" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => setFilter(setUser, 'user')({ target: { value: user === u ? '' : u } })} title="Click to filter by this user">
-              <div style={{ fontWeight: 700, fontSize: 13 }}>{u} <span className="muted" style={{ fontWeight: 400 }}>· {c.total} action{c.total === 1 ? '' : 's'}</span></div>
-              <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
-                {c.total === 0
-                  ? 'no actions yet'
-                  : Object.entries(c).filter(([k]) => k !== 'total').sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k.replace(/_/g, ' ')}: ${n}`).join(' · ')}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {isLoading ? (
         <div className="center">Loading…</div>
       ) : (
-        <table>
-          <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
-          <tbody>
-            {shown.map((l, i) => (
-              <tr key={i}>
-                <td style={{ whiteSpace: 'nowrap' }} className="muted">{l.at ? new Date(l.at).toLocaleString() : ''}</td>
-                <td>{l.user}</td>
-                <td><span className="badge">{l.action}</span></td>
-                <td>{l.details}</td>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="grid">
+            <thead>
+              <tr>
+                <th style={{ width: 46 }}></th>
+                <th>Quote</th>
+                <th>Company / Job</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Price</th>
+                <th>Latest change</th>
+                <th>Changed by</th>
+                <th style={{ whiteSpace: 'nowrap' }}>When</th>
               </tr>
-            ))}
-            {shown.length === 0 && <tr><td colSpan={4} className="center">No activity found for these filters.</td></tr>}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.quote_id} onClick={() => setHistoryFor(r.quote_id)} style={{ cursor: 'pointer' }} title="Open full version history">
+                  <td style={{ padding: 4 }}>
+                    {r.snapshot_image
+                      ? <img src={r.snapshot_image} alt="" style={{ width: 38, height: 48, objectFit: 'cover', objectPosition: 'top', borderRadius: 4, border: '1px solid var(--border)', background: '#fff', display: 'block' }} />
+                      : <div style={{ width: 38, height: 48, borderRadius: 4, border: '1px dashed var(--border)', display: 'grid', placeItems: 'center', color: 'var(--text-faint)', fontSize: 16 }}>—</div>}
+                  </td>
+                  <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{r.quote_id}</td>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{r.company}</div>
+                    {r.job_name && <div className="muted" style={{ fontSize: 12 }}>{r.job_name}</div>}
+                  </td>
+                  <td><span className="badge">{r.status}</span></td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{money(r.price)}</td>
+                  <td style={{ maxWidth: 320 }}>
+                    {r.last_change
+                      ? <span>{r.last_change}{r.change_count > 1 && <span className="muted"> · +{r.change_count - 1} more</span>}</span>
+                      : <span className="muted">No changes yet</span>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{r.changed_by || <span className="muted">—</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }} className="muted" title={fullTime(r.changed_at)}>{r.changed_at ? timeAgo(r.changed_at) : '—'}</td>
+                </tr>
+              ))}
+              {shown.length === 0 && <tr><td colSpan={8} className="center">No quotes match this search.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      {historyFor && <RevisionHistory quoteId={historyFor} onClose={() => setHistoryFor(null)} />}
     </>
   )
 }

@@ -698,7 +698,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     const c = await render({ clean: true })
     return c.toDataURL('image/png')
   }
-  useImperativeHandle(fwdRef, () => ({ captureCleanImage }))
+  // Full proposal (WITH the price block) as a PNG data URL — used for the visual version history
+  // so each saved revision stores the actual proposal image. Scale 2 ≈ 1600px wide: sharp but not huge.
+  const captureSnapshot = async () => {
+    const c = await render({ scale: 2 })
+    return c.toDataURL('image/png')
+  }
+  useImperativeHandle(fwdRef, () => ({ captureCleanImage, captureSnapshot }))
 
   const downloadPNG = async () => {
     if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }

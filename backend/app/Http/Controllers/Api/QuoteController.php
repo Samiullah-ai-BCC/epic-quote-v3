@@ -601,6 +601,119 @@ class QuoteController extends Controller
         return response()->json($revs);
     }
 
+    // POST /api/quotes/{quote}/revisions/snapshot-image — attach a rendered proposal image to the
+    // most recent revision, so the history shows the ACTUAL proposal as it looked at that version.
+    // The client sends the proposal PNG as a base64 data URL after a save; we store it permanently
+    // (Cloudinary → local fallback) and stamp it on the latest revision for this quote.
+    public function snapshotImage(Request $request, Quote $quote): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        $dataUrl = (string) $request->input('image', '');
+        if (!preg_match('#^data:image/(png|jpe?g|webp);base64,#i', $dataUrl)) {
+            return response()->json(['error' => 'Expected a base64 image data URL.'], 422);
+        }
+
+        $rev = \App\Models\QuoteRevision::where('quote_id', $quote->id)->latest('created_at')->first();
+        if (!$rev) {
+            // No revision yet (nothing changed): nothing to attach to — silently succeed.
+            return response()->json(['ok' => true, 'attached' => false]);
+        }
+
+        $url = $this->storeDataUrlPermanently($dataUrl, 'revisions', "rev_{$quote->quote_id}_{$rev->id}.png");
+        if (!$url) {
+            return response()->json(['error' => 'Snapshot image could not be saved.'], 502);
+        }
+        $rev->update(['snapshot_image' => $url]);
+
+        return response()->json(['ok' => true, 'attached' => true, 'snapshot_image' => $url]);
+    }
+
+    // GET /api/revisions/feed — Airtable-style activity feed: one row per visible quote with its
+    // LATEST change (who / what / when) and the rendered proposal image, newest change first.
+    public function activityFeed(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $quotes = Quote::query()->visibleTo($user)->get()->keyBy('id');
+        if ($quotes->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // latest revision per quote (one query, grouped in memory)
+        $latest = \App\Models\QuoteRevision::whereIn('quote_id', $quotes->keys())
+            ->orderByDesc('created_at')
+            ->get()
+            ->groupBy('quote_id')
+            ->map(fn ($g) => $g->first());
+
+        $rows = $quotes->map(function ($q) use ($latest) {
+            $rev = $latest->get($q->id);
+            $changes = $rev?->field_changes ?: [];
+            $first = $changes[0] ?? null;
+            return [
+                'quote_id'       => $q->quote_id,
+                'company'        => $q->company_name ?: '—',
+                'job_name'       => $q->job_name ?: '',
+                'status'         => $q->status,
+                'price'          => (float) $q->price,
+                'assigned_to'    => $q->assigned_to ?: '',
+                'last_change'    => $first ? self::summariseChange($first) : null,
+                'change_count'   => count($changes),
+                'changed_by'     => $rev?->user_name ?: null,
+                'changed_at'     => optional($rev?->created_at)->toIso8601String(),
+                'snapshot_image' => $rev?->snapshot_image,
+            ];
+        })->values()
+          // newest change first; quotes never edited (no changed_at) sink to the bottom
+          ->sortByDesc(fn ($r) => $r['changed_at'] ?? '')
+          ->values();
+
+        return response()->json($rows);
+    }
+
+    /** One-line "Field: old → new" (or "created") summary of a single change entry, for the feed. */
+    private static function summariseChange(array $c): string
+    {
+        if (($c['field'] ?? '') === '__created') {
+            return 'Quote created';
+        }
+        $label = $c['label'] ?? ($c['field'] ?? 'Changed');
+        $old = trim((string) ($c['old'] ?? ''));
+        $new = trim((string) ($c['new'] ?? ''));
+        // opaque edits (images, layout, swatches) diff to "(edited)" both sides — show just the label
+        if ($old === $new || ($old === '' && $new === '')) {
+            return $label.' edited';
+        }
+        return $label.': '.($old === '' ? '—' : $old).' → '.($new === '' ? '—' : $new);
+    }
+
+    /** Store a base64 image data URL permanently (Cloudinary → local public fallback). */
+    private function storeDataUrlPermanently(string $dataUrl, string $dir, string $filename): ?string
+    {
+        [$meta, $b64] = explode(',', $dataUrl, 2) + [null, null];
+        $bytes = base64_decode((string) $b64, true);
+        if ($bytes === false || strlen($bytes) === 0) {
+            return null;
+        }
+        // hard cap so a runaway capture can't dump a huge blob (proposal PNG ~ a few hundred KB)
+        if (strlen($bytes) > 8_000_000) {
+            return null;
+        }
+
+        if (CloudinaryService::configured()) {
+            $tmp = tempnam(sys_get_temp_dir(), 'rev');
+            file_put_contents($tmp, $bytes);
+            try {
+                $url = CloudinaryService::upload($tmp, 'epic-quote/revisions', 'image');
+            } finally {
+                @unlink($tmp);
+            }
+            return $url ?: null;
+        }
+
+        Storage::disk('public')->put("{$dir}/{$filename}", $bytes);
+        return Storage::disk('public')->exists("{$dir}/{$filename}") ? "/storage/{$dir}/{$filename}" : null;
+    }
+
     /**
      * Recursively strip active/executable HTML from every string in a nested array
      * (proposal_state blocks, notes, etc.). Removes <script>/<style> blocks, event-handler

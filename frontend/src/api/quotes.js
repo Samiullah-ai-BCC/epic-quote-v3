@@ -45,6 +45,14 @@ const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } }
 export const getRevisions = (quoteId) =>
   client.get(`/quotes/${quoteId}/revisions`).then((r) => r.data)
 
+// Attach a rendered proposal image (PNG data URL) to the latest revision — visual history.
+export const saveRevisionImage = (quoteId, dataUrl) =>
+  client.post(`/quotes/${quoteId}/revisions/snapshot-image`, { image: dataUrl }).then((r) => r.data)
+
+// Airtable-style activity feed: one row per quote with its latest change + rendered image.
+export const getActivityFeed = () =>
+  client.get('/revisions/feed').then((r) => r.data)
+
 export const uploadArtwork = (quoteId, file) =>
   client.post(`/quotes/${quoteId}/artwork`, fileForm(file), MULTIPART).then((r) => r.data.path)
 

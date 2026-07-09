@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs } from '../api/quotes'
+import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs, saveRevisionImage } from '../api/quotes'
 import { getLogo } from '../api/meta'
 import { useConstants } from '../hooks'
 import useAuthStore from '../store/authStore'
@@ -232,7 +232,20 @@ export default function Generator() {
   const goto = (s) => setStep(s)
   const next = () => goto(flow[flowIndex + 1])
   const back = () => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo))
-  const saveAndReturn = async () => { await saveProgress(); navigate(exitTo) }   // #4 (top-bar action)
+  const proposalRef = useRef(null)   // preview-step Proposal, for capturing the visual version snapshot
+
+  // Render the current proposal to a PNG and attach it to the latest revision (visual history).
+  // Best-effort: a capture failure must never block saving or navigation.
+  const captureVersionImage = async () => {
+    try {
+      const cap = proposalRef.current?.captureSnapshot
+      if (!cap) return
+      const dataUrl = await cap()
+      if (dataUrl) await saveRevisionImage(quoteId, dataUrl)
+    } catch { /* snapshot is a nice-to-have — ignore */ }
+  }
+
+  const saveAndReturn = async () => { await saveProgress(); await captureVersionImage(); navigate(exitTo) }   // #4 (top-bar action)
 
   const saveProgress = async (extra = {}) => {
     const payload = {
@@ -863,6 +876,7 @@ export default function Generator() {
           <div className="step">
             <h3>Proposal</h3>
             <Proposal
+              ref={proposalRef}
               mode={mode}
               tpl={tpl}
               answers={answers}
