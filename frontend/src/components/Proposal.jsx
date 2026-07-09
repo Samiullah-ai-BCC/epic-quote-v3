@@ -56,6 +56,18 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
     ix: init.ix ?? 0, iy: init.iy ?? 0, iw: init.iw ?? init.w, ih: init.ih ?? init.h,
   }))
   const rootRef = useRef(null)
+  // Follow EXTERNAL geometry updates (e.g. auto-crop to the sign's bounding box writes a new
+  // frame + crop window into layout) — local state used to be initialized once and never re-read.
+  // Skipped while THIS image is being dragged so the user's own gesture is never fought.
+  const draggingRef = useRef(false)
+  useEffect(() => {
+    if (draggingRef.current || !lay) return
+    setBox((b) => {
+      const n = { x: lay.x, y: lay.y, w: lay.w, h: lay.h, rot: lay.rot || 0,
+                  ix: lay.ix ?? 0, iy: lay.iy ?? 0, iw: lay.iw ?? lay.w, ih: lay.ih ?? lay.h }
+      return Object.keys(n).some((k) => n[k] !== b[k]) ? n : b
+    })
+  }, [lay]) // eslint-disable-line react-hooks/exhaustive-deps
   // liveLay: report geometry DURING the drag, not only at mouse-up — used by the artwork so
   // dimension arrows re-hug it in real time while it is moved/resized/cropped (#1). Called straight
   // from the mousemove handler (events always run outside React's render phase — an rAF-deferred
@@ -75,6 +87,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
   const [broken, setBroken] = useState(false)
   const start = (kind, handle) => (e) => {
     e.preventDefault(); e.stopPropagation(); onSelect()
+    draggingRef.current = true
     const sx = e.clientX, sy = e.clientY, b0 = { ...box }, sc = scaleRef.current || 1
     let cx = 0, cy = 0
     let last = b0   // latest geometry — committed via onLay at mouse-up. NEVER call onLay inside a
@@ -107,7 +120,7 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
       const nb = { ...b0, x, y, w, h, ix, iy }
       last = nb; setBox(nb); reportLive(nb)
     }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); onLay(last) }
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); draggingRef.current = false; onLay(last) }
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
   }
   const dot = { position: 'absolute', width: 11, height: 11, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', zIndex: 60 }
@@ -1117,33 +1130,50 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 onClick={() => {
                   const p = parseDims(mode === 'custom' ? customSpec?.dims : answers?.dimensions)
                   const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144 }
-                  // Snap priority: manually marked sign box → auto-detected subject bounding box
-                  // (#2, canvas pixel scan) → the whole artwork frame.
+                  // Bounding-box priority: manually marked sign box → auto-detected subject bbox
+                  // (#2, canvas pixel scan) → the whole artwork frame. When a tighter box is found,
+                  // the artwork frame is AUTO-CROPPED to it (the background margins are cut away),
+                  // so the frame — and the arrows — are exactly the sign's dimensions.
                   const sb = signBox && Number.isFinite(signBox.w) ? signBox : null
-                  let rect = sb
-                    ? { x: a.x + sb.x * a.w, y: a.y + sb.y * a.h, w: sb.w * a.w, h: sb.h * a.h }
-                    : { x: a.x, y: a.y, w: a.w, h: a.h }
-                  let snapped = !!sb
-                  if (!sb && artworkPath) {
+                  let cut = null   // target rect in frame coords {x1,y1,x2,y2}
+                  if (sb) {
+                    cut = { x1: sb.x * a.w, y1: sb.y * a.h, x2: (sb.x + sb.w) * a.w, y2: (sb.y + sb.h) * a.h }
+                  } else if (artworkPath) {
                     const img = pageRef.current?.querySelector('[data-rk="artwork"] img')
                     const nb = img ? detectSubjectBox(img) : null
                     if (nb) {
-                      // map natural-image bbox → box coords through the crop window + object-fit:contain
+                      // map natural-image bbox → frame coords through the crop window + object-fit:contain
                       const iw = a.iw ?? a.w, ih = a.ih ?? a.h, ix = a.ix ?? 0, iy = a.iy ?? 0
                       const s = Math.min(iw / img.naturalWidth, ih / img.naturalHeight)
                       const ox = ix + (iw - img.naturalWidth * s) / 2, oy = iy + (ih - img.naturalHeight * s) / 2
-                      let bx = ox + nb.x * img.naturalWidth * s, by = oy + nb.y * img.naturalHeight * s
-                      let bw = nb.w * img.naturalWidth * s, bh = nb.h * img.naturalHeight * s
-                      // clamp to the visible (possibly cropped) frame
-                      const cx1 = Math.max(0, bx), cy1 = Math.max(0, by)
-                      const cx2 = Math.min(a.w, bx + bw), cy2 = Math.min(a.h, by + bh)
-                      if (cx2 - cx1 > 12 && cy2 - cy1 > 12) {
-                        rect = { x: Math.round(a.x + cx1), y: Math.round(a.y + cy1), w: Math.round(cx2 - cx1), h: Math.round(cy2 - cy1) }
-                        snapped = true
-                        // remember it (as fractions of the artwork frame) so live re-hug tracks the sign too
-                        detectedBoxRef.current = { x: cx1 / a.w, y: cy1 / a.h, w: (cx2 - cx1) / a.w, h: (cy2 - cy1) / a.h }
+                      cut = {
+                        x1: Math.max(0, ox + nb.x * img.naturalWidth * s),
+                        y1: Math.max(0, oy + nb.y * img.naturalHeight * s),
+                        x2: Math.min(a.w, ox + (nb.x + nb.w) * img.naturalWidth * s),
+                        y2: Math.min(a.h, oy + (nb.y + nb.h) * img.naturalHeight * s),
                       }
                     }
+                  }
+                  const tighter = cut && cut.x2 - cut.x1 > 12 && cut.y2 - cut.y1 > 12
+                    && (cut.x1 > 4 || cut.y1 > 4 || cut.x2 < a.w - 4 || cut.y2 < a.h - 4)
+                  let rect = { x: a.x, y: a.y, w: a.w, h: a.h }
+                  let cropped = null   // new artwork layout when auto-cropping
+                  let snapped = false
+                  if (tighter) {
+                    // crop = shrink the frame to the bbox, keep the image absolutely still
+                    // (same maths as the manual crop edges: shift ix/iy by the cut amount)
+                    cropped = {
+                      ...a,
+                      x: Math.round(a.x + cut.x1), y: Math.round(a.y + cut.y1),
+                      w: Math.round(cut.x2 - cut.x1), h: Math.round(cut.y2 - cut.y1),
+                      ix: Math.round((a.ix ?? 0) - cut.x1), iy: Math.round((a.iy ?? 0) - cut.y1),
+                      iw: a.iw ?? a.w, ih: a.ih ?? a.h,
+                    }
+                    rect = { x: cropped.x, y: cropped.y, w: cropped.w, h: cropped.h }
+                    snapped = true
+                    detectedBoxRef.current = null   // the frame IS the sign now — arrows hug the frame
+                  } else if (cut) {
+                    snapped = true                  // bbox found but it already fills the frame
                   }
                   const wv = parseFloat(p.w), hv = parseFloat(p.l)
                   let hLbl = p.w ? p.w + '"' : 'WIDTH'
@@ -1156,14 +1186,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                   }
                   // Always (re)snap position + length to the detected box — existing arrows used to
                   // be left untouched, which made the button a no-op on quotes with saved arrows
-                  // ("bounding box is not coming"). A hand-typed label is kept.
+                  // ("bounding box is not coming"). A hand-typed label is kept. The auto-cropped
+                  // artwork frame is committed in the SAME update so arrows + frame land together.
                   setLayout((L) => ({
                     ...L,
+                    ...(cropped ? { artwork: cropped } : {}),
                     __dimsSeeded: true,
                     'dim-w': { vert: false, ...(L['dim-w'] || {}), x: rect.x, y: Math.max(2, rect.y - 16), len: rect.w, label: L['dim-w']?.label || hLbl },
                     'dim-h': { vert: true, ...(L['dim-h'] || {}), x: Math.max(2, rect.x - 18), y: rect.y, len: rect.h, label: L['dim-h']?.label || vLbl },
                   }))
-                  flash(snapped ? 'Arrows snapped to the sign’s bounding box.' : 'Dimension arrows added — drag them into place.')
+                  flash(cropped ? 'Artwork auto-cropped to the sign — arrows match its dimensions.'
+                    : snapped ? 'Arrows snapped to the sign’s bounding box.'
+                    : 'Dimension arrows added — drag them into place.')
                 }}
               >+ Dimensions</button>
             </div>
