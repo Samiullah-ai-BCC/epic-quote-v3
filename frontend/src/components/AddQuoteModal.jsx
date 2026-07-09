@@ -50,15 +50,19 @@ export default function AddQuoteModal({ onClose }) {
   const autoFilled = useRef({ address: '', client_name: '', contact: '', email: '' })
   // apply a saved contact into any field the user hasn't manually changed
   const applyAuto = (patch) => {
+    // Snapshot the previous auto-values BEFORE mutating the ref: React runs the setForm updater
+    // later (batched), so mutating first made the updater compare the old field value against the
+    // NEW patch — every field looked "manually edited" and picking a second company changed nothing.
+    const prevAuto = { ...autoFilled.current }
+    autoFilled.current = { ...autoFilled.current, ...patch }
     setForm((f) => {
       const next = { ...f }
       for (const k of Object.keys(patch)) {
-        const wasAuto = !f[k] || f[k] === autoFilled.current[k]
+        const wasAuto = !f[k] || f[k] === prevAuto[k]
         if (wasAuto) next[k] = patch[k] || ''
       }
       return next
     })
-    autoFilled.current = { ...autoFilled.current, ...patch }
   }
   const onCompanyChange = async (e) => {
     const name = e.target.value
