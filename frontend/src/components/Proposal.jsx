@@ -49,13 +49,26 @@ const PACKAGE = [
 //  • EDGE bars crop (shrink the visible window; the image itself stays put and is clipped)
 // Absolute-positioned, so changing one never reflows the page. Geometry (incl. the crop window
 // ix/iy/iw/ih) is reported up via onLay; selection chrome carries "adj-ui" so PDF capture hides it.
-function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect }) {
+function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH }) {
   const init = lay || def
   const [box, setBox] = useState(() => ({
     x: init.x, y: init.y, w: init.w, h: init.h, rot: init.rot || 0,
     ix: init.ix ?? 0, iy: init.iy ?? 0, iw: init.iw ?? init.w, ih: init.ih ?? init.h,
   }))
   const rootRef = useRef(null)
+  // liveLay: report geometry DURING the drag, not only at mouse-up — used by the artwork so
+  // dimension arrows re-hug it in real time while it is moved/resized/cropped (#1). Called straight
+  // from the mousemove handler (events always run outside React's render phase — an rAF-deferred
+  // version fired mid-concurrent-render and triggered setState-in-render warnings), lightly
+  // time-throttled so a fast drag doesn't flood re-renders.
+  const liveLast = useRef(0)
+  const reportLive = (b) => {
+    if (!liveLay) return
+    const now = performance.now()
+    if (now - liveLast.current < 40) return   // ~25fps is plenty for arrow tracking
+    liveLast.current = now
+    onLay(b)
+  }
   // A broken / degenerate source (e.g. a 1×1 placeholder thumbnail) must NOT be stretched by a
   // saved crop window — that paints the whole box with the single pixel's colour (the "red box"
   // bug). Detect it and hide the image so the empty area shows through instead.
@@ -64,11 +77,14 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
     e.preventDefault(); e.stopPropagation(); onSelect()
     const sx = e.clientX, sy = e.clientY, b0 = { ...box }, sc = scaleRef.current || 1
     let cx = 0, cy = 0
+    let last = b0   // latest geometry — committed via onLay at mouse-up. NEVER call onLay inside a
+                    // setBox updater: updaters run during React's render phase, and a parent
+                    // setState from there is the "setState while rendering" violation.
     if (kind === 'rot' && rootRef.current) { const r = rootRef.current.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2 }
     const move = (ev) => {
       const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
-      if (kind === 'move') { setBox({ ...b0, x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) }); return }
-      if (kind === 'rot') { setBox({ ...b0, rot: Math.round(Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90) }); return }
+      if (kind === 'move') { const nb = { ...b0, x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) }; last = nb; setBox(nb); reportLive(nb); return }
+      if (kind === 'rot') { const nb = { ...b0, rot: Math.round(Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90) }; last = nb; setBox(nb); reportLive(nb); return }
       if (kind === 'resize') {
         const L = handle.includes('l'), T = handle.includes('t'), R = handle.includes('r'), B = handle.includes('b')
         let w = b0.w, h = b0.h
@@ -78,7 +94,8 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
         let x = b0.x, y = b0.y
         if (L) x = Math.round(b0.x + (b0.w - w)); if (T) y = Math.round(b0.y + (b0.h - h))
         const rw = w / b0.w, rh = h / b0.h   // scale the image (crop window) with the frame
-        setBox({ ...b0, w, h, x, y, ix: Math.round(b0.ix * rw), iy: Math.round(b0.iy * rh), iw: Math.round(b0.iw * rw), ih: Math.round(b0.ih * rh) })
+        const nb = { ...b0, w, h, x, y, ix: Math.round(b0.ix * rw), iy: Math.round(b0.iy * rh), iw: Math.round(b0.iw * rw), ih: Math.round(b0.ih * rh) }
+        last = nb; setBox(nb); reportLive(nb)
         return
       }
       // crop: move one frame edge, keep the image absolutely still → clips it
@@ -87,9 +104,10 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
       if (handle === 'b') h = Math.max(24, Math.round(b0.h + dy))
       if (handle === 'l') { const nw = Math.max(24, Math.round(b0.w - dx)); const used = b0.w - nw; x = Math.round(b0.x + used); w = nw; ix = Math.round(b0.ix - used) }
       if (handle === 't') { const nh = Math.max(24, Math.round(b0.h - dy)); const used = b0.h - nh; y = Math.round(b0.y + used); h = nh; iy = Math.round(b0.iy - used) }
-      setBox({ ...b0, x, y, w, h, ix, iy })
+      const nb = { ...b0, x, y, w, h, ix, iy }
+      last = nb; setBox(nb); reportLive(nb)
     }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); setBox((b) => { onLay(b); return b }) }
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); onLay(last) }
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
   }
   const dot = { position: 'absolute', width: 11, height: 11, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', zIndex: 60 }
@@ -116,7 +134,14 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
               setBroken(false)
               if (lockAspect && !lay) {
                 const r = img.naturalWidth / img.naturalHeight
-                if (r > 0) { const h = Math.max(20, Math.round(box.w / r)); const fitted = { ...box, h, ix: 0, iy: 0, iw: box.w, ih: h }; setBox(fitted); onLay(fitted) }
+                if (r > 0) {
+                  const h = Math.max(20, Math.round(box.w / r))
+                  // fitCenterH: vertically centre the fitted image inside its container (#5 — package
+                  // tiles hugged the top edge); 14px reserved for the caption below the image.
+                  const y = fitCenterH ? Math.max(2, Math.round((fitCenterH - h - 14) / 2)) : box.y
+                  const fitted = { ...box, h, y, ix: 0, iy: 0, iw: box.w, ih: h }
+                  setBox(fitted); onLay(fitted)
+                }
               }
             }, 0)
           }}
@@ -144,15 +169,24 @@ function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, sel
 // click the label to type the size. The line + label print; the purple chrome does not.
 function AdjDim({ rk, lay, onLay, scaleRef, selected, onSelect, onRemove }) {
   const [d, setD] = useState(lay)
+  // Follow EXTERNAL geometry updates (the live "re-hug the artwork" sync writes new x/y/len into
+  // layout) — local state used to be initialized once and never re-read, so arrows never moved (#1).
+  // Skipped while THIS arrow is being dragged, so the user's own drag is never fought.
+  const draggingRef = useRef(false)
+  useEffect(() => { if (!draggingRef.current) setD(lay) }, [lay])
   const start = (kind) => (e) => {
     e.preventDefault(); e.stopPropagation(); onSelect()
+    draggingRef.current = true
     const sx = e.clientX, sy = e.clientY, d0 = { ...d }, sc = scaleRef.current || 1
+    let last = d0   // latest geometry — onLay must never run inside a setD updater (render phase)
     const move = (ev) => {
       const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
-      if (kind === 'move') setD({ ...d0, x: Math.round(d0.x + dx), y: Math.round(d0.y + dy) })
-      else setD({ ...d0, len: Math.max(24, Math.round(d0.len + (d0.vert ? dy : dx))) })
+      const nd = kind === 'move'
+        ? { ...d0, x: Math.round(d0.x + dx), y: Math.round(d0.y + dy) }
+        : { ...d0, len: Math.max(24, Math.round(d0.len + (d0.vert ? dy : dx))) }
+      last = nd; setD(nd)
     }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); setD((v) => { onLay(v); return v }) }
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); draggingRef.current = false; onLay(last) }
     document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
   }
   const C = '#c0392b'
@@ -175,7 +209,7 @@ function AdjDim({ rk, lay, onLay, scaleRef, selected, onSelect, onRemove }) {
       )}
       <span contentEditable suppressContentEditableWarning spellCheck={false}
         onMouseDown={(e) => e.stopPropagation()}
-        onBlur={(e) => { const label = e.target.innerText.trim(); setD((v) => { const n = { ...v, label }; onLay(n); return n }) }}
+        onBlur={(e) => { const label = e.target.innerText.trim(); const n = { ...d, label }; setD(n); onLay(n) }}
         style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', background: '#fff', color: C, fontSize: 9, fontWeight: 700, padding: '0 3px', whiteSpace: 'nowrap', outline: 'none', textTransform: 'none' }}
       >{d.label}</span>
       {selected && (
@@ -273,6 +307,54 @@ function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, sele
       )}
     </div>
   )
+}
+
+// Detect the subject's bounding box inside an image (#2): sample the border pixels for the
+// background colour, mark every pixel that differs beyond a threshold (or is transparent-vs-not),
+// and return the normalized bounding rect {x,y,w,h} in [0..1] of the natural image — or null.
+// This is the cv.findContours→boundingRect pipeline done with raw canvas pixels: same result for
+// a single bbox, without shipping OpenCV's ~8MB WASM. Throws nothing; returns null on any failure
+// (CORS-tainted canvas, degenerate image, subject filling the whole frame).
+function detectSubjectBox(img) {
+  try {
+    const nw = img.naturalWidth, nh = img.naturalHeight
+    if (!nw || !nh || nw <= 2 || nh <= 2) return null
+    const MAX = 320                                    // downscale for speed — bbox precision ~0.3%
+    const s = Math.min(1, MAX / Math.max(nw, nh))
+    const w = Math.max(2, Math.round(nw * s)), h = Math.max(2, Math.round(nh * s))
+    const cv = document.createElement('canvas')
+    cv.width = w; cv.height = h
+    const ctx = cv.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(img, 0, 0, w, h)
+    const d = ctx.getImageData(0, 0, w, h).data       // throws if the canvas is CORS-tainted
+    const px = (x, y) => { const i = (y * w + x) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]] }
+    // background = average of the border ring (skip transparent border pixels; count them)
+    let br = 0, bg = 0, bb = 0, n = 0, transparent = 0, border = 0
+    const eat = (x, y) => { const [r, g, b, a] = px(x, y); border++; if (a < 16) { transparent++; return } br += r; bg += g; bb += b; n++ }
+    for (let x = 0; x < w; x++) { eat(x, 0); eat(x, h - 1) }
+    for (let y = 1; y < h - 1; y++) { eat(0, y); eat(w - 1, y) }
+    const alphaMode = transparent > border * 0.5      // PNG with transparent background
+    if (n > 0) { br /= n; bg /= n; bb /= n }
+    const THR = 42                                     // colour distance that counts as "subject"
+    let minX = w, minY = h, maxX = -1, maxY = -1
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const [r, g, b, a] = px(x, y)
+        const isSubject = alphaMode
+          ? a >= 16
+          : a >= 16 && (Math.abs(r - br) + Math.abs(g - bg) + Math.abs(b - bb)) > THR
+        if (isSubject) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x
+          if (y < minY) minY = y; if (y > maxY) maxY = y
+        }
+      }
+    }
+    if (maxX < 0) return null                          // nothing found
+    const bw = maxX - minX + 1, bh = maxY - minY + 1
+    const cover = (bw * bh) / (w * h)
+    if (cover > 0.985 || cover < 0.005) return null    // whole frame / speck → no useful box
+    return { x: minX / w, y: minY / h, w: bw / w, h: bh / h }
+  } catch { return null }
 }
 
 const HD_SCALE = 3   // html2canvas DPI factor for PNG/PDF downloads (~288dpi on a Letter page — crisp text)
@@ -628,10 +710,40 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     return () => clearTimeout(t)
   }, [mainView, scale, scaledH, specHTML, sideViews, artworkPath]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // #3 — pull each control group down so it sits IN FRONT of its proposal section. Groups stay in
+  // normal flow (a plain stack) and only get a computed margin-top, applied in ascending-target
+  // order with a cumulative pass — so unlike raw absolute positioning, overlap is impossible and
+  // a group can never sit ABOVE its natural stacked position (margins are clamped at 0).
+  const grpRefs = useRef({})
+  useEffect(() => {
+    if (!mainView) return
+    const col = controlsRef.current
+    if (!col) return
+    const order = [
+      ['art', secTops ? secTops.items : null],
+      ['dims', secTops ? secTops.items + 56 : null],
+      ['cols', secTops ? secTops.specs : null],
+      ['spec', secTops ? secTops.specs + 88 : null],
+      ['sv', secTops?.sideview != null ? secTops.sideview : null],
+    ]
+    // reset, then apply cumulatively (reading offsetTop after each write forces sync layout,
+    // so later groups see the margins already added above them)
+    order.forEach(([k]) => { const el = grpRefs.current[k]; if (el) el.style.marginTop = '0px' })
+    if (!secTops) return   // no measurement → keep the plain stack
+    const colTop = col.getBoundingClientRect().top
+    order.forEach(([k, target]) => {
+      const el = grpRefs.current[k]
+      if (!el || target == null) return
+      const natural = el.getBoundingClientRect().top - colTop
+      el.style.marginTop = Math.max(0, Math.round(target - natural)) + 'px'
+    })
+  }, [mainView, secTops]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // #8 — keep the dimension arrows glued to the artwork in real time: when the artwork moves or
   // is resized, the arrows re-hug its edges (or the marked sign box), scaling their LENGTH while
   // keeping the typed label/number. First sight is skipped so saved arrow positions load intact.
   const lastArtRef = useRef(null)
+  const detectedBoxRef = useRef(null)   // auto-detected sign bbox (fractions of the artwork frame, #2)
   useEffect(() => {
     const a = layout.artwork
     if (!a || (!layout['dim-w'] && !layout['dim-h'])) return
@@ -639,7 +751,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     const prev = lastArtRef.current
     lastArtRef.current = key
     if (prev === null || prev === key) return   // first sight (respect saved positions) or no change
-    const sb = signBox && Number.isFinite(signBox.w) ? signBox : null
+    const sb = (signBox && Number.isFinite(signBox.w) ? signBox : null) || detectedBoxRef.current
     const rect = sb
       ? { x: a.x + sb.x * a.w, y: a.y + sb.y * a.h, w: sb.w * a.w, h: sb.h * a.h }
       : { x: a.x, y: a.y, w: a.w, h: a.h }
@@ -837,7 +949,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
           <div data-sec="items" style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
-              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
+              ? <AdjImg {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
@@ -880,14 +992,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
               <div style={{ position: 'relative', height: 116, borderBottom: '1px solid #777' }}>
                 {PACKAGE.map((p, i, arr) => (
                   // Smaller package tiles (#3) — centred as a group across the 240px column.
-                  // (Key bumped pkg4→pkg5 to reset saved offsets to the new smaller defaults;
-                  // lockAspect keeps each image in its natural proportions.)
-                  <AdjImg key={p.label} {...adjProps(`pkg5-${p.label}`, { x: Math.round(((240 - arr.length * 96) / (arr.length + 1)) * (i + 1) + 96 * i), y: 6, w: 96, h: 96 })} src={p.img} alt={p.label} lockAspect />
+                  // (Key bumped pkg5→pkg6 to reset saved offsets: tiles are now vertically centred
+                  // in the 116px box via fitCenterH (#5); lockAspect keeps natural proportions.)
+                  <AdjImg key={p.label} {...adjProps(`pkg6-${p.label}`, { x: Math.round(((240 - arr.length * 96) / (arr.length + 1)) * (i + 1) + 96 * i), y: 6, w: 96, h: 96 })} src={p.img} alt={p.label} lockAspect fitCenterH={116} />
                 ))}
                 {/* captions glued to each image's REAL position/size (images report their fitted
                     box on load) — always centered right below, follow drags, editable */}
                 {PACKAGE.map((p, i, arr) => {
-                  const t = layout[`pkg5-${p.label}`]
+                  const t = layout[`pkg6-${p.label}`]
                   const defX = Math.round(((240 - arr.length * 96) / (arr.length + 1)) * (i + 1) + 96 * i)
                   return E(`pkgLabel${i + 1}`, {
                     position: 'absolute',
@@ -967,14 +1079,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
           SPECIFICATIONS and SIDE VIEW. Before measurement (or if it fails) they stack in order. */}
       {(() => {
         const grpLabel = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 6 }
-        // Compact ordered stack (Artwork → Dimensions → Colours → Side view → Specs). Absolute
-        // per-section alignment was tried but the proposal sections are too far apart — it left
-        // big gaps + overlapping labels ("astray"), so we keep a tidy stack in the same order.
-        const posStyle = () => undefined
+        // Ordered stack (Artwork → Dimensions → Colours → Specs → Side view — ascending section
+        // order). The #3 margin effect above pulls each group down to its section's measured top;
+        // being a normal flow stack, groups can never overlap (the old absolute attempt could).
+        const setGrp = (k) => (el) => { grpRefs.current[k] = el }
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* ARTWORK — aligned to ITEM DETAILS */}
-            <div style={posStyle('items')}>
+            <div ref={setGrp('art')}>
               <div style={grpLabel}>Artwork</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Area bg</span>
@@ -997,7 +1109,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
             </div>
 
             {/* DIMENSIONS — aligned just under ITEM DETAILS */}
-            <div style={posStyle('items', 54)}>
+            <div ref={setGrp('dims')}>
               <div style={grpLabel}>Dimensions</div>
               <button
                 type="button" className="ghost" style={{ width: '100%' }}
@@ -1005,11 +1117,34 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 onClick={() => {
                   const p = parseDims(mode === 'custom' ? customSpec?.dims : answers?.dimensions)
                   const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144 }
-                  // Snap the arrows to the marked sign box when present, else span the whole artwork.
+                  // Snap priority: manually marked sign box → auto-detected subject bounding box
+                  // (#2, canvas pixel scan) → the whole artwork frame.
                   const sb = signBox && Number.isFinite(signBox.w) ? signBox : null
-                  const rect = sb
+                  let rect = sb
                     ? { x: a.x + sb.x * a.w, y: a.y + sb.y * a.h, w: sb.w * a.w, h: sb.h * a.h }
                     : { x: a.x, y: a.y, w: a.w, h: a.h }
+                  let snapped = !!sb
+                  if (!sb && artworkPath) {
+                    const img = pageRef.current?.querySelector('[data-rk="artwork"] img')
+                    const nb = img ? detectSubjectBox(img) : null
+                    if (nb) {
+                      // map natural-image bbox → box coords through the crop window + object-fit:contain
+                      const iw = a.iw ?? a.w, ih = a.ih ?? a.h, ix = a.ix ?? 0, iy = a.iy ?? 0
+                      const s = Math.min(iw / img.naturalWidth, ih / img.naturalHeight)
+                      const ox = ix + (iw - img.naturalWidth * s) / 2, oy = iy + (ih - img.naturalHeight * s) / 2
+                      let bx = ox + nb.x * img.naturalWidth * s, by = oy + nb.y * img.naturalHeight * s
+                      let bw = nb.w * img.naturalWidth * s, bh = nb.h * img.naturalHeight * s
+                      // clamp to the visible (possibly cropped) frame
+                      const cx1 = Math.max(0, bx), cy1 = Math.max(0, by)
+                      const cx2 = Math.min(a.w, bx + bw), cy2 = Math.min(a.h, by + bh)
+                      if (cx2 - cx1 > 12 && cy2 - cy1 > 12) {
+                        rect = { x: Math.round(a.x + cx1), y: Math.round(a.y + cy1), w: Math.round(cx2 - cx1), h: Math.round(cy2 - cy1) }
+                        snapped = true
+                        // remember it (as fractions of the artwork frame) so live re-hug tracks the sign too
+                        detectedBoxRef.current = { x: cx1 / a.w, y: cy1 / a.h, w: (cx2 - cx1) / a.w, h: (cy2 - cy1) / a.h }
+                      }
+                    }
+                  }
                   const wv = parseFloat(p.w), hv = parseFloat(p.l)
                   let hLbl = p.w ? p.w + '"' : 'WIDTH'
                   let vLbl = p.l ? p.l + '"' : 'HEIGHT'
@@ -1019,34 +1154,29 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                     hLbl = horizLonger ? big : small
                     vLbl = horizLonger ? small : big
                   }
+                  // Always (re)snap position + length to the detected box — existing arrows used to
+                  // be left untouched, which made the button a no-op on quotes with saved arrows
+                  // ("bounding box is not coming"). A hand-typed label is kept.
                   setLayout((L) => ({
                     ...L,
                     __dimsSeeded: true,
-                    'dim-w': L['dim-w'] || { x: rect.x, y: Math.max(2, rect.y - 16), len: rect.w, vert: false, label: hLbl },
-                    'dim-h': L['dim-h'] || { x: Math.max(2, rect.x - 18), y: rect.y, len: rect.h, vert: true, label: vLbl },
+                    'dim-w': { vert: false, ...(L['dim-w'] || {}), x: rect.x, y: Math.max(2, rect.y - 16), len: rect.w, label: L['dim-w']?.label || hLbl },
+                    'dim-h': { vert: true, ...(L['dim-h'] || {}), x: Math.max(2, rect.x - 18), y: rect.y, len: rect.h, label: L['dim-h']?.label || vLbl },
                   }))
-                  flash(sb ? 'Arrows snapped to your marked sign box.' : 'Dimension arrows added — drag them into place.')
+                  flash(snapped ? 'Arrows snapped to the sign’s bounding box.' : 'Dimension arrows added — drag them into place.')
                 }}
               >+ Dimensions</button>
             </div>
 
             {/* COLOURS — aligned to SPECIFICATIONS (where the COLOR SPECS live) */}
-            <div style={posStyle('specs')}>
+            <div ref={setGrp('cols')}>
               <div style={grpLabel}>Colours</div>
               <button type="button" className="ghost" style={{ width: '100%' }} onClick={addSwatch}>+ Add color swatch</button>
               <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 5 }}>Click a swatch to set its colour &amp; name; drag to place.</span>
             </div>
 
-            {/* SIDE VIEW — aligned to the SIDE VIEW section */}
-            {onSideViews && (
-              <div style={posStyle('sideview')}>
-                <div style={grpLabel}>Side view</div>
-                <button type="button" className="ghost" style={{ width: '100%' }} onClick={() => setPickingSV((v) => !v)}>{pickingSV ? 'Done choosing side views' : '+ Choose side views'}</button>
-              </div>
-            )}
-
             {/* SPECIFICATIONS — aligned just under the SPECIFICATIONS header */}
-            <div style={posStyle('specs', 92)}>
+            <div ref={setGrp('spec')}>
               <div style={grpLabel}>Specifications</div>
               <button
                 type="button" className="ghost" style={{ width: '100%' }}
@@ -1057,6 +1187,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 }}
               >↻ Rebuild spec text</button>
             </div>
+
+            {/* SIDE VIEW — aligned to the SIDE VIEW section */}
+            {onSideViews && (
+              <div ref={setGrp('sv')}>
+                <div style={grpLabel}>Side view</div>
+                <button type="button" className="ghost" style={{ width: '100%' }} onClick={() => setPickingSV((v) => !v)}>{pickingSV ? 'Done choosing side views' : '+ Choose side views'}</button>
+              </div>
+            )}
           </div>
         )
       })()}
