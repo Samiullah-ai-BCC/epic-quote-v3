@@ -37,4 +37,5 @@ CMD mkdir -p "$(dirname "${DB_DATABASE:-/app/database/database.sqlite}")" \
  && (cp -rn /app/storage/app/public/. "${PUBLIC_DISK_ROOT:-/app/storage/app/public}"/ 2>/dev/null || true) \
  && php artisan migrate --force \
  && php artisan db:seed --force \
+ && (php artisan companies:import database/data/companies_import.csv || true) \
  && php artisan serve --host 0.0.0.0 --port "${PORT:-8000}"
