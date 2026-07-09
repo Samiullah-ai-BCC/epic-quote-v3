@@ -343,6 +343,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   // #7 — the ITEM DETAILS artwork area background, so a grey-background artwork can sit on a
   // matching grey instead of clashing white. Persisted with the proposal state.
   const [artBg, setArtBg] = useState(savedState?.__artBg || '#ffffff')
+  const artBgInputRef = useRef(null)
   const [pickFor, setPickFor] = useState(null)   // swatch id currently sampling a color from the artwork
   const [loupe, setLoupe] = useState(null)       // { left, top, hex } magnifier following the cursor
   const artCanvasRef = useRef(null)              // cached CORS-readable canvas of the artwork (natural size)
@@ -762,7 +763,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
           {/* info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '6px 40px 0', gap: 4 }}>
             {E('infoLeft', { fontSize: 11, lineHeight: 1.9 })}
-            {E('infoRight', { fontSize: 11, lineHeight: 1.9 })}
+            {E('infoRight', { fontSize: 11, lineHeight: 1.9, textAlign: 'right' })}
           </div>
 
           {/* item details */}
@@ -905,8 +906,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
               <div style={grpLabel}>Artwork</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Area bg</span>
-                <input type="color" value={/^#[0-9a-f]{6}$/i.test(artBg) ? artBg : '#ffffff'} onChange={(e) => setArtBg(e.target.value)}
-                  title="Set the ITEM DETAILS background to match your artwork" style={{ width: 30, height: 26, padding: 0, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'none' }} />
+                {/* #5 — an eyedropper icon (not a big colour box): pick any colour off the screen
+                    (EyeDropper API), falling back to a hidden native colour input. */}
+                <input ref={artBgInputRef} type="color" value={/^#[0-9a-f]{6}$/i.test(artBg) ? artBg : '#ffffff'} onChange={(e) => setArtBg(e.target.value)} style={{ display: 'none' }} />
+                <button type="button" title="Pick the artwork-area background colour"
+                  onClick={async () => {
+                    if (window.EyeDropper) { try { const { sRGBHex } = await new window.EyeDropper().open(); if (sRGBHex) setArtBg(sRGBHex) } catch { /* cancelled */ } }
+                    else { artBgInputRef.current?.click() }
+                  }}
+                  style={{ width: 28, height: 26, padding: 0, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#333' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 22 1-1h3l9-9" /><path d="M3 21v-3l9-9" /><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" /></svg>
+                </button>
                 {['#ffffff', '#efefef', '#d9d9d9'].map((c) => (
                   <button key={c} type="button" onClick={() => setArtBg(c)} title={c}
                     style={{ width: 22, height: 22, padding: 0, borderRadius: 4, border: artBg === c ? '2px solid var(--gold)' : '1px solid var(--border)', background: c, cursor: 'pointer' }} />
@@ -979,24 +989,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
         )
       })()}
 
-      {/* actions */}
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-        {exportBlocked && <span style={{ alignSelf: 'center', color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
-        <button className="ghost" disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>
-        <button disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>{busy === 'pdf' ? 'Building PDF…' : '⬇ Download PDF'}</button>
-        {toast && <span style={{ alignSelf: 'center', color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
+      {/* actions — full-width so the whole right column is one consistent button size (#6) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+        {exportBlocked && <span style={{ color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
+        <button className="ghost" style={{ width: '100%' }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>
+        <button style={{ width: '100%' }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>{busy === 'pdf' ? 'Building PDF…' : '⬇ Download PDF'}</button>
+        {toast && <span style={{ color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
       </div>
 
       {/* Shopify payment link (S5) — only for users allowed to create links */}
       {canCreatePaymentLinks && quoteId && (
         <div style={{ marginTop: 18, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>💳 Shopify payment link</div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* all three payment options carry the SAME prominent style (#8) — deposit / balance
-                are just as important as full payment, so none is visually demoted */}
-            <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
-            {price > 500 && <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
-            {price > 500 && <button disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Balance (50%)'}</button>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* all three payment options: same prominent style AND same full width (#6/#8) */}
+            <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
+            {price > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
+            {price > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Remaining Balance (50%)'}</button>}
             {price > 0 && price <= 500 && <span className="muted" style={{ fontSize: 12 }}>≤ $500 → full payment only</span>}
           </div>
           {plResult && (
