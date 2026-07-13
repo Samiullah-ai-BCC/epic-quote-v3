@@ -87,6 +87,26 @@ const makeCustomTpl = (name, storedSpec = null) => {
   return { n: N, st: N, mono: true, illum: 'led', mountDef: '', desc: N, customType: true, storedSpec }
 }
 
+// The fields that make up ONE sign part. Company/client/job/payment_link live at the top level
+// of generated_data (shared across every part) — only these are per-part.
+const PART_KEYS = ['quote_type', 'tpl_name', 'tpl_stored_spec', 'custom_spec', 'answers', 'ai',
+  'artwork_path', 'artwork_auto', 'sign_box', 'side_views', 'proposal_notes', 'proposal_state']
+
+// A→Z→AA labels for the parts (rarely past B in practice, but never breaks).
+const partLetter = (i) => {
+  let s = ''
+  do { s = String.fromCharCode(65 + (i % 26)) + s; i = Math.floor(i / 26) - 1 } while (i >= 0)
+  return s
+}
+
+// Lazy-wrap a legacy single-sign generated_data (fields at top level) into one part object,
+// so old quotes and new quotes share exactly one shape from load onward.
+const legacyPartFromGd = (g) => {
+  const p = {}
+  for (const k of PART_KEYS) if (g[k] !== undefined) p[k] = g[k]
+  return p
+}
+
 // Robust AI signType → catalog match: exact → normalized → contains → best token overlap.
 // The model often returns a near-name (e.g. "1\" DEEP RAISED ALUMINUM LETTERS") that isn't
 // verbatim in the catalog; this still snaps it to the closest real sign type.
@@ -123,6 +143,13 @@ export default function Generator() {
 
   const [quote, setQuote] = useState(null)
   const [gd, setGd] = useState(null)            // existing generated_data
+  // A quote is an ORDERED LIST of sign parts (A, B, C…). The wizard's editing hooks below
+  // (tpl/answers/customSpec/artworkPath/sideViews/signBox/proposalNotes) are a scratch buffer
+  // for the ONE part currently being created or edited — `activePart`. `parts` is the persisted
+  // collection; the preview renders every part from it. A legacy single-sign quote lazy-wraps to
+  // parts[0] on load (see the loader), so nothing needs migrating.
+  const [parts, setParts] = useState([])
+  const [activePart, setActivePart] = useState(0)
   const [mode, setMode] = useState(null)        // 'generator' | 'custom'
   const [step, setStep] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -176,17 +203,27 @@ export default function Generator() {
         job_name: g.job_name || q.job_name || '', sales_rep: q.sales_rep || '',
       })
       setSpecial(q.special_requirements || '')
-      if (g.tpl_name) setTpl(T.find((t) => t.n === g.tpl_name) || makeCustomTpl(g.tpl_name, g.tpl_stored_spec || null))
-      setAnswers(g.answers || {})
-      setAi(g.ai || null)
-      setCustomSpec(g.custom_spec || null)
-      if (g.artwork_path) setArtworkPath(g.artwork_path)
-      if (g.sign_box) setSignBox(g.sign_box)
+
+      // Build the parts list: use g.parts when present, else lazy-wrap the legacy top-level bundle
+      // as the single part[0]. The wizard opens on the FIRST part; Add Page appends more later.
+      const loadedParts = (Array.isArray(g.parts) && g.parts.length)
+        ? g.parts
+        : [legacyPartFromGd(g)]
+      setParts(loadedParts)
+      setActivePart(0)
+      const p0 = loadedParts[0] || {}
+
+      if (p0.tpl_name) setTpl(T.find((t) => t.n === p0.tpl_name) || makeCustomTpl(p0.tpl_name, p0.tpl_stored_spec || null))
+      setAnswers(p0.answers || {})
+      setAi(p0.ai || null)
+      setCustomSpec(p0.custom_spec || null)
+      if (p0.artwork_path) setArtworkPath(p0.artwork_path)
+      if (p0.sign_box) setSignBox(p0.sign_box)
       // #10: if no artwork chosen yet but the customer uploaded an image of the sign, use it
       else if (q.customer_pdf && /\.(png|jpe?g|gif|webp|svg)$/i.test(q.customer_pdf)) setArtworkPath(q.customer_pdf)
-      if (g.side_views) setSideViews(g.side_views)
-      if (g.payment_link) setPaymentLink(g.payment_link)
-      setProposalNotes(g.proposal_notes || '')
+      if (p0.side_views) setSideViews(p0.side_views)
+      if (g.payment_link) setPaymentLink(g.payment_link)   // payment link is shared (one link per quote)
+      setProposalNotes(p0.proposal_notes || '')
       getLogo().then((l) => setLogoUrl(l.logo)).catch(() => {})
 
       // Mode comes from the intake choice (?mode=ai|custom) or the persisted quote_type — never re-asked.
@@ -194,16 +231,16 @@ export default function Generator() {
       // CUSTOM, so the AI path is bypassed. Existing AI quotes (quote_type='generator') still open
       // in AI mode, so no data breaks — re-enable by restoring the mode picker below.
       const modeParam = searchParams.get('mode')
-      const resolvedMode = g.quote_type
+      const resolvedMode = g.quote_type || p0.quote_type
         || (modeParam === 'ai' ? 'generator' : 'custom')
       if (resolvedMode) {
         setMode(resolvedMode)
         if (resolvedMode === 'custom') {
-          setStep(g.custom_spec ? 'preview' : 'customspecs')   // straight to the questions
+          setStep(p0.custom_spec ? 'preview' : 'customspecs')   // straight to the questions
         } else {
-          const hasProgress = g.tpl_name && Object.keys(g.answers || {}).length
+          const hasProgress = p0.tpl_name && Object.keys(p0.answers || {}).length
           setStep(hasProgress ? 'preview' : 'project')
-          if (modeParam === 'ai' && !g.ai) setAutoAi(true)      // auto-run extraction once
+          if (modeParam === 'ai' && !p0.ai) setAutoAi(true)      // auto-run extraction once
         }
       }
      } catch (e) {
@@ -258,11 +295,13 @@ export default function Generator() {
     } finally { setCpBusy('') }
   }
 
-  const saveProgress = async (extra = {}) => {
-    const payload = {
-      ...(gd || {}),
+  // Snapshot the wizard hooks into the ACTIVE part's shape. proposal_state is owned by the
+  // Proposal component (it flows in via `extra`), so we keep the part's existing proposal_state
+  // unless a fresh one is supplied. Any part-level key passed in `extra` overrides the hook value.
+  const partFromHooks = (prev = {}, extra = {}) => {
+    const p = {
+      ...prev,
       quote_type: mode,
-      job_name: client.job_name,
       tpl_name: tpl?.n || null,
       tpl_stored_spec: tpl?.storedSpec || null,
       answers,
@@ -270,11 +309,37 @@ export default function Generator() {
       custom_spec: customSpec,
       artwork_path: (artworkPath && !artworkPath.startsWith('blob:') && !artworkPath.startsWith('data:')) ? artworkPath : null,
       side_views: sideViews,
-      payment_link: paymentLink,
+      sign_box: signBox,
       proposal_notes: proposalNotes,
-      ...extra,
+    }
+    for (const k of PART_KEYS) if (extra[k] !== undefined) p[k] = extra[k]
+    return p
+  }
+
+  // Keys in `extra` that belong to the whole quote, not one part.
+  const SHARED_KEYS = ['payment_link', 'job_name']
+
+  const saveProgress = async (extra = {}) => {
+    // fold the live wizard hooks (+ any part-level extra) into the active part; leave the rest as-is
+    const base = parts.length ? parts : [{}]
+    const nextParts = base.map((p, i) => (i === activePart ? partFromHooks(p, extra) : p))
+    const shared = {}
+    for (const k of SHARED_KEYS) if (extra[k] !== undefined) shared[k] = extra[k]
+
+    const payload = {
+      ...(gd || {}),
+      quote_type: mode,
+      job_name: client.job_name,
+      payment_link: paymentLink,
+      parts: nextParts,
+      // Top-level mirror of the FIRST part — the backend's price fallback and readers that
+      // haven't moved to `parts` yet (payment link, quick view) still see a valid single sign.
+      // Removed once every reader iterates parts.
+      ...legacyPartFromGd(nextParts[0] || {}),
+      ...shared,
     }
     await putGenerated(quoteId, payload)
+    setParts(nextParts)
     setGd(payload)
     // refresh dashboard/list so quote_type + price reflect the saved progress
     qc.invalidateQueries({ queryKey: ['quotes'] })
@@ -297,7 +362,7 @@ export default function Generator() {
       setArtworkPath(path)                          // swap to the saved server copy
       // A NEW image must fit fresh: drop the previous artwork crop geometry + sign box, otherwise
       // the old crop window is applied to the new picture and it looks "picked wrong".
-      const ps = gd?.proposal_state
+      const ps = parts[activePart]?.proposal_state
       const cleanPs = ps?.__layout?.artwork
         ? { ...ps, __layout: (() => { const l = { ...ps.__layout }; delete l.artwork; return l })() }
         : ps
@@ -458,7 +523,7 @@ export default function Generator() {
     // proposal state too, else a previously saved __qty silently outranks the field forever (#5)
     const wq = parseInt(customSpec?.qty, 10)
     await saveProgress(Number.isFinite(wq) && wq > 0
-      ? { proposal_state: { ...(gd?.proposal_state || {}), __qty: wq } }
+      ? { proposal_state: { ...(parts[activePart]?.proposal_state || {}), __qty: wq } }
       : {})
     setSaving(false)
     next()
@@ -1076,7 +1141,7 @@ export default function Generator() {
               paymentLink={paymentLink}
               approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
               proposalNotes={proposalNotes}
-              savedState={gd?.proposal_state}
+              savedState={parts[activePart]?.proposal_state}
               sideViews={sideViews}
               signBox={signBox}
               onSideViews={setSideViews}
@@ -1110,7 +1175,7 @@ export default function Generator() {
              paymentLink={paymentLink}
              approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
              proposalNotes={proposalNotes}
-             savedState={gd?.proposal_state}
+             savedState={parts[activePart]?.proposal_state}
              sideViews={sideViews}
              signBox={signBox}
              onSideViews={setSideViews}
