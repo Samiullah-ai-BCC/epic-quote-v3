@@ -44,6 +44,7 @@ Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
     Route::post('quotes/{quote}/revisions/snapshot-image', [App\Http\Controllers\Api\QuoteController::class, 'snapshotImage']);
     Route::post('quotes/{quote}/checkpoints', [App\Http\Controllers\Api\QuoteController::class, 'createCheckpoint']);
     Route::post('quotes/{quote}/checkpoints/{checkpoint}/image', [App\Http\Controllers\Api\QuoteController::class, 'attachCheckpointImage']);
+    Route::post('quotes/{quote}/checkpoints/{checkpoint}/restore', [App\Http\Controllers\Api\QuoteController::class, 'restoreCheckpoint']);
     Route::get('revisions/feed', [App\Http\Controllers\Api\QuoteController::class, 'activityFeed']);
     // (payment-link / confirm-order / pdf-download routes removed — they were never
     //  implemented (501) and had no callers; order state is set via the normal quote

@@ -644,6 +644,38 @@ class QuoteController extends Controller
         ], 201);
     }
 
+    // POST /api/quotes/{quote}/checkpoints/{checkpoint}/restore — revert the quote to how it was
+    // at this checkpoint. Applies the full snapshot of the latest revision folded into it (columns
+    // whitelisted to the tracked set + generated_data). The restore itself goes through save(), so
+    // the observer versions it too — reverting is always reversible.
+    public function restoreCheckpoint(Request $request, Quote $quote, \App\Models\QuoteCheckpoint $checkpoint): JsonResponse
+    {
+        $this->assertAccess($request, $quote);
+        if ($checkpoint->quote_id !== $quote->id) {
+            return response()->json(['error' => 'not found'], 404);
+        }
+        $rev = \App\Models\QuoteRevision::where('quote_id', $quote->id)
+            ->where('checkpoint_id', $checkpoint->id)->latest('created_at')->first()
+            ?? \App\Models\QuoteRevision::where('quote_id', $quote->id)
+                ->where('created_at', '<=', $checkpoint->created_at)->latest('created_at')->first();
+        $snap = $rev?->snapshot;
+        if (!$snap) {
+            return response()->json(['error' => 'This version has no stored snapshot to restore.'], 422);
+        }
+        foreach ((array) ($snap['columns'] ?? []) as $col => $v) {
+            if (array_key_exists($col, \App\Services\RevisionRecorder::COLUMNS)) {   // whitelist only
+                $quote->{$col} = $v;
+            }
+        }
+        if (is_array($snap['generated_data'] ?? null)) {
+            $quote->generated_data = $snap['generated_data'];
+        }
+        $quote->save();
+        ActivityLog::record($request->user()->id, 'version_restored', "{$quote->quote_id}: restored {$checkpoint->label}");
+
+        return response()->json($quote->toApi(includeGenerated: true));
+    }
+
     // POST /api/quotes/{quote}/checkpoints/{checkpoint}/image — attach the rendered proposal image to
     // a checkpoint (used right after a payment mints one server-side).
     public function attachCheckpointImage(Request $request, Quote $quote, \App\Models\QuoteCheckpoint $checkpoint): JsonResponse

@@ -3,9 +3,42 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
 import useAuthStore from '../store/authStore'
 import { fileUrl } from '../api/client'
+import { getRevisions } from '../api/quotes'
 import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
 import AddQuoteModal from '../components/AddQuoteModal'
 import RevisionHistory from '../components/RevisionHistory'
+
+// The rendered proposal image (latest version) shown at the top of the View modal (#7).
+// Pulled from the version history — falls back quietly to nothing when no image exists yet.
+function ViewProposalImage({ quoteId }) {
+  const [img, setImg] = useState(null)
+  const [zoom, setZoom] = useState(false)
+  useEffect(() => {
+    let alive = true
+    setImg(null)
+    getRevisions(quoteId)
+      .then((d) => {
+        if (!alive) return
+        const cps = d?.checkpoints || []
+        setImg(cps.find((c) => c.snapshot_image)?.snapshot_image || null)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [quoteId])
+  if (!img) return null
+  return (
+    <>
+      <img src={img} alt="Latest proposal" onClick={() => setZoom(true)} title="Click to enlarge"
+        style={{ width: '100%', maxHeight: 300, objectFit: 'contain', objectPosition: 'top', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', cursor: 'zoom-in', marginBottom: 12 }} />
+      {zoom && (
+        <div onMouseDown={(e) => { e.stopPropagation(); setZoom(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, cursor: 'zoom-out' }}>
+          <img src={img} alt="Proposal" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 6, background: '#fff' }} />
+        </div>
+      )}
+    </>
+  )
+}
 
 // clean a currency entry to a plain numeric string (digits + one dot)
 const cleanMoney = (s) => {
@@ -334,6 +367,8 @@ export default function AllQuotes() {
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setViewing(null)}>
           <div className="modal">
             <h2>Quote {viewing.quote_id}</h2>
+            {/* the rendered PROPOSAL itself, front and centre (#7) — latest version image */}
+            <ViewProposalImage quoteId={viewing.quote_id} />
             {[
               ['Company', viewing.company_name], ['Client', viewing.client_name],
               ['Phone', viewing.contact], ['Email', viewing.email], ['Address', viewing.address],

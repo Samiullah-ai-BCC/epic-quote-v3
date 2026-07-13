@@ -23,7 +23,7 @@ class RevisionRecorder
     private const MERGE_WINDOW = 0;
 
     /** Tracked quote columns → friendly label. */
-    private const COLUMNS = [
+    public const COLUMNS = [
         'company_name' => 'Company', 'client_name' => 'Client', 'contact' => 'Phone',
         'email' => 'Email', 'address' => 'Address', 'job_name' => 'Job name', 'price' => 'Final price',
         'status' => 'Status', 'assigned_to' => 'Assigned to', 'sales_rep' => 'Sales rep',

@@ -499,6 +499,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   // #7 — the ITEM DETAILS artwork area background, so a grey-background artwork can sit on a
   // matching grey instead of clashing white. Persisted with the proposal state.
   const [artBg, setArtBg] = useState(savedState?.__artBg || '#ffffff')
+  const [hideNotes, setHideNotes] = useState(!!savedState?.__hideNotes)   // #6 — Additional Notes removable
   const artBgInputRef = useRef(null)
   // #6 — align each control group to the vertical position of the proposal section it edits
   const controlsRef = useRef(null)
@@ -576,6 +577,60 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
+
+  // ---- Undo / redo / copy / paste for proposal OBJECTS (#1): geometry + swatches history.
+  // Text blocks keep the browser's native undo (shortcuts are ignored while typing in them). ----
+  const histRef = useRef({ stack: [], idx: -1, silent: false })
+  const selRef = useRef(null); selRef.current = selId
+  const swRef = useRef(swatches); swRef.current = swatches
+  const layRef = useRef(layout); layRef.current = layout
+  const clipRef = useRef(null)
+  useEffect(() => {
+    const h = histRef.current
+    if (h.silent) { h.silent = false; return }
+    h.stack = h.stack.slice(0, h.idx + 1)
+    h.stack.push({ layout, swatches })
+    if (h.stack.length > 80) h.stack.shift()
+    h.idx = h.stack.length - 1
+  }, [layout, swatches])
+  useEffect(() => {
+    if (!mainView) return
+    const applyHist = (dir) => {
+      const h = histRef.current
+      const to = h.idx + dir
+      if (to < 0 || to >= h.stack.length) return
+      h.idx = to
+      // both writes batch into ONE history-effect run — one silent flag covers it
+      h.silent = true
+      setLayout(h.stack[to].layout)
+      setSwatches(h.stack[to].swatches)
+      flash(dir < 0 ? 'Undo' : 'Redo')
+    }
+    const onKey = (e) => {
+      // while typing in any text field/block, the browser's own shortcuts must win
+      if (e.target?.closest?.('[contenteditable], input, textarea, select')) return
+      if (!(e.ctrlKey || e.metaKey)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z') { e.preventDefault(); applyHist(e.shiftKey ? +1 : -1) }
+      else if (k === 'y') { e.preventDefault(); applyHist(+1) }
+      else if (k === 'c') {
+        const id = selRef.current
+        const sw = id?.startsWith('swatch-') ? swRef.current.find((s) => 'swatch-' + s.id === id) : null
+        if (sw) { clipRef.current = { type: 'swatch', data: { ...sw } }; flash('Swatch copied — Ctrl+V to paste') }
+      } else if (k === 'v') {
+        const clip = clipRef.current
+        if (clip?.type === 'swatch') {
+          e.preventDefault()
+          const id = 'sw' + Date.now()
+          setSwatches((arr) => [...arr, { ...clip.data, id, keep: true, moved: true, x: clip.data.x + 14, y: clip.data.y + 14 }])
+          setSelId('swatch-' + id)
+          flash('Swatch pasted')
+        }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mainView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // fit the fixed 816px page into the available column width (keeps full-res for PDF)
   useEffect(() => {
@@ -711,7 +766,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   const dirtyRef = useRef(new Set(savedState?.__dirty || []))
 
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name), __dirty: [...dirtyRef.current], __specTpl: tpl?.n || null, __artBg: artBg, __qty: qty, __items: items }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name), __dirty: [...dirtyRef.current], __specTpl: tpl?.n || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -730,7 +785,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
-  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = pageRef.current; if (!el) return
     const h = (e) => {
@@ -1101,8 +1156,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
             <div style={{ borderRight: '1px solid #777' }}>
               <div data-sec="specs" style={secHead}>SPECIFICATIONS</div>
               {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', minHeight: specLong ? 255 : 215, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: '1px solid #777' })}
-              {!specLong && <>
-                <div style={secHead}>ADDITIONAL NOTES</div>
+              {!specLong && !hideNotes && <>
+                <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
+                  {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
+                  <span className="adj-ui" title="Remove the Additional Notes section"
+                    onMouseDown={(e) => { e.preventDefault(); setHideNotes(true) }}
+                    style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, background: '#fff', border: '1.5px solid #e05661', borderRadius: '50%', color: '#e05661', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</span>
+                </div>
                 {E('notes', { fontSize: 10.5, padding: '8px 12px', minHeight: 40, outline: 'none' })}
               </>}
             </div>
@@ -1330,6 +1390,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                   if (el) { el.innerHTML = sanitizeHtml(specHTML); queueSave(); flash('Spec text rebuilt from the current answers.') }
                 }}
               >↻ Rebuild spec text</button>
+              {hideNotes && (
+                <button type="button" className="ghost" style={{ width: '100%', marginTop: 8 }}
+                  title="Bring the Additional Notes section back" onClick={() => setHideNotes(false)}>+ Notes</button>
+              )}
             </div>
 
             {/* SIDE VIEW — aligned to the SIDE VIEW section */}

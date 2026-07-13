@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getRevisions } from '../api/quotes'
+import { getRevisions, restoreCheckpoint } from '../api/quotes'
 import { timeAgo, fullTime } from '../utils/timeAgo'
 
 /* Airtable-style version history for one quote. Changes are grouped under CHECKPOINTS
@@ -11,6 +11,21 @@ export default function RevisionHistory({ quoteId, onClose }) {
   const [data, setData] = useState(null)   // { checkpoints:[], pending:[] }
   const [error, setError] = useState('')
   const [zoom, setZoom] = useState(null)
+  const [restoring, setRestoring] = useState(null)   // checkpoint id being restored
+
+  // #8 — revert the quote to this version. Two-step (confirm) because it rewrites the live quote;
+  // the restore itself is versioned server-side, so even a wrong restore can be undone the same way.
+  const doRestore = async (cp) => {
+    if (!window.confirm(`Restore ${quoteId} to "${cp.label}"?\n\nThe live quote (fields + proposal) will be rewritten to exactly how it was at this version. The restore is recorded in history, so it can itself be reverted.`)) return
+    setRestoring(cp.id)
+    try {
+      await restoreCheckpoint(quoteId, cp.id)
+      window.location.reload()   // every open view (grid, proposal) must show the restored state
+    } catch (e) {
+      setError(e?.response?.data?.error || 'Restore failed.')
+      setRestoring(null)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -85,9 +100,15 @@ export default function RevisionHistory({ quoteId, onClose }) {
                   <span className="badge" style={{ fontSize: 10.5 }}>{cp.trigger === 'payment' ? 'payment' : 'manual'}</span>
                   <span className="muted" style={{ fontSize: 11.5 }} title={fullTime(cp.created_at)}>{timeAgo(cp.created_at)}</span>
                 </div>
-                {cp.snapshot_image
-                  ? <button className="ghost sm" onClick={() => setZoom(cp.snapshot_image)} title="View the proposal at this version">🖼 View proposal</button>
-                  : <span className="muted" style={{ fontSize: 11.5 }}>no image</span>}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {cp.snapshot_image
+                    ? <button className="ghost sm" onClick={() => setZoom(cp.snapshot_image)} title="View the proposal at this version">🖼 View proposal</button>
+                    : <span className="muted" style={{ fontSize: 11.5 }}>no image</span>}
+                  <button className="ghost sm" disabled={!!restoring} onClick={() => doRestore(cp)}
+                    title="Revert the quote to exactly how it was at this version">
+                    {restoring === cp.id ? 'Restoring…' : '↩ Restore'}
+                  </button>
+                </div>
               </div>
               {cp.changes.length === 0
                 ? <div className="muted" style={{ fontSize: 12, paddingLeft: 12 }}>No changes in this version.</div>

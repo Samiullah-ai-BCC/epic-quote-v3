@@ -57,6 +57,10 @@ export const createCheckpoint = (quoteId, image = null) =>
 export const attachCheckpointImage = (quoteId, checkpointId, dataUrl) =>
   client.post(`/quotes/${quoteId}/checkpoints/${checkpointId}/image`, { image: dataUrl }).then((r) => r.data)
 
+// Revert the quote to how it was at a checkpoint (the restore itself is versioned too).
+export const restoreCheckpoint = (quoteId, checkpointId) =>
+  client.post(`/quotes/${quoteId}/checkpoints/${checkpointId}/restore`).then((r) => r.data)
+
 // Airtable-style activity feed: one row per quote with its latest change + rendered image.
 export const getActivityFeed = () =>
   client.get('/revisions/feed').then((r) => r.data)

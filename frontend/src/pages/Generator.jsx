@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs, createCheckpoint } from '../api/quotes'
+import { getQuote, updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs, createCheckpoint, deleteQuote } from '../api/quotes'
 import { getLogo } from '../api/meta'
 import { useConstants } from '../hooks'
 import useAuthStore from '../store/authStore'
@@ -143,6 +143,7 @@ export default function Generator() {
   const [logo, setLogoUrl] = useState(null)
   const [signSearch, setSignSearch] = useState('')
   const [signGroup, setSignGroup] = useState(null)   // #5 — selected main category (two-level picker)
+  const [exitAsk, setExitAsk] = useState(false)      // #3 — "save or delete?" ask when leaving the proposal
   const [customType, setCustomType] = useState('')   // free-typed sign type (not in the catalog)
   const [signLib, setSignLib] = useState([])          // team's saved custom sign types (shared, both modes)
   const [customTypeSel, setCustomTypeSel] = useState('')  // dropdown selection on the custom-specs page
@@ -451,7 +452,12 @@ export default function Generator() {
   const saveNext = async () => {
     setSaving(true)
     try { await updateQuote(quoteId, { special_requirements: special }) } catch { /* non-fatal */ }
-    await saveProgress()
+    // the wizard's Quantity is authoritative when you pass THROUGH the wizard — push it into the
+    // proposal state too, else a previously saved __qty silently outranks the field forever (#5)
+    const wq = parseInt(customSpec?.qty, 10)
+    await saveProgress(Number.isFinite(wq) && wq > 0
+      ? { proposal_state: { ...(gd?.proposal_state || {}), __qty: wq } }
+      : {})
     setSaving(false)
     next()
   }
@@ -487,14 +493,38 @@ export default function Generator() {
           : `OVERALL DIMENSIONS: ${dims}\n` + specText
       }
       // depth (the D box) drives the construction depth lines: keep any suffix text
-      // (RETURNS: 3" DEEP ALUMINUM → RETURNS: 5" DEEP ALUMINUM)
-      if (part === 'h' && p.h) {
+      // (RETURNS: 3" DEEP ALUMINUM → RETURNS: 5" DEEP ALUMINUM). Synced on EVERY dim edit —
+      // not just when D itself changes — so a template default can never linger out of step.
+      if (p.h) {
         specText = specText
           .replace(/^(RETURNS?\s*:\s*)(?:[\d.\/]+["”]\s*)?/im, `$1${p.h}" `)
           .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
       }
       return { ...cs, dims, specText }
     })
+  }
+
+  // Picking a sign type prefills its template spec — that template must immediately inherit the
+  // dims/depth/application ALREADY typed (the "RETURNS: 3 while depth is 1" flaw): the boxes are
+  // the source of truth, the template only supplies the missing lines.
+  const syncSpecFromFields = (specText, cs) => {
+    const p = parseDims(cs?.dims)
+    const dims = composeDims(p.l, p.w, p.h)
+    let s = specText || ''
+    if (dims.trim()) {
+      s = /^(.*DIMENSIONS[^:]*):.*$/im.test(s)
+        ? s.replace(/^(.*DIMENSIONS[^:]*):.*$/im, `$1: ${dims}`)
+        : (/^SIGN TYPE\s*:.*$/im.test(s) ? s.replace(/^(SIGN TYPE\s*:.*)$/im, `$1\nOVERALL DIMENSIONS: ${dims}`) : `OVERALL DIMENSIONS: ${dims}\n` + s)
+    }
+    if (p.h) {
+      s = s.replace(/^(RETURNS?\s*:\s*)(?:[\d.\/]+["”]\s*)?/im, `$1${p.h}" `)
+           .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
+    }
+    const app = cs?.application
+    if (app) {
+      s = /^APPLICATION\s*:.*$/im.test(s) ? s.replace(/^(APPLICATION\s*:\s*).*$/im, `$1${app}`) : s
+    }
+    return s
   }
 
   // the interior/exterior choice must land in the spec's APPLICATION line too (#6)
@@ -570,17 +600,35 @@ export default function Generator() {
 
   return (
     <>
-      {/* top-left wizard controls — Back + Save & Return on every step (#4) */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-        <button className="ghost sm" onClick={back}>← Back</button>
-        <button className="ghost sm" onClick={saveAndReturn} disabled={saving}>{saving ? 'Saving…' : '💾 Save & Return'}</button>
-        {step === 'preview' && (
-          <button className="ghost sm" onClick={saveCheckpoint} disabled={!!cpBusy || saving} title="Save the current proposal as a version (rev) with an image">
-            {cpBusy ? 'Saving version…' : '📌 Save checkpoint'}
-          </button>
-        )}
-        {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
-      </div>
+      {/* wizard controls: on ordinary steps a slim top bar; on the PREVIEW step the buttons move
+          right above the proposal itself (#2) — rendered inside that step below. */}
+      {step !== 'preview' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+          <button className="ghost sm" onClick={back}>← Back</button>
+          <button className="ghost sm" onClick={saveAndReturn} disabled={saving}>{saving ? 'Saving…' : '💾 Save & Return'}</button>
+        </div>
+      )}
+
+      {/* Back on the proposal asks what to do with the quote (#3): keep it or delete it entirely */}
+      {exitAsk && (
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setExitAsk(false)}>
+          <div className="modal" style={{ width: 420 }}>
+            <h2 style={{ marginTop: 0 }}>Leave this quote?</h2>
+            <p className="muted" style={{ fontSize: 13.5 }}>Save it (everything is kept, you can come back any time){admin ? ', or delete the quote entirely — this cannot be undone' : ''}.</p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+              <button disabled={saving} onClick={async () => { setExitAsk(false); await saveAndReturn() }}>💾 Save &amp; leave</button>
+              {admin && (
+                <button className="ghost" style={{ color: '#e5484d', borderColor: '#e5484d' }} disabled={saving}
+                  onClick={async () => {
+                    try { await deleteQuote(quoteId); qc.invalidateQueries({ queryKey: ['quotes'] }); navigate('/quotes') }
+                    catch (e) { alert(e?.response?.data?.error || 'Could not delete the quote.') }
+                  }}>🗑 Delete quote</button>
+              )}
+              <button className="ghost" onClick={() => setExitAsk(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="page-head">
         <div>
           <h1>{mode === 'custom' ? 'Custom Quote Creator' : 'Quote Generator'}</h1>
@@ -853,9 +901,12 @@ export default function Generator() {
                   if (v === '' || v === '__new__') return
                   const cat = T.find((t) => t.n === v)
                   const stored = signLib.find((s) => s.name === v)
-                  const specText = cat
-                    ? buildSpecLines(cat, {}, null).join('\n')
-                    : (stored?.data?.spec || `SIGN TYPE: ${v}`)
+                  // the template inherits whatever dims/depth/application are already typed —
+                  // the boxes are the source of truth (fixes RETURNS not matching the D box)
+                  const specText = syncSpecFromFields(
+                    cat ? buildSpecLines(cat, {}, null).join('\n') : (stored?.data?.spec || `SIGN TYPE: ${v}`),
+                    customSpec
+                  )
                   // the sign type implies its construction side view — pick it automatically
                   // (same curated map the AI mode uses); the rep can still change it on the proposal
                   if (cat && sideViews.length === 0) {
@@ -967,6 +1018,18 @@ export default function Generator() {
         {step === 'preview' && (
           <div className="step">
             <h3>Proposal</h3>
+            {/* the wizard controls live right above the proposal (#2). "Done" saves a version
+                (rev) with the rendered image (#4); Back asks save-or-delete (#3). */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button className="ghost sm" onClick={() => setExitAsk(true)}>← Back</button>
+              <button className="ghost sm" onClick={() => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : null)} title="Go back to the wizard steps (specs, artwork) without leaving">✎ Edit specs</button>
+              <button className="ghost sm" onClick={saveAndReturn} disabled={saving}>{saving ? 'Saving…' : '💾 Save & Return'}</button>
+              <button className="sm" onClick={saveCheckpoint} disabled={!!cpBusy || saving}
+                title="Finish this version: saves a checkpoint (rev) with the rendered proposal image">
+                {cpBusy ? 'Saving version…' : '✓ Done'}
+              </button>
+              {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
+            </div>
             <Proposal
               ref={proposalRef}
               mode={mode}
