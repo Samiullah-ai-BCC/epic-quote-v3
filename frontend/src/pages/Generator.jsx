@@ -304,7 +304,7 @@ export default function Generator() {
     try {
       await saveProgress()   // ensure the latest edits are recorded as changes before the checkpoint
       let img = null
-      try { img = await proposalRef.current?.captureSnapshot?.() } catch { /* image optional */ }
+      try { img = await captureAllPages() } catch { /* image optional */ }   // whole quote (all signs)
       const cp = await createCheckpoint(quoteId, img)
       setCpMsg('Saved ' + (cp?.label || 'checkpoint'))
       setTimeout(() => setCpMsg(''), 4000)
@@ -421,6 +421,31 @@ export default function Generator() {
       if (el?.captureCleanImage) { try { imgs.push(await el.captureCleanImage()) } catch { /* skip a bad page */ } }
     }
     return imgs
+  }
+
+  // The WHOLE quote as one image for the version history: each page's full snapshot (last page
+  // carries the total) stacked vertically with a grey gap between pages, so a multi-sign version
+  // reads as the complete document. A single-sign quote just returns its one page.
+  const captureAllPages = async () => {
+    const shots = []
+    for (const p of parts) {
+      const el = pageRefs.current[p.__pid]
+      if (el?.captureSnapshot) { try { shots.push(await el.captureSnapshot()) } catch { /* skip */ } }
+    }
+    if (shots.length <= 1) return shots[0] || null
+    const imgs = (await Promise.all(shots.map((src) => new Promise((res) => {
+      const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src
+    })))).filter(Boolean)
+    if (!imgs.length) return null
+    const GAP = 26
+    const w = Math.max(...imgs.map((im) => im.width))
+    const h = imgs.reduce((s, im) => s + im.height, 0) + GAP * (imgs.length - 1)
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h
+    const ctx = cv.getContext('2d')
+    ctx.fillStyle = '#e9edf3'; ctx.fillRect(0, 0, w, h)   // grey between pages = page separators
+    let y = 0
+    for (const im of imgs) { ctx.drawImage(im, Math.round((w - im.width) / 2), y); y += im.height + GAP }
+    return cv.toDataURL('image/png')
   }
 
   // Load a saved part into the wizard hooks (so the wizard / Edit specs edits THAT part).
@@ -1285,6 +1310,7 @@ export default function Generator() {
                       quoteTotal={multi ? grandTotal : null}
                       collectImages={multi ? collectPartImages : null}
                       linkTitle={multi ? linkTitle : null}
+                      captureAll={multi ? captureAllPages : null}
                       canCreatePaymentLinks={canCreatePaymentLinks}
                       onPaymentLinkCreated={(url) => savePaymentLink(url)}
                       artworkPath={p.artwork_path}
