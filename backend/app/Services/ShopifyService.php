@@ -172,6 +172,33 @@ class ShopifyService
         }
     }
 
+    /** Flip a product to the "Unlisted" status (#1): sellable via its direct link but hidden from
+     *  search / collections / channels. This status only exists in GraphQL (ProductStatus.UNLISTED)
+     *  — REST's status enum is active/draft/archived — so we PATCH it right after the REST create.
+     *  Best-effort: on failure the product stays Active (still payable), just listed. */
+    public static function setUnlisted(string $productId): bool
+    {
+        if (!self::configured() || $productId === '') {
+            return false;
+        }
+        $domain  = self::domain();
+        $version = config('services.shopify.version', '2025-01');
+        $gid = 'gid://shopify/Product/'.$productId;
+        // inline the UNLISTED enum literal; only the id is a variable
+        $query = 'mutation($id: ID!) { productUpdate(product: { id: $id, status: UNLISTED }) '
+               .'{ product { id status } userErrors { field message } } }';
+        try {
+            $resp = Http::timeout(15)->withHeaders([
+                'X-Shopify-Access-Token' => config('services.shopify.token'), 'Content-Type' => 'application/json',
+            ])->post("https://{$domain}/admin/api/{$version}/graphql.json", ['query' => $query, 'variables' => ['id' => $gid]]);
+            return $resp->successful()
+                && empty($resp->json('data.productUpdate.userErrors'))
+                && $resp->json('data.productUpdate.product.status') === 'UNLISTED';
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     /** Turn tracking OFF for a variant (safety fallback: a product whose stock we couldn't set
      *  must stay payable, not read "sold out"). Best-effort. */
     public static function untrackVariant(string $variantId): void

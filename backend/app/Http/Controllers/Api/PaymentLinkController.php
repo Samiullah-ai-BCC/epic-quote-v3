@@ -91,6 +91,8 @@ class PaymentLinkController extends Controller
                 ShopifyService::untrackVariant($variant['id']);
             }
         }
+        // Flip Active → Unlisted (#1): sellable via the link, hidden from the catalog. Best-effort.
+        ShopifyService::setUnlisted($result['product_id']);
 
         $gd = $quote->generated_data ?: [];
         $link = PaymentLink::create([

@@ -24,10 +24,14 @@ it('makes a single Balance variant at half', function () {
     expect($v[0]['price'])->toBe('1750.00');
 });
 
-it('keeps every variant always purchasable (never blocked by stock)', function () {
+it('tracks inventory and makes each variant a one-time purchase (1 in stock, deny)', function () {
     foreach (['full', 'deposit', 'balance'] as $kind) {
-        expect(ShopifyService::variantsFor(1000.0, $kind)[0]['inventory_policy'])->toBe('continue');
+        $v = ShopifyService::variantsFor(1000.0, $kind)[0];
+        expect($v['inventory_management'])->toBe('shopify');   // tracked
+        expect($v['inventory_policy'])->toBe('deny');          // sold out after one purchase
     }
+    // the stock is set to 1 at the US location after create; if that fails the controller
+    // untracks the variant so it can never become an unpayable "sold out".
 });
 
 it('rounds a 50% amount to cents', function () {
