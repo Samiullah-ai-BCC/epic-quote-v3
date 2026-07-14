@@ -508,6 +508,14 @@ export default function Generator() {
     setStep(mode === 'custom' ? 'customspecs' : 'signtype')
   }
 
+  // #9 — open the full wizard spec editor (sign type picker, dims, price, spec text) for ONE page:
+  // make it the active part, load it into the hooks, and jump to the spec step.
+  const editPart = (i) => {
+    setActivePart(i)
+    loadPartIntoHooks(partsRef.current[i] || {})
+    setStep(mode === 'custom' ? 'customspecs' : 'signtype')
+  }
+
   // Delete one page (only offered when >1). Letters (A/B/…) are index-derived, so they resync
   // automatically; the active part is clamped and reloaded so the wizard stays coherent.
   const deletePage = async (i) => {
@@ -1319,13 +1327,21 @@ export default function Generator() {
                 const pageKey = `${p.__pid}|${multi ? partLetter(i) : 's'}|${isLast ? 'L' : '_'}`
                 return (
                   <div key={pageKey} style={{ position: 'relative' }}>
-                    {multi && (
-                      <button className="ghost sm" onClick={() => deletePage(i)} disabled={saving}
-                        title={`Delete sign page ${partLetter(i)}`}
-                        style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, color: '#e05661', borderColor: '#e05661' }}>
-                        🗑 Delete page {partLetter(i)}
+                    {/* per-page controls (#9): each sign page gets its OWN "Edit specs" (opens the
+                        full wizard spec editor for THAT sign) and, when >1, a delete button. */}
+                    <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 6 }}>
+                      <button className="ghost sm" onClick={() => editPart(i)} disabled={saving}
+                        title={`Edit the sign type & specifications of page ${multi ? partLetter(i) : ''}`.trim()}>
+                        ✎ Edit specs{multi ? ' ' + partLetter(i) : ''}
                       </button>
-                    )}
+                      {multi && (
+                        <button className="ghost sm" onClick={() => deletePage(i)} disabled={saving}
+                          title={`Delete sign page ${partLetter(i)}`}
+                          style={{ color: '#e05661', borderColor: '#e05661' }}>
+                          🗑 Delete page {partLetter(i)}
+                        </button>
+                      )}
+                    </div>
                     <Proposal
                       ref={(el) => { pageRefs.current[p.__pid] = el; if (isLast) proposalRef.current = el }}
                       mode={p.quote_type || mode}

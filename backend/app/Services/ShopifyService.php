@@ -83,15 +83,20 @@ class ShopifyService
             : self::titleCase($itemDesc);
         $title = trim($quote->quote_id.' - '.$baseTitle.' - '.self::kindLabel($kind));
 
+        // Category (#3): "LED Signs" if ANY sign is illuminated/LED, else "Business Signs". The
+        // true Shopify standard-category column is a taxonomy field REST can't set — we put the
+        // label in a tag (so it's visible/filterable) and set product_type per the team's rule.
+        $category = self::signCategory($gd, $signType);
+
         $product = [
             'title'          => $title,
             // Show the sign SPECS beneath the "Pay now" CTA (#9), not a bare sign-type tag.
             'body_html'      => self::specsHtml($gd, $signType),
             'vendor'         => 'EpicCraftings',
-            'product_type'   => $signType ?: 'Sign',
+            'product_type'   => 'Custom Business Signs',   // always, per the team's convention (#3)
             'status'         => 'active',                 // purchasable
             'published_scope' => 'web',                   // Online Store
-            'tags'           => 'estimator,'.$quote->quote_id.','.$kind,
+            'tags'           => 'estimator,'.$quote->quote_id.','.$kind.','.$category,
             // random handle suffix → the URL is unguessable (privacy): someone can't just
             // increment the quote number to find another customer's link.
             'handle'         => \Illuminate\Support\Str::slug($title).'-'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8)),
@@ -132,15 +137,43 @@ class ShopifyService
         return [['price' => $price($amount)] + $base];
     }
 
-    /** Build the storefront product description (#9): the sign specs, shown under the CTA. */
+    /** Build the storefront product description: the sign specs shown under the CTA. On a multi-
+     *  sign quote this concatenates EVERY sign's specs (A, B, C…), each under its own heading —
+     *  not just the first sign (#10). Falls back to the sign type when a part has no spec text. */
     public static function specsHtml(array $gd, string $signType = ''): string
     {
-        $specs = trim((string) ($gd['custom_spec']['specText'] ?? ($gd['ai']['fullSpec'] ?? '')));
-        if ($specs === '') {
-            return e($signType);   // fall back to the sign type when there's no spec text yet
+        $partOf = function (array $p, string $fallbackType): string {
+            $specs = trim((string) ($p['custom_spec']['specText'] ?? ($p['ai']['fullSpec'] ?? '')));
+            return $specs !== '' ? nl2br(e($specs)) : e($fallbackType);
+        };
+
+        $parts = (isset($gd['parts']) && is_array($gd['parts']) && $gd['parts'] !== []) ? $gd['parts'] : null;
+        if (!$parts) {
+            return $partOf($gd, $signType);   // legacy single sign
         }
-        // Preserve line breaks; escape everything (no HTML injection from user-entered specs).
-        return nl2br(e($specs));
+        if (count($parts) === 1) {
+            return $partOf($parts[0], $parts[0]['tpl_name'] ?? $signType);
+        }
+        // multiple signs → one titled block per sign
+        $blocks = [];
+        foreach ($parts as $i => $p) {
+            $letter = chr(65 + $i);                       // A, B, C…
+            $name = trim((string) ($p['custom_spec']['itemDesc'] ?? $p['tpl_name'] ?? ('Sign '.$letter)));
+            $blocks[] = '<h4>'.e($name !== '' ? $name : ('Sign '.$letter)).'</h4>'.$partOf($p, $p['tpl_name'] ?? '');
+        }
+        return implode('<hr>', $blocks);
+    }
+
+    /** "LED Signs" when any sign is illuminated / LED, else "Business Signs" (#3). Reads the sign
+     *  type + spec text of every part. */
+    public static function signCategory(array $gd, string $signType = ''): string
+    {
+        $parts = (isset($gd['parts']) && is_array($gd['parts']) && $gd['parts'] !== []) ? $gd['parts'] : [$gd];
+        $haystack = $signType;
+        foreach ($parts as $p) {
+            $haystack .= ' '.($p['tpl_name'] ?? '').' '.($p['custom_spec']['specText'] ?? '').' '.($p['ai']['fullSpec'] ?? '');
+        }
+        return preg_match('/\b(LED|ILLUMINAT|NEON|LIT)\b/i', $haystack) ? 'LED Signs' : 'Business Signs';
     }
 
     /** Human label for a payment kind (goes in the title + variant). */

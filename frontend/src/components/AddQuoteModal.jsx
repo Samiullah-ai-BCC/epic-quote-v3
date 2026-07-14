@@ -131,7 +131,10 @@ export default function AddQuoteModal({ onClose }) {
   const submit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!form.company_name.trim()) return setError('Company Name is required.')
+    // At least ONE of Company / Client is required — either is fine (#7).
+    if (!form.company_name.trim() && !form.client_name.trim()) return setError('Enter a Company Name or a Client Name (at least one).')
+    // Job Name is required (#6).
+    if (!form.job_name.trim()) return setError('Job Name is required.')
     // Sales rep is optional (#13): blank = N/A (shared quote). Payment links are created
     // later from the proposal via Shopify — they're never pasted in at intake anymore.
 
@@ -173,7 +176,7 @@ export default function AddQuoteModal({ onClose }) {
   const extractedFields = (
     <>
       <div className="field">
-        <label>Company Name {choice === 'ai' && <span className="muted" style={{ fontWeight: 400 }}>(the sign company on the drawing)</span>}</label>
+        <label>Company Name <span className="muted" style={{ fontWeight: 400 }}>(Company or Client required)</span>{choice === 'ai' && <span className="muted" style={{ fontWeight: 400 }}> — the sign company on the drawing</span>}</label>
         <input list="company-suggestions" placeholder="Start typing — repeat customers autofill" value={form.company_name} onChange={onCompanyChange} />
         <datalist id="company-suggestions">
           {companyHits.map((c) => <option key={c.name} value={c.name} />)}
@@ -196,12 +199,12 @@ export default function AddQuoteModal({ onClose }) {
         )}
       </div>
       <div className="grid2">
-        <div className="field"><label>Client Name</label><input value={form.client_name} onChange={set('client_name')} /></div>
+        <div className="field"><label>Client Name <span className="muted" style={{ fontWeight: 400 }}>(Company or Client required)</span></label><input value={form.client_name} onChange={set('client_name')} /></div>
         <div className="field"><label>Phone</label><input inputMode="tel" placeholder="digits only" value={form.contact} onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value.replace(/[^0-9()+\-.\s]/g, '') }))} /></div>
       </div>
       <div className="field"><label>Email</label><input type="email" placeholder="name@company.com" value={form.email} onChange={set('email')} /></div>
       <div className="field"><label>Address</label><input value={form.address} onChange={set('address')} /></div>
-      <div className="field"><label>Job Name</label><input value={form.job_name} onChange={set('job_name')} /></div>
+      <div className="field"><label>Job Name <span className="muted" style={{ fontWeight: 400 }}>(required)</span></label><input value={form.job_name} onChange={set('job_name')} /></div>
       <div className="field">
         <label>Where did this quote come from?</label>
         <select value={form.quote_source} onChange={set('quote_source')}>

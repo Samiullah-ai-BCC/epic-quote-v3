@@ -281,19 +281,30 @@ function AdjDim({ rk, lay, onLay, scaleRef, selected, onSelect, onRemove }) {
 // Editable block: content is written ONCE on mount, imperatively — never through props.
 // (Passing dangerouslySetInnerHTML makes React re-apply the ORIGINAL html on every re-render,
 // erasing whatever the user typed the moment anything else updates — e.g. the "Saved" toast.)
-function EBlock({ k, html, style, noPaste }) {
+// A paste event that carries an image (files, or an image/* clipboard item).
+const pasteHasImage = (e) => {
+  const dt = e.clipboardData || e.dataTransfer
+  if (!dt) return false
+  if (dt.files && dt.files.length && [...dt.files].some((f) => f.type.startsWith('image/'))) return true
+  if (dt.items && [...dt.items].some((it) => it.kind === 'file' && it.type.startsWith('image/'))) return true
+  return false
+}
+
+function EBlock({ k, html, style, noPaste, noImagePaste }) {
   const ref = useRef(null)
   const first = useRef(true)
   useEffect(() => {
     // sanitize before it touches the DOM — block content is untrusted (hand-edited + server round-trip)
     if (first.current && ref.current) { ref.current.innerHTML = sanitizeHtml(html); first.current = false }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // noPaste: block ALL paste (spec text — sensitive). noImagePaste: block only IMAGE paste/drop
+  // (additional notes — text is fine, pasted images are not). Both also block image drops.
+  const onPaste = (e) => { if (noPaste || (noImagePaste && pasteHasImage(e))) e.preventDefault() }
+  const onDrop = (e) => { if (noPaste || (noImagePaste && pasteHasImage(e))) e.preventDefault() }
   return (
     <div ref={ref} data-key={k} contentEditable suppressContentEditableWarning
-      // spec text is sensitive: pasting into it is blocked (typed edits still allowed). Additional
-      // notes stay pasteable. Blocks paste + drag-drop of text.
-      onPaste={noPaste ? (e) => { e.preventDefault(); } : undefined}
-      onDrop={noPaste ? (e) => { e.preventDefault(); } : undefined}
+      onPaste={(noPaste || noImagePaste) ? onPaste : undefined}
+      onDrop={(noPaste || noImagePaste) ? onDrop : undefined}
       spellCheck lang="en-US" style={{ outline: 'none', ...style }} />
   )
 }
@@ -523,16 +534,38 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   // Add a chip to the RIGHT of the existing ones, on the same row (auto-aligned).
   // With no existing chips (custom mode has no seeded colour lines), start inside the
   // SPECIFICATIONS block instead of floating over the item table.
-  // Colour chips must NEVER overlap: nudge chip `id` right until its box clears every other chip.
+  // Visible TEXT runs on the page (spec lines, item description, notes) in unscaled page coords —
+  // swatches must not cover them (#8). Measured on demand at drag/add time.
+  const textObstacles = () => {
+    const page = pageRef.current; if (!page) return []
+    const sc = scaleRef.current || 1
+    const pr = page.getBoundingClientRect()
+    const rects = []
+    page.querySelectorAll('[data-key="specBody"], [data-key="itemDesc"], [data-key="notes"]').forEach((el) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let n
+      while ((n = walker.nextNode())) {
+        if (!n.textContent.trim()) continue
+        const rng = document.createRange(); rng.selectNodeContents(n)
+        for (const r of rng.getClientRects()) {
+          if (r.width < 4 || r.height < 4) continue
+          rects.push({ x: (r.left - pr.left) / sc, y: (r.top - pr.top) / sc, w: r.width / sc, h: r.height / sc })
+        }
+      }
+    })
+    return rects
+  }
+  // Colour chips must NEVER overlap another chip OR proposal text: nudge chip `id` right until its
+  // box clears every obstacle.
   const resolveOverlap = (arr, id) => {
     const me = arr.find((s) => s.id === id); if (!me) return arr
-    const others = arr.filter((s) => s.id !== id)
+    const obstacles = [...arr.filter((s) => s.id !== id), ...textObstacles()]
     const hits = (x, o) => x < o.x + o.w && x + me.w > o.x && me.y < o.y + o.h && me.y + me.h > o.y
     let x = me.x, guard = 0
-    while (guard++ < 60) {
-      const clash = others.find((o) => hits(x, o))
+    while (guard++ < 120) {
+      const clash = obstacles.find((o) => hits(x, o))
       if (!clash) break
-      x = clash.x + clash.w + 8   // sit just to the right of whatever it collided with
+      x = Math.round(clash.x + clash.w + 8)   // sit just to the right of whatever it collided with
     }
     return x === me.x ? arr : arr.map((s) => (s.id === id ? { ...s, x } : s))
   }
@@ -844,7 +877,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   }, [])
 
   // editable block — content written once at mount (see EBlock) so React can NEVER clobber edits
-  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} />
+  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} noImagePaste={opts?.noImagePaste} />
   // when the SPECIFICATIONS run long, drop ADDITIONAL NOTES so the proposal stays on one page (#17)
   const specLong = (initial.specBody || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length > 520
 
@@ -1078,26 +1111,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
     setBusy('png')
     try {
-      // every sign page (multi) → ONE stitched PNG; single sign → just this page
+      // one PNG file PER sign page (#4) — a multi-sign quote downloads several images, each a
+      // single page; a single-sign quote downloads its one page.
       const pages = capturePages ? await capturePages() : [await captureExport()]
-      let href
-      if (pages.length <= 1) {
-        href = pages[0].url
-      } else {
-        const imgs = (await Promise.all(pages.map((p) => loadImg(p.url)))).filter(Boolean)
-        const GAP = Math.round(HD_SCALE * 10)
-        const W = Math.max(...imgs.map((im) => im.width))
-        const H = imgs.reduce((s, im) => s + im.height, 0) + GAP * (imgs.length - 1)
-        const cv = document.createElement('canvas'); cv.width = W; cv.height = H
-        const ctx = cv.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
-        let y = 0
-        for (const im of imgs) { ctx.drawImage(im, Math.round((W - im.width) / 2), y); y += im.height + GAP }
-        href = cv.toDataURL('image/png')
-      }
-      const a = document.createElement('a')
-      a.download = `${info.quoteId || 'quote'}.png`
-      a.href = href; a.click()
-      flash('PNG downloaded')
+      const multiPages = pages.length > 1
+      pages.forEach((p, i) => {
+        const a = document.createElement('a')
+        a.download = `${info.quoteId || 'quote'}${multiPages ? '-' + String.fromCharCode(65 + i) : ''}.png`
+        a.href = p.url; a.click()
+      })
+      flash(multiPages ? `${pages.length} PNGs downloaded` : 'PNG downloaded')
     } catch (e) { flash('PNG failed: ' + e.message) } finally { setBusy('') }
   }
 
@@ -1304,7 +1327,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                     onMouseDown={(e) => { e.preventDefault(); setHideNotes(true) }}
                     style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, background: '#fff', border: '1.5px solid #e05661', borderRadius: '50%', color: '#e05661', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</span>
                 </div>
-                {E('notes', { fontSize: 10.5, padding: '8px 12px', minHeight: 40, outline: 'none' })}
+                {E('notes', { fontSize: 10.5, padding: '8px 12px', minHeight: 40, outline: 'none' }, { noImagePaste: true })}
               </>}
             </div>
             <div>

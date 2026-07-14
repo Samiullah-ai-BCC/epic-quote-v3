@@ -134,8 +134,15 @@ class QuoteController extends Controller
         }
 
         // --- validation ---
-        // Company is optional: AI mode is PDF-first and fills it from the drawing (workstream B).
-        // Sales rep is OPTIONAL now (#13): blank = N/A. Only cap the length when one is given.
+        // At least one of Company / Client (#7) and a Job Name (#6) are required. Mirrors the
+        // intake form so the API can't be bypassed to create a nameless quote.
+        if ($companyName === '' && $clientName === '') {
+            return response()->json(['error' => 'Enter a Company Name or a Client Name (at least one).'], 422);
+        }
+        if ($jobName === '') {
+            return response()->json(['error' => 'Job Name is required.'], 422);
+        }
+        // Sales rep is OPTIONAL (#13): blank = N/A. Only cap the length when one is given.
         if (mb_strlen($salesRep) > 80) {
             return response()->json(['error' => 'Sales Representative name is too long (max 80 chars)'], 400);
         }
