@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import * as U from '../api/users'
 import { useConstants } from '../hooks'
 import useAuthStore from '../store/authStore'
+import { rise } from '../components/ui/motion'
 
 const EMPTY = { username: '', full_name: '', email: '', role: 'sales_rep', password: '' }
 
@@ -46,13 +48,14 @@ export default function Users() {
   return (
     <>
       <div className="page-head">
-        <h1>Users</h1>
+        <div><h1>Users</h1><div className="sub">Team accounts, roles, and payment-link permission</div></div>
         <button onClick={() => setShowAdd(true)}>+ Add User</button>
       </div>
 
       {isLoading ? <div className="center">Loading…</div> : (
-        <table>
-          <thead><tr><th>Username</th><th>Full Name</th><th>Email</th><th>Role</th><th title="May generate Shopify payment links">💳 Links</th><th>Last Login</th><th></th></tr></thead>
+        <motion.div className="panel table-card" variants={rise} initial="hidden" animate="show" style={{ overflow: 'auto' }}>
+        <table className="num-table">
+          <thead><tr><th>Username</th><th>Full Name</th><th>Email</th><th>Role</th><th title="May generate Shopify payment links">Pay links</th><th>Last Login</th><th></th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
@@ -78,11 +81,13 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+        </motion.div>
       )}
 
       {showAdd && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowAdd(false)}>
-          <form className="modal" onSubmit={submit}>
+          <motion.form className="modal" onSubmit={submit}
+            initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <h2>Add User</h2>
             <div className="grid2">
               <div className="field"><label>Username *</label><input value={form.username} onChange={set('username')} autoFocus /></div>
@@ -100,7 +105,7 @@ export default function Users() {
               <button type="button" className="ghost" onClick={() => setShowAdd(false)}>Cancel</button>
               <button type="submit" disabled={create.isPending}>{create.isPending ? 'Creating…' : 'Create'}</button>
             </div>
-          </form>
+          </motion.form>
         </div>
       )}
     </>

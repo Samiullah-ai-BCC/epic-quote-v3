@@ -532,3 +532,15 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .table-card table.num-table { border: none; border-radius: 0; box-shadow: none; }
 .num-table td { font-variant-numeric: tabular-nums; }
 .num-table thead th { position: sticky; top: 0; z-index: 2; }
+
+/* Team cards */
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.team-card { padding: 16px; cursor: pointer; transition: box-shadow .2s; }
+.team-card:hover { box-shadow: var(--shadow-lg); }
+.team-top { display: flex; justify-content: space-between; align-items: center; }
+.team-id { display: flex; align-items: center; gap: 10px; }
+.team-id b { font-size: 15px; }
+.team-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--gold-soft); color: #a9750a; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.team-stats { display: flex; gap: 18px; margin-top: 14px; }
+.team-stats .v { font-size: 21px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.team-stats .k { color: var(--text-faint); font-size: 11px; margin-top: 1px; }

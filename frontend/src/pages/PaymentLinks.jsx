@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import client, { fileUrl } from '../api/client'
+import KpiTile from '../components/ui/KpiTile'
+import EmptyState from '../components/ui/EmptyState'
+import { stagger, rise } from '../components/ui/motion'
 
 const money = (n) => (n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 const KIND_LABEL = { deposit: '50% Deposit', balance: 'Balance', full: 'Full' }
@@ -22,6 +26,17 @@ export default function PaymentLinks() {
     queryFn: async () => (await client.get('/payment-links', { params })).data,
   })
 
+  const kpis = useMemo(() => {
+    const paid = links.filter((l) => l.status === 'paid')
+    const unpaid = links.filter((l) => l.status === 'unpaid')
+    return {
+      total: links.length,
+      paid: paid.length,
+      paidValue: paid.reduce((a, l) => a + (Number(l.amount) || 0), 0),
+      unpaidValue: unpaid.reduce((a, l) => a + (Number(l.amount) || 0), 0),
+    }
+  }, [links])
+
   const setStatusMut = useMutation({
     mutationFn: ({ id, status }) => client.put(`/payment-links/${id}/status`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['payment-links'] }),
@@ -29,7 +44,16 @@ export default function PaymentLinks() {
 
   return (
     <div className="fill-page">
-      <div className="page-head"><h1>Payment Links</h1></div>
+      <div className="page-head">
+        <div><h1>Payment Links</h1><div className="sub">Every Shopify link generated — status, amount, and where it went</div></div>
+      </div>
+
+      <motion.div className="kpi-row" variants={stagger} initial="hidden" animate="show">
+        <KpiTile label="Total links" value={kpis.total} />
+        <KpiTile label="Paid" value={kpis.paid} accent />
+        <KpiTile label="Collected" value={kpis.paidValue} format={(v) => '$' + Math.round(v).toLocaleString()} />
+        <KpiTile label="Outstanding" value={kpis.unpaidValue} format={(v) => '$' + Math.round(v).toLocaleString()} />
+      </motion.div>
 
       <div className="toolbar">
         <input className="grow" placeholder="Search title / company / email / phone…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -41,9 +65,13 @@ export default function PaymentLinks() {
         </select>
       </div>
 
-      {isLoading ? <div className="center">Loading…</div> : (
-        <div className="grid-wrap" style={{ overflow: 'auto' }}>
-          <table>
+      {isLoading ? <div className="center">Loading…</div> : links.length === 0 ? (
+        <motion.div className="panel" variants={rise} initial="hidden" animate="show">
+          <EmptyState title="No payment links yet" hint="Links you generate from a proposal will appear here with their paid status." />
+        </motion.div>
+      ) : (
+        <motion.div className="panel table-card" variants={rise} initial="hidden" animate="show" style={{ overflow: 'auto' }}>
+          <table className="num-table">
             <thead>
               <tr>
                 <th>Image</th><th>Quote</th><th>Title</th><th>Company</th>
@@ -75,18 +103,18 @@ export default function PaymentLinks() {
                   </td>
                 </tr>
               ))}
-              {links.length === 0 && <tr><td colSpan={10} className="center">No payment links yet.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </motion.div>
       )}
 
       {preview && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setPreview(null)}>
-          <div className="modal" style={{ maxWidth: 'min(700px, 96%)' }}>
+          <motion.div className="modal" style={{ maxWidth: 'min(700px, 96%)' }}
+            initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}>
             <img src={preview} alt="payment link preview" style={{ width: '100%', borderRadius: 8 }} />
             <div className="foot"><button onClick={() => setPreview(null)}>Close</button></div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

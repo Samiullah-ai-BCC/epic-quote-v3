@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { getActivityFeed } from '../api/quotes'
 import { timeAgo, fullTime } from '../utils/timeAgo'
 import RevisionHistory from '../components/RevisionHistory'
+import { rise } from '../components/ui/motion'
 
 /* Airtable-style activity log: a live grid of EVERY quote with its latest change in the last
    columns (what changed · who · how long ago), newest first. Click any row to open that quote's
@@ -61,7 +63,7 @@ export default function Activity() {
       {isLoading ? (
         <div className="center">Loading…</div>
       ) : isError ? null : (
-        <div style={{ overflowX: 'auto' }}>
+        <motion.div variants={rise} initial="hidden" animate="show" style={{ overflowX: 'auto' }}>
           <table className="grid">
             <thead>
               <tr>
@@ -105,7 +107,7 @@ export default function Activity() {
               {shown.length === 0 && <tr><td colSpan={8} className="center">No quotes match this search.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </motion.div>
       )}
 
       {historyFor && <RevisionHistory quoteId={historyFor} onClose={() => setHistoryFor(null)} />}

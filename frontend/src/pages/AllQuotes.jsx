@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
+import { EASE } from '../components/ui/motion'
 import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
 import useAuthStore from '../store/authStore'
 import client, { fileUrl } from '../api/client'
@@ -584,11 +586,12 @@ export default function AllQuotes() {
           {/* View = the proposal document, full size, nothing else (#3/#4). The details dump and
               the note lanes were removed by decision (2026-07-15): notes are edited in the Edit
               wizard now. modal-view is the wide variant so the 816px page shows at full scale. */}
-          <div className="modal modal-view">
+          <motion.div className="modal modal-view"
+            initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.22, ease: EASE }}>
             <h2>Quote {viewing.quote_id}</h2>
             <ViewProposalImage quote={viewing} />
             <div className="foot"><button onClick={() => setViewing(null)}>Close</button></div>
-          </div>
+          </motion.div>
         </div>
       )}
 

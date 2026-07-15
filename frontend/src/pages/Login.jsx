@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import useAuthStore from '../store/authStore'
+import { EASE } from '../components/ui/motion'
 
 /* Estimator sign-in — internal team entry. Professional, restrained:
    a technical-blueprint left panel + a clean auth form. Self-contained (.ecsign). */
@@ -40,7 +42,9 @@ export default function Login() {
   return (
     <div className="ecsign">
       <style>{CSS}</style>
-      <div className="ecsign-card">
+      <motion.div className="ecsign-card"
+        initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: EASE }}>
 
         <div className="ecsign-panel">
           <span className="ecsign-tag">Estimator</span>
@@ -68,7 +72,9 @@ export default function Login() {
         </div>
 
         <div className="ecsign-form">
-          <div className="ecsign-inner">
+          <motion.div className="ecsign-inner"
+            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: EASE, delay: 0.18 }}>
             <img src="/quote-logo-t.png" alt="Epic Craftings" className="ecsign-logo" />
             <div className="ecsign-sub">Sign in to continue</div>
 
@@ -91,7 +97,7 @@ export default function Login() {
                 </button>
               </div>
 
-              {error && <div className="ecsign-err">{error}</div>}
+              {error && <motion.div className="ecsign-err" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>{error}</motion.div>}
               {info && <div className="ecsign-info">{info}</div>}
 
               <button type="submit" className="ecsign-btn" disabled={loading}>{loading ? 'Signing in…' : 'Log in'}</button>
@@ -99,10 +105,10 @@ export default function Login() {
 
             <div className="ecsign-div"><span /><b>EPIC CRAFTINGS TEAM</b><span /></div>
             <div className="ecsign-foot">Need access? Contact your administrator.</div>
-          </div>
+          </motion.div>
         </div>
 
-      </div>
+      </motion.div>
     </div>
   )
 }
