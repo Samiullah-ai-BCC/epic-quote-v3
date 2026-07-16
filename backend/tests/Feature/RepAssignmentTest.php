@@ -26,6 +26,15 @@ it('leaves a company with no email match blank', function () {
     expect(Company::firstWhere('email', 'nobody@no-such-domain-zzz.com')->rep)->toBeNull();
 });
 
+it('matches a company by its CONTACT email when the company email is blank (the real prod shape)', function () {
+    $c = Company::create(['name' => 'Cima Network', 'email' => '']);
+    \App\Models\Representative::create(['company_id' => $c->id, 'name' => 'Stephen', 'email' => 'sguarrieri@cimanetwork.com']);
+
+    expect(Artisan::call('companies:assign-reps'))->toBe(0);
+
+    expect($c->fresh()->rep)->toBe('ED');   // one of Ed's contact emails
+});
+
 it('never overwrites a quote that already has a rep — backfill fills only blanks', function () {
     $q = Quote::create(['quote_id' => 'EC900002', 'quote_num' => 900002, 'company_name' => 'Alpha Sign Company', 'email' => 'jim@alphasign.com', 'job_name' => 'Test', 'sales_rep' => 'Rod Muffet']);
 

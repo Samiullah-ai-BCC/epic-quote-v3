@@ -49,14 +49,26 @@ class AssignCompanyReps extends Command
         fclose($fh);
         $this->info(count($map).' email→rep pairs loaded.');
 
-        // 1) companies.rep — matched by the company's email
+        // 1) companies.rep — matched by ANY email tied to the company. The email lives on the
+        // CONTACT (Representative), not the company row (intake creates the company with a blank
+        // email), so we gather the company's own email + all its contacts' emails and vote.
+        $coScan = 0;
+        $coWithEmail = 0;
         $coSet = 0;
         $coSkip = 0;
-        foreach (Company::whereNotNull('email')->where('email', '!=', '')->get() as $c) {
-            $rep = $map[$norm($c->email)] ?? null;
-            if (!$rep) {
+        foreach (Company::with('representatives')->get() as $c) {
+            $coScan++;
+            $emails = collect([$c->email])->merge($c->representatives->pluck('email'))
+                ->map($norm)->filter()->unique();
+            if ($emails->isEmpty()) {
                 continue;
             }
+            $coWithEmail++;
+            $votes = $emails->map(fn ($e) => $map[$e] ?? null)->filter();
+            if ($votes->isEmpty()) {
+                continue;
+            }
+            $rep = $votes->countBy()->sortDesc()->keys()->first();   // majority rep across its contacts
             if ((string) $c->rep === $rep) {
                 $coSkip++;
                 continue;
@@ -67,12 +79,14 @@ class AssignCompanyReps extends Command
             }
             $coSet++;
         }
+        $this->info("companies scanned: {$coScan} · with a contact email: {$coWithEmail}");
 
         // 2) backfill quotes.sales_rep where blank — by the quote's own contact email
         $qSet = 0;
         $quotes = Quote::where(function ($q) {
             $q->whereNull('sales_rep')->orWhere('sales_rep', '');
         })->whereNotNull('email')->where('email', '!=', '')->get();
+        $this->info("blank-rep quotes with an email: {$quotes->count()}");
         foreach ($quotes as $q) {
             $rep = $map[$norm($q->email)] ?? null;
             if (!$rep) {
