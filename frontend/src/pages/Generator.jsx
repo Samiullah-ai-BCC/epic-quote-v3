@@ -150,6 +150,10 @@ export default function Generator() {
   // parts[0] on load (see the loader), so nothing needs migrating.
   const [parts, setParts] = useState([])
   const [activePart, setActivePart] = useState(0)
+  // A just-deleted page, kept for a few seconds so it can be undone (deleting a sign page used to be
+  // irreversible). { part, index } — undoDeletePage re-inserts it at its original spot.
+  const [deletedPage, setDeletedPage] = useState(null)
+  const deleteTimer = useRef(null)
   // Latest parts/gd, readable synchronously — each Proposal page autosaves independently, so two
   // parts can save within one render; reading state from a stale closure would drop one. Both save
   // paths (saveProgress, savePart) update these refs BEFORE the async PUT.
@@ -520,6 +524,7 @@ export default function Generator() {
   // automatically; the active part is clamped and reloaded so the wizard stays coherent.
   const deletePage = async (i) => {
     if (partsRef.current.length <= 1) return
+    const removed = partsRef.current[i]                       // keep it so the delete can be undone
     const nextParts = partsRef.current.filter((_, idx) => idx !== i)
     const payload = { ...(gdRef.current || {}), parts: nextParts, ...legacyPartFromGd(nextParts[0] || {}) }
     partsRef.current = nextParts; gdRef.current = payload
@@ -528,6 +533,29 @@ export default function Generator() {
     const newActive = Math.min(activePart, nextParts.length - 1)
     setActivePart(newActive)
     loadPartIntoHooks(nextParts[newActive])
+    await putGenerated(quoteId, payload)
+    // offer an Undo for a few seconds (a deleted sign page used to be gone for good)
+    setDeletedPage({ part: removed, index: i })
+    clearTimeout(deleteTimer.current)
+    deleteTimer.current = setTimeout(() => setDeletedPage(null), 12000)
+    qc.invalidateQueries({ queryKey: ['quotes'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
+  // Undo the last page delete: re-insert the kept part at its original index and persist.
+  const undoDeletePage = async () => {
+    if (!deletedPage) return
+    const { part, index } = deletedPage
+    const arr = [...partsRef.current]
+    arr.splice(Math.min(index, arr.length), 0, part)
+    const payload = { ...(gdRef.current || {}), parts: arr, ...legacyPartFromGd(arr[0] || {}) }
+    partsRef.current = arr; gdRef.current = payload
+    setParts(arr)
+    setGd(payload)
+    setActivePart(index)
+    loadPartIntoHooks(arr[index])
+    setDeletedPage(null)
+    clearTimeout(deleteTimer.current)
     await putGenerated(quoteId, payload)
     qc.invalidateQueries({ queryKey: ['quotes'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
@@ -1074,9 +1102,11 @@ export default function Generator() {
         )}
 
         {step === 'specs' && tpl && (() => {
-          // dimensions are mandatory (#3): require both primary parts (H + W) actually filled,
-          // read from the raw fields so a collapsed composed string can't sneak through.
+          // dimensions are mandatory (#3): require H + W actually filled (read the raw fields so a
+          // collapsed composed string can't sneak through). For 3D (mono) types that show a D box,
+          // depth is required too; standard 2D signs carry their depth in the Returns field.
           const noDims = !String(answers.dim_l ?? '').trim() || !String(answers.dim_w ?? '').trim()
+            || (tpl?.mono && !String(answers.dim_h ?? '').trim())
           const priceNum = Number(answers.price)
           const overMax = Number.isFinite(priceNum) && priceNum > MAX_PRICE
           const badPrice = String(answers.price ?? '').trim() === '' || !Number.isFinite(priceNum) || priceNum <= 0 || overMax
@@ -1282,8 +1312,9 @@ export default function Generator() {
                 const n = Number(customSpec?.price)
                 const overMax = Number.isFinite(n) && n > MAX_PRICE
                 const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0 || overMax
-                const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w
-                const hint = noDims ? 'Enter the dimensions to continue' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
+                // depth (D) is mandatory now, same as H and W — the overall dimensions must be complete
+                const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w || !dp.h
+                const hint = noDims ? 'Enter all three dimensions — H × W × D (depth required)' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
                 return (
                   <>
                     {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}
@@ -1315,6 +1346,14 @@ export default function Generator() {
                 onClick={addPage}>＋ Add sign page</button>
               {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
             </div>
+
+            {deletedPage && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '9px 14px', background: 'var(--gold-soft)', border: '1px solid var(--gold)', borderRadius: 8, fontSize: 13 }}>
+                <span>Page deleted.</span>
+                <button className="ghost sm" onClick={undoDeletePage}>↶ Undo delete</button>
+                <button className="ghost sm" style={{ marginLeft: 'auto' }} onClick={() => { clearTimeout(deleteTimer.current); setDeletedPage(null) }}>Dismiss</button>
+              </div>
+            )}
 
             {/* one full proposal PAGE per sign part, stacked. Each page edits ITSELF (savePart);
                 only the LAST page carries the combined total, downloads and payment. */}
