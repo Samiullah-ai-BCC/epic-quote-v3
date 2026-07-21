@@ -3,12 +3,17 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
 import { parseDims } from '../generator/questions'
-import { SIDE_VIEWS } from '../generator/sideviews'
 import { sanitizeHtml } from '../utils/sanitizeHtml'
 import client, { fileUrl } from '../api/client'
 import { attachCheckpointImage } from '../api/quotes'
-import { uploadExtraFile } from '../api/quotes'
-import { listCatalog, saveCatalogItem } from '../api/catalog'
+import { listCatalog } from '../api/catalog'
+import AdjImg from './proposal/AdjImg'
+import AdjDim from './proposal/AdjDim'
+import AdjSwatch from './proposal/AdjSwatch'
+import EBlock from './proposal/EBlock'
+import EditCell from './proposal/EditCell'
+import { HEAD, LOUPE, SRC, detectSubjectBox } from './proposal/util'
+import SideViewPicker from './proposal/SideViewPicker'
 
 // A side-view entry is either a catalog key (renders from /side_views/) or an uploaded
 // file path / CDN URL (renders through fileUrl). Same list, both kinds.
@@ -31,7 +36,6 @@ const TERMS_HTML =
   "• Installation must follow UL and NEC guidelines and is the customer's responsibility.<br>" +
   '• Payment terms: 50% deposit upfront, remaining 50% before shipment. Orders under USD 500 are paid in full in advance.'
 
-const HEAD = '#e9e9e9'
 const cell = { fontSize: 11, border: '1px solid #777', padding: '6px 8px', outline: 'none' }
 const headCell = { ...cell, background: HEAD, fontWeight: 700, borderTop: 'none' }
 // Section header bar inside the single-framed specs/package box — border only on the bottom; the outer
@@ -57,432 +61,7 @@ const resolvePkgSet = (k) => (k && PACKAGE_SETS[k] ? k : (k && PACKAGE_SETS[PKG_
 const pkgTileW = (n) => Math.max(56, Math.min(150, Math.floor((240 - (n + 1) * 10) / n)))
 const pkgDefX = (i, n, w) => Math.round(((240 - n * w) / (n + 1)) * (i + 1) + w * i)
 
-// Canva-style adjustable image. Click to select, then:
-//  • drag the body to move, the top grip to rotate
-//  • CORNER circles resize (scale the image)
-//  • EDGE bars crop (shrink the visible window; the image itself stays put and is clipped)
-// Absolute-positioned, so changing one never reflows the page. Geometry (incl. the crop window
-// ix/iy/iw/ih) is reported up via onLay; selection chrome carries "adj-ui" so PDF capture hides it.
-function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds }) {
-  // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
-  // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
-  // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
-  const fitBounds = (b) => {
-    if (!bounds) return b
-    let { x, y, w, h, ix, iy, iw, ih } = b
-    if (w > bounds.w || h > bounds.h) {
-      const s = Math.min(bounds.w / w, bounds.h / h)
-      w = Math.max(24, Math.round(w * s)); h = Math.max(24, Math.round(h * s))
-      ix = Math.round(ix * s); iy = Math.round(iy * s); iw = Math.round(iw * s); ih = Math.round(ih * s)
-    }
-    x = Math.min(Math.max(0, x), Math.max(0, bounds.w - w))
-    y = Math.min(Math.max(0, y), Math.max(0, bounds.h - h))
-    return { ...b, x, y, w, h, ix, iy, iw, ih }
-  }
-  const init = lay || def
-  const [box, setBox] = useState(() => fitBounds({
-    x: init.x, y: init.y, w: init.w, h: init.h, rot: init.rot || 0,
-    ix: init.ix ?? 0, iy: init.iy ?? 0, iw: init.iw ?? init.w, ih: init.ih ?? init.h,
-  }))
-  const rootRef = useRef(null)
-  // Follow EXTERNAL geometry updates (e.g. auto-crop to the sign's bounding box writes a new
-  // frame + crop window into layout) — local state used to be initialized once and never re-read.
-  // Skipped while THIS image is being dragged so the user's own gesture is never fought.
-  const draggingRef = useRef(false)
-  useEffect(() => {
-    if (draggingRef.current || !lay) return
-    setBox((b) => {
-      const n = fitBounds({ x: lay.x, y: lay.y, w: lay.w, h: lay.h, rot: lay.rot || 0,
-                  ix: lay.ix ?? 0, iy: lay.iy ?? 0, iw: lay.iw ?? lay.w, ih: lay.ih ?? lay.h })
-      return Object.keys(n).some((k) => n[k] !== b[k]) ? n : b
-    })
-  }, [lay]) // eslint-disable-line react-hooks/exhaustive-deps
-  // liveLay: report geometry DURING the drag, not only at mouse-up — used by the artwork so
-  // dimension arrows re-hug it in real time while it is moved/resized/cropped (#1). Called straight
-  // from the mousemove handler (events always run outside React's render phase — an rAF-deferred
-  // version fired mid-concurrent-render and triggered setState-in-render warnings), lightly
-  // time-throttled so a fast drag doesn't flood re-renders.
-  const liveLast = useRef(0)
-  const reportLive = (b) => {
-    if (!liveLay) return
-    const now = performance.now()
-    if (now - liveLast.current < 40) return   // ~25fps is plenty for arrow tracking
-    liveLast.current = now
-    onLay(b)
-  }
-  // A broken / degenerate source (e.g. a 1×1 placeholder thumbnail) must NOT be stretched by a
-  // saved crop window — that paints the whole box with the single pixel's colour (the "red box"
-  // bug). Detect it and hide the image so the empty area shows through instead.
-  const [broken, setBroken] = useState(false)
-  const start = (kind, handle) => (e) => {
-    e.preventDefault(); e.stopPropagation(); onSelect()
-    draggingRef.current = true
-    const sx = e.clientX, sy = e.clientY, b0 = { ...box }, sc = scaleRef.current || 1
-    let cx = 0, cy = 0
-    let last = b0   // latest geometry — committed via onLay at mouse-up. NEVER call onLay inside a
-                    // setBox updater: updaters run during React's render phase, and a parent
-                    // setState from there is the "setState while rendering" violation.
-    if (kind === 'rot' && rootRef.current) { const r = rootRef.current.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2 }
-    const move = (ev) => {
-      const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
-      if (kind === 'move') { const nb = fitBounds({ ...b0, x: Math.round(b0.x + dx), y: Math.round(b0.y + dy) }); last = nb; setBox(nb); reportLive(nb); return }
-      if (kind === 'rot') { const nb = { ...b0, rot: Math.round(Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90) }; last = nb; setBox(nb); reportLive(nb); return }
-      if (kind === 'resize') {
-        const L = handle.includes('l'), T = handle.includes('t'), R = handle.includes('r'), B = handle.includes('b')
-        let w = b0.w, h = b0.h
-        if (R) w = b0.w + dx; if (L) w = b0.w - dx; if (B) h = b0.h + dy; if (T) h = b0.h - dy
-        w = Math.max(30, Math.round(w)); h = Math.max(20, Math.round(h))
-        if (lockAspect && b0.w) h = Math.max(20, Math.round(w * b0.h / b0.w))  // keep the logo's proportions
-        let x = b0.x, y = b0.y
-        if (L) x = Math.round(b0.x + (b0.w - w)); if (T) y = Math.round(b0.y + (b0.h - h))
-        const rw = w / b0.w, rh = h / b0.h   // scale the image (crop window) with the frame
-        const nb = fitBounds({ ...b0, w, h, x, y, ix: Math.round(b0.ix * rw), iy: Math.round(b0.iy * rh), iw: Math.round(b0.iw * rw), ih: Math.round(b0.ih * rh) })
-        last = nb; setBox(nb); reportLive(nb)
-        return
-      }
-      // crop: move one frame edge, keep the image absolutely still → clips it
-      let { x, y, w, h, ix, iy } = b0
-      if (handle === 'r') w = Math.max(24, Math.round(b0.w + dx))
-      if (handle === 'b') h = Math.max(24, Math.round(b0.h + dy))
-      if (handle === 'l') { const nw = Math.max(24, Math.round(b0.w - dx)); const used = b0.w - nw; x = Math.round(b0.x + used); w = nw; ix = Math.round(b0.ix - used) }
-      if (handle === 't') { const nh = Math.max(24, Math.round(b0.h - dy)); const used = b0.h - nh; y = Math.round(b0.y + used); h = nh; iy = Math.round(b0.iy - used) }
-      const nb = fitBounds({ ...b0, x, y, w, h, ix, iy })
-      last = nb; setBox(nb); reportLive(nb)
-    }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); draggingRef.current = false; onLay(last) }
-    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
-  }
-  const dot = { position: 'absolute', width: 11, height: 11, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', zIndex: 60 }
-  const corners = { tl: { left: -6, top: -6, cursor: 'nwse-resize' }, tr: { right: -6, top: -6, cursor: 'nesw-resize' }, bl: { left: -6, bottom: -6, cursor: 'nesw-resize' }, br: { right: -6, bottom: -6, cursor: 'nwse-resize' } }
-  const bar = { position: 'absolute', background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: 2, zIndex: 60 }
-  const edges = {
-    l: { left: -4, top: '50%', marginTop: -11, width: 7, height: 22, cursor: 'ew-resize' },
-    r: { right: -4, top: '50%', marginTop: -11, width: 7, height: 22, cursor: 'ew-resize' },
-    t: { top: -4, left: '50%', marginLeft: -11, width: 22, height: 7, cursor: 'ns-resize' },
-    b: { bottom: -4, left: '50%', marginLeft: -11, width: 22, height: 7, cursor: 'ns-resize' },
-  }
-  return (
-    <div ref={rootRef} data-rk={rk} onMouseDown={start('move')}
-      style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
-      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-        <img src={src} alt={alt} draggable={false} crossOrigin={cors ? 'anonymous' : undefined}
-          onError={() => setBroken(true)}
-          onLoad={(e) => {
-            // defer so a CACHED image (onLoad fires during render) never setStates mid-render
-            const img = e.target
-            setTimeout(() => {
-              // a 1×1 (or empty) source is a broken/placeholder thumbnail — don't stretch it
-              if (img.naturalWidth <= 1 || img.naturalHeight <= 1) { setBroken(true); return }
-              setBroken(false)
-              if (lockAspect && !lay) {
-                const r = img.naturalWidth / img.naturalHeight
-                if (r > 0) {
-                  const h = Math.max(20, Math.round(box.w / r))
-                  // fitCenterH: vertically centre the fitted image inside its container (#5 — package
-                  // tiles hugged the top edge); reserveCaption leaves 14px below for a text caption —
-                  // baked package art (A-D) has no caption, so it gets the full height to grow into.
-                  const y = fitCenterH ? Math.max(2, Math.round((fitCenterH - h - (reserveCaption ? 14 : 0)) / 2)) : box.y
-                  let fitted = { ...box, h, y, ix: 0, iy: 0, iw: box.w, ih: h }
-                  // an image taller/wider than its section box shrinks to fit, aspect kept — it
-                  // must NEVER spill past the box (the vanished-artwork bug)
-                  fitted = fitBounds(fitted)
-                  // autoCrop (#8): on a FRESH artwork, crop the frame straight to the sign's
-                  // detected bounding box — background margins never even appear.
-                  if (autoCrop) {
-                    const nb = detectSubjectBox(img)
-                    if (nb) {
-                      const bx = nb.x * fitted.w, by = nb.y * fitted.h
-                      const bw = nb.w * fitted.w, bh = nb.h * fitted.h
-                      if (bw > 12 && bh > 12 && (bx > 4 || by > 4 || bx + bw < fitted.w - 4 || by + bh < fitted.h - 4)) {
-                        fitted = fitBounds({
-                          ...fitted,
-                          x: Math.round(fitted.x + bx), y: Math.round(fitted.y + by),
-                          w: Math.round(bw), h: Math.round(bh),
-                          ix: -Math.round(bx), iy: -Math.round(by), iw: fitted.w, ih: fitted.h,
-                        })
-                      }
-                    }
-                  }
-                  // centre the fitted frame inside its bounds — ONLY for a single free image (the
-                  // artwork). Package tiles / side views use fitCenterH and have deliberate spread
-                  // x positions; centring them stacked every tile at the same x (alignment bug).
-                  if (bounds && !fitCenterH) {
-                    fitted = { ...fitted, x: Math.round((bounds.w - fitted.w) / 2), y: Math.round((bounds.h - fitted.h) / 2) }
-                  }
-                  setBox(fitted); onLay(fitted)
-                }
-              }
-            }, 0)
-          }}
-          style={{ position: 'absolute', left: box.ix, top: box.iy, width: box.iw, height: box.ih, objectFit: 'contain', display: broken ? 'none' : 'block', pointerEvents: 'none' }} />
-      </div>
-      {selected && (
-        <>
-          <div className="adj-ui" style={{ position: 'absolute', inset: 0, border: '1.5px solid #8b5cf6', pointerEvents: 'none' }} />
-          {Object.entries(corners).map(([c, pos]) => (
-            <span key={c} className="adj-ui" title="Resize" onMouseDown={start('resize', c)} style={{ ...dot, ...pos }} />
-          ))}
-          {Object.entries(edges).map(([c, pos]) => (
-            <span key={c} className="adj-ui" title="Crop" onMouseDown={start('crop', c)} style={{ ...bar, ...pos }} />
-          ))}
-          <span className="adj-ui" onMouseDown={start('rot')} title="Rotate"
-            style={{ position: 'absolute', top: -26, left: '50%', marginLeft: -8, width: 16, height: 16, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#8b5cf6', cursor: 'grab', zIndex: 60 }}>⟳</span>
-        </>
-      )}
-    </div>
-  )
-}
-
-// Dimension annotation: an arrowed measurement line with an editable size label, shown beside
-// the artwork (like a shop drawing). Drag the body to move, pull the end dot to change length,
-// click the label to type the size. The line + label print; the purple chrome does not.
-function AdjDim({ rk, lay, onLay, scaleRef, selected, onSelect, onRemove }) {
-  const [d, setD] = useState(lay)
-  // Follow EXTERNAL geometry updates (the live "re-hug the artwork" sync writes new x/y/len into
-  // layout) — local state used to be initialized once and never re-read, so arrows never moved (#1).
-  // Skipped while THIS arrow is being dragged, so the user's own drag is never fought.
-  const draggingRef = useRef(false)
-  useEffect(() => { if (!draggingRef.current) setD(lay) }, [lay])
-  const start = (kind) => (e) => {
-    e.preventDefault(); e.stopPropagation(); onSelect()
-    draggingRef.current = true
-    const sx = e.clientX, sy = e.clientY, d0 = { ...d }, sc = scaleRef.current || 1
-    let last = d0   // latest geometry — onLay must never run inside a setD updater (render phase)
-    const move = (ev) => {
-      const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
-      const nd = kind === 'move'
-        ? { ...d0, x: Math.round(d0.x + dx), y: Math.round(d0.y + dy) }
-        : { ...d0, len: Math.max(24, Math.round(d0.len + (d0.vert ? dy : dx))) }
-      last = nd; setD(nd)
-    }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); draggingRef.current = false; onLay(last) }
-    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
-  }
-  const C = '#c0392b'
-  const head = { position: 'absolute', width: 0, height: 0 }
-  return (
-    <div data-rk={rk} onMouseDown={start('move')}
-      style={{ position: 'absolute', left: d.x, top: d.y, width: d.vert ? 14 : d.len, height: d.vert ? d.len : 14, cursor: 'move', zIndex: 55 }}>
-      {d.vert ? (
-        <>
-          <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 0, borderLeft: `1.2px solid ${C}` }} />
-          <span style={{ ...head, left: '50%', top: 0, marginLeft: -4, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: `6px solid ${C}` }} />
-          <span style={{ ...head, left: '50%', bottom: 0, marginLeft: -4, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderTop: `6px solid ${C}` }} />
-        </>
-      ) : (
-        <>
-          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 0, borderTop: `1.2px solid ${C}` }} />
-          <span style={{ ...head, top: '50%', left: 0, marginTop: -4, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderRight: `6px solid ${C}` }} />
-          <span style={{ ...head, top: '50%', right: 0, marginTop: -4, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: `6px solid ${C}` }} />
-        </>
-      )}
-      <span contentEditable suppressContentEditableWarning spellCheck={false}
-        onMouseDown={(e) => e.stopPropagation()}
-        onBlur={(e) => { const label = e.target.innerText.trim(); const n = { ...d, label }; setD(n); onLay(n) }}
-        style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', background: '#fff', color: C, fontSize: 9, fontWeight: 700, padding: '0 3px', whiteSpace: 'nowrap', outline: 'none', textTransform: 'none' }}
-      >{d.label}</span>
-      {selected && (
-        <>
-          <span className="adj-ui" title="Length" onMouseDown={start('len')}
-            style={{ position: 'absolute', ...(d.vert ? { left: '50%', bottom: -6, marginLeft: -5 } : { right: -6, top: '50%', marginTop: -5 }), width: 11, height: 11, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', cursor: d.vert ? 'ns-resize' : 'ew-resize', zIndex: 60 }} />
-          <span className="adj-ui" title="Remove" onMouseDown={(e) => { e.stopPropagation(); onRemove() }}
-            style={{ position: 'absolute', top: -18, right: -6, width: 15, height: 15, background: '#fff', border: '1.5px solid #e05661', borderRadius: '50%', color: '#e05661', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 60 }}>×</span>
-        </>
-      )}
-    </div>
-  )
-}
-
-// Editable block: content is written ONCE on mount, imperatively — never through props.
-// (Passing dangerouslySetInnerHTML makes React re-apply the ORIGINAL html on every re-render,
-// erasing whatever the user typed the moment anything else updates — e.g. the "Saved" toast.)
-// A paste event that carries an image (files, or an image/* clipboard item).
-const pasteHasImage = (e) => {
-  const dt = e.clipboardData || e.dataTransfer
-  if (!dt) return false
-  if (dt.files && dt.files.length && [...dt.files].some((f) => f.type.startsWith('image/'))) return true
-  if (dt.items && [...dt.items].some((it) => it.kind === 'file' && it.type.startsWith('image/'))) return true
-  return false
-}
-
-function EBlock({ k, html, style, noPaste, noImagePaste, readOnly }) {
-  const ref = useRef(null)
-  const first = useRef(true)
-  useEffect(() => {
-    // sanitize before it touches the DOM — block content is untrusted (hand-edited + server round-trip)
-    if (first.current && ref.current) { ref.current.innerHTML = sanitizeHtml(html); first.current = false }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // noPaste: block ALL paste (spec text — sensitive). noImagePaste: block only IMAGE paste/drop
-  // (additional notes — text is fine, pasted images are not). Both also block image drops.
-  const onPaste = (e) => { if (noPaste || (noImagePaste && pasteHasImage(e))) e.preventDefault() }
-  const onDrop = (e) => { if (noPaste || (noImagePaste && pasteHasImage(e))) e.preventDefault() }
-  return (
-    <div ref={ref} data-key={k} contentEditable={!readOnly} suppressContentEditableWarning
-      onPaste={(noPaste || noImagePaste) ? onPaste : undefined}
-      onDrop={(noPaste || noImagePaste) ? onDrop : undefined}
-      title={readOnly ? 'Follows the price on the Specifications step — not directly editable' : undefined}
-      spellCheck lang="en-US" style={{ outline: 'none', ...(readOnly ? { cursor: 'default' } : {}), ...style }} />
-  )
-}
-
-// Editable table cell for quantities / prices / descriptions on item rows: content written once
-// (uncontrolled, like EBlock) so autosave re-renders never clobber typing; commits on blur.
-function EditCell({ value, onCommit, style }) {
-  const ref = useRef(null)
-  const first = useRef(true)
-  useEffect(() => { if (first.current && ref.current) { ref.current.innerText = String(value ?? ''); first.current = false } }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // follow an EXTERNAL value change (e.g. qty normalized after commit) — never while focused
-  useEffect(() => {
-    const el = ref.current
-    if (el && document.activeElement !== el && el.innerText !== String(value ?? '')) el.innerText = String(value ?? '')
-  }, [value])
-  return (
-    <div ref={ref} contentEditable suppressContentEditableWarning spellCheck={false}
-      onBlur={(e) => onCommit(e.target.innerText.trim())} style={{ outline: 'none', ...style }} />
-  )
-}
-
-// Luminance-based text color so the swatch label stays readable on any fill.
-function swatchText(hex) {
-  const h = (hex || '').replace('#', '')
-  if (h.length < 6) return '#111'
-  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? '#111' : '#fff'
-}
-
-// Canva-style draggable color swatch: a filled block + name that PRINTS, plus a picker popover
-// (color wheel + name field) carrying className "adj-ui" so it is hidden from the PDF/PNG capture.
-function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick, scaleRef, selected, onSelect, onDragEnd, locked }) {
-  const startDrag = (e) => {
-    if (e.target.closest('.adj-ui')) return            // don't drag while using the picker
-    e.preventDefault(); e.stopPropagation(); onSelect()
-    if (locked) return                                  // FACE / RETURN&TRIM are auto-anchored, not draggable
-    const sx = e.clientX, sy = e.clientY, x0 = sw.x, y0 = sw.y, sc = scaleRef.current || 1
-    const move = (ev) => onChange({ ...sw, x: Math.round(x0 + (ev.clientX - sx) / sc), y: Math.round(y0 + (ev.clientY - sy) / sc) })
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); onDragEnd && onDragEnd() }
-    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
-  }
-  // Horizontal-only resize from the right edge.
-  const startResize = (e) => {
-    e.preventDefault(); e.stopPropagation(); onSelect()
-    const sx = e.clientX, w0 = sw.w, sc = scaleRef.current || 1
-    const move = (ev) => onChange({ ...sw, w: Math.max(28, Math.round(w0 + (ev.clientX - sx) / sc)) })
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up) }
-    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
-  }
-  // Corner resize — BOTH dimensions, like the artwork image (#3). Left/top corners also move
-  // the chip so the opposite corner stays anchored.
-  const startCorner = (handle) => (e) => {
-    e.preventDefault(); e.stopPropagation(); onSelect()
-    const sx = e.clientX, sy = e.clientY, s0 = { ...sw }, sc = scaleRef.current || 1
-    const L = handle.includes('l'), T = handle.includes('t')
-    const move = (ev) => {
-      const dx = (ev.clientX - sx) / sc, dy = (ev.clientY - sy) / sc
-      const w = Math.max(28, Math.round(L ? s0.w - dx : s0.w + dx))
-      const h = Math.max(12, Math.round(T ? s0.h - dy : s0.h + dy))
-      onChange({ ...s0, w, h, x: L ? Math.round(s0.x + (s0.w - w)) : s0.x, y: T ? Math.round(s0.y + (s0.h - h)) : s0.y, moved: true })
-    }
-    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); onDragEnd && onDragEnd() }
-    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up)
-  }
-  const isRGB = sw.color === 'RGB'                     // colour-changing neon (#10)
-  const has = !!sw.color
-  // RGB fills the swatch like a colour wheel; the label is forced to "RGB CHANGING COLOR".
-  const bg = isRGB ? 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)' : (has ? sw.color : '#e5e5e5')
-  const label = isRGB ? 'RGB CHANGING COLOR' : (sw.name || '')
-  return (
-    <div data-rk={rk} onMouseDown={startDrag}
-      style={{ position: 'absolute', left: sw.x, top: sw.y, width: sw.w, height: sw.h, cursor: 'move' }}>
-      <div style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
-        {label}
-      </div>
-      {selected && (
-        <>
-          <div className="adj-ui" style={{ position: 'absolute', inset: -2, border: '1.5px solid #8b5cf6', pointerEvents: 'none' }} />
-          <span className="adj-ui" onMouseDown={startResize} title="Drag to widen"
-            style={{ position: 'absolute', right: -5, top: '50%', marginTop: -8, width: 9, height: 16, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: 2, cursor: 'ew-resize', zIndex: 71 }} />
-          {/* corner handles: resize BOTH dimensions, like the artwork image (#3) */}
-          {[['tl', { left: -6, top: -6, cursor: 'nwse-resize' }], ['tr', { right: -6, top: -6, cursor: 'nesw-resize' }],
-            ['bl', { left: -6, bottom: -6, cursor: 'nesw-resize' }], ['br', { right: -6, bottom: -6, cursor: 'nwse-resize' }]].map(([c, pos]) => (
-            <span key={c} className="adj-ui" title="Resize" onMouseDown={startCorner(c)}
-              style={{ position: 'absolute', width: 10, height: 10, background: '#fff', border: '1.5px solid #8b5cf6', borderRadius: '50%', zIndex: 71, ...pos }} />
-          ))}
-          <div className="adj-ui" onMouseDown={(e) => e.stopPropagation()}
-            style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 70, background: '#fff', border: '1px solid #8b5cf6', borderRadius: 6, padding: 8, display: 'flex', gap: 6, alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', textTransform: 'none', width: 246 }}>
-            <input type="color" value={isRGB || !has ? '#000000' : sw.color} onChange={(e) => onChange({ ...sw, color: e.target.value })}
-              title="Pick color" style={{ width: 34, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
-            {/* RGB colour-changing toggle (#10) — for neon signs whose colour isn't static */}
-            <button type="button" onClick={() => onChange({ ...sw, color: isRGB ? '' : 'RGB' })}
-              title="RGB colour-changing (neon)"
-              style={{ border: isRGB ? '2px solid #8b5cf6' : '1px solid #ccc', borderRadius: 4, cursor: 'pointer', width: 30, height: 30, padding: 0, background: 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)', fontSize: 0 }}>RGB</button>
-            {canPick && (
-              <button type="button" onClick={onPick} title="Pick a color from the artwork (works in every browser)"
-                style={{ border: '1px solid #ccc', background: '#fff', borderRadius: 4, cursor: 'pointer', padding: '4px 5px', display: 'flex', alignItems: 'center' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 22 1-1h3l9-9" /><path d="M3 21v-3l9-9" /><path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" /></svg>
-              </button>
-            )}
-            <input type="text" value={sw.name || ''} placeholder="name / PMS" onChange={(e) => onChange({ ...sw, name: e.target.value })}
-              style={{ flex: 1, fontSize: 12, padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4 }} />
-            <button type="button" onClick={onRemove} title="Remove swatch"
-              style={{ border: 'none', background: '#fee', color: '#c00', borderRadius: 4, cursor: 'pointer', fontWeight: 700, padding: '4px 7px' }}>×</button>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// Detect the subject's bounding box inside an image (#2): sample the border pixels for the
-// background colour, mark every pixel that differs beyond a threshold (or is transparent-vs-not),
-// and return the normalized bounding rect {x,y,w,h} in [0..1] of the natural image — or null.
-// This is the cv.findContours→boundingRect pipeline done with raw canvas pixels: same result for
-// a single bbox, without shipping OpenCV's ~8MB WASM. Throws nothing; returns null on any failure
-// (CORS-tainted canvas, degenerate image, subject filling the whole frame).
-function detectSubjectBox(img) {
-  try {
-    const nw = img.naturalWidth, nh = img.naturalHeight
-    if (!nw || !nh || nw <= 2 || nh <= 2) return null
-    const MAX = 320                                    // downscale for speed — bbox precision ~0.3%
-    const s = Math.min(1, MAX / Math.max(nw, nh))
-    const w = Math.max(2, Math.round(nw * s)), h = Math.max(2, Math.round(nh * s))
-    const cv = document.createElement('canvas')
-    cv.width = w; cv.height = h
-    const ctx = cv.getContext('2d', { willReadFrequently: true })
-    ctx.drawImage(img, 0, 0, w, h)
-    const d = ctx.getImageData(0, 0, w, h).data       // throws if the canvas is CORS-tainted
-    const px = (x, y) => { const i = (y * w + x) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]] }
-    // background = average of the border ring (skip transparent border pixels; count them)
-    let br = 0, bg = 0, bb = 0, n = 0, transparent = 0, border = 0
-    const eat = (x, y) => { const [r, g, b, a] = px(x, y); border++; if (a < 16) { transparent++; return } br += r; bg += g; bb += b; n++ }
-    for (let x = 0; x < w; x++) { eat(x, 0); eat(x, h - 1) }
-    for (let y = 1; y < h - 1; y++) { eat(0, y); eat(w - 1, y) }
-    const alphaMode = transparent > border * 0.5      // PNG with transparent background
-    if (n > 0) { br /= n; bg /= n; bb /= n }
-    const THR = 42                                     // colour distance that counts as "subject"
-    let minX = w, minY = h, maxX = -1, maxY = -1
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const [r, g, b, a] = px(x, y)
-        const isSubject = alphaMode
-          ? a >= 16
-          : a >= 16 && (Math.abs(r - br) + Math.abs(g - bg) + Math.abs(b - bb)) > THR
-        if (isSubject) {
-          if (x < minX) minX = x; if (x > maxX) maxX = x
-          if (y < minY) minY = y; if (y > maxY) maxY = y
-        }
-      }
-    }
-    if (maxX < 0) return null                          // nothing found
-    const bw = maxX - minX + 1, bh = maxY - minY + 1
-    const cover = (bw * bh) / (w * h)
-    if (cover > 0.985 || cover < 0.005) return null    // whole frame / speck → no useful box
-    return { x: minX / w, y: minY / h, w: bw / w, h: bh / h }
-  } catch { return null }
-}
-
 const HD_SCALE = 3   // html2canvas DPI factor for PNG/PDF downloads (~288dpi on a Letter page — crisp text)
-const LOUPE = 185, SRC = 38   // eyedropper magnifier: loupe diameter (px) and source pixels across it
-                              // (~5.5px per pixel — pixels stay visible but you keep enough context to aim)
 
 function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, mainView, signBox,
   // --- multi-page (multi-sign) quote props ---
@@ -515,28 +94,22 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
   const [svSearch, setSvSearch] = useState('')   // search across ~100 side-view cards
   const [svGroup, setSvGroup] = useState(null)   // #3 — selected main sign type in the two-level picker
   const [svAnchor, setSvAnchor] = useState({ left: 0, top: 0 })   // #9 — picker panel anchor (right of the button)
-  // category buckets so ~100 cards read as a catalog, not a wall (T18)
-  const svGroupOf = (label) => {
-    const t = String(label || '').toUpperCase()
-    if (/RACEWAY/.test(t)) return 'Channel Letters on Raceway'
-    if (/BACKER/.test(t)) return 'Channel Letters on Backer'
-    if (/CHANNEL|FRONT LIT|BACK LIT|BACKLIT|HALO|TRIM/.test(t)) return 'Channel Letters'
-    if (/MONUMENT/.test(t)) return 'Monuments'
-    if (/BLADE|PROJECTING/.test(t)) return 'Blade / Projecting'
-    if (/CABINET|LIGHT ?BOX|LIGHTBOX/.test(t)) return 'Cabinets / Lightboxes'
-    if (/PYLON|POLE/.test(t)) return 'Pylons'
-    if (/NEON/.test(t)) return 'Neon'
-    if (/PUSH.?THR/.test(t)) return 'Push-Thru'
-    if (/DIMENSIONAL|FLAT CUT|ACRYLIC|METAL LETTER|PVC|FOAM/.test(t)) return 'Dimensional Letters'
-    return 'Other'
-  }
-  const SV_GROUP_ORDER = ['Channel Letters', 'Channel Letters on Raceway', 'Channel Letters on Backer', 'Dimensional Letters', 'Cabinets / Lightboxes', 'Monuments', 'Blade / Projecting', 'Pylons', 'Push-Thru', 'Neon', 'Other']
   useEffect(() => {
     if (!pickingSV) return
     listCatalog('side_view').then(setSvLib).catch(() => {})
   }, [pickingSV])
   const [selId, setSelId] = useState(null)                          // selected adjustable image
-  const [layout, setLayout] = useState(savedState?.__layout || {})  // persisted geometry per image
+  // persisted geometry per image — package/side-view tiles are dropped from the seed: they're
+  // algorithmically laid out from the CURRENT set/count on every load (pkgDefX/fitCenterH/autoCrop),
+  // never hand-tuned per tile, so an old saved entry here is always just a STALE snapshot of
+  // whatever the fit logic used to compute — freezing it means every improvement to that logic
+  // (bigger tiles, tighter autoCrop) is invisible on any quote that already has one saved. Re-deriving
+  // fresh on every load is strictly better than permanently pinning last session's numbers.
+  const [layout, setLayout] = useState(() => {
+    const L = { ...(savedState?.__layout || {}) }
+    Object.keys(L).forEach((k) => { if (k.startsWith('pkg-') || k.startsWith('sv2-')) delete L[k] })
+    return L
+  })
   const SW_W = 96, SW_H = 20   // default swatch size (now horizontally resizable)
   const [swatches, setSwatches] = useState(() => {
     // saved sizes are honored as-is — chips are fully resizable now (#3)
@@ -602,7 +175,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     while (guard++ < 120) {
       const clash = obstacles.find((o) => hits(x, o))
       if (!clash) break
-      x = Math.round(clash.x + clash.w + 8)   // sit just to the right of whatever it collided with
+      x = Math.round(clash.x + clash.w + 1)   // sit just to the right of whatever it collided with
     }
     const clamped = clampToArea({ ...me, x })
     return (clamped.x === me.x && clamped.y === me.y) ? arr : arr.map((s) => (s.id === id ? clamped : s))
@@ -832,6 +405,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
     return () => { clearTimeout(t); window.removeEventListener('resize', fit); ro?.disconnect() }
   }, [])
 
+  // Template B (monument/pylon, free-form — no package or side view). In custom mode `tpl` is
+  // always null (that flow only ever tracks customSpec, never sets tpl_name on save — see
+  // Generator.jsx tplForPart), so the picker stamps customSpec.mono at pick time instead of
+  // relying on tpl.mono, which can never be true here.
+  const isMonoType = mode === 'custom' ? !!customSpec?.mono : !!tpl?.mono
   const price = Number((mode === 'custom' ? customSpec?.price : answers?.price) || 0)
   const itemDesc = mode === 'custom'
     ? (customSpec?.itemDesc || 'CUSTOM SIGNAGE')
@@ -1409,13 +987,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
           </div>
 
           {/* specs (left) + package & side view (right): ONE outer frame; the divider is the left
-              column's right border, so it's continuous no matter which column ends up taller */}
-          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: '1fr 240px', border: '1px solid #777' }}>
-            <div style={{ borderRight: '1px solid #777' }}>
+              column's right border, so it's continuous no matter which column ends up taller.
+              Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
+              the sheet — full-width specs instead of the 240px sidebar. */}
+          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
+            <div style={isMonoType ? undefined : { borderRight: '1px solid #777' }}>
               <div data-sec="specs" style={secHead}>SPECIFICATIONS</div>
               {/* specBody: paste blocked (sensitive #2). Its bottom border is the separator ABOVE
                   Additional Notes — drop it when notes are hidden so no line dangles (#4). */}
-              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', minHeight: specLong ? 255 : 215, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {/* The overall box height = whichever COLUMN is taller (it's a CSS grid row). The right
+                  column is short whenever it's missing content: Template B (mono, e.g. pylon/monument)
+                  has no PACKAGE INCLUDES/SIDE VIEW at all (~136px header-only), and even a normal type
+                  drops to ~136px the moment the rep removes the side view (explicit "no side view").
+                  Without a floor here, the LEFT column's own small minHeight (215/255) wins and the
+                  whole page visibly shrinks the instant either of those happens — give it a floor
+                  matching the FULL right sidebar (package ~136 + side view ~270) so page length stays
+                  consistent no matter which sections are present. */}
+              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', minHeight: (isMonoType || sideViews.includes('__none__')) ? 390 : (specLong ? 255 : 215), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
@@ -1431,13 +1019,20 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 </div>
               </>}
             </div>
+            {!isMonoType && (
             <div>
               <div style={secHead}>PACKAGE INCLUDES</div>
               <div style={{ position: 'relative', height: 116, borderBottom: '1px solid #777' }}>
                 {packageItems.map((p, i) => (
                   // Package tiles of the CHOSEN set (#11). Key includes the set so switching sets
                   // remounts with fresh default positions.
-                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 6, w: pkgW, h: pkgW })} src={p.img} alt={p.label} lockAspect fitCenterH={116} reserveCaption={!PACKAGE_SETS[pkgSet].baked} bounds={{ w: 238, h: 114 }} />
+                  // The initial frame passed here is what fitBounds clamps against BEFORE the real
+                  // aspect-fit (onLoad) ever runs — it used to be a pkgW×pkgW SQUARE (234×234) even
+                  // though the box is only 116px tall, so fitBounds shrank it to a 114×114 square and
+                  // fed that stunted width into the aspect-fit, leaving a wide baked image (A–D are
+                  // ~3:1) far smaller than the box could actually hold. Match the real box shape
+                  // instead so the aspect-fit gets the FULL available width to work with.
+                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 6, w: pkgW, h: 116 })} src={p.img} alt={p.label} lockAspect fitCenterH={116} reserveCaption={!PACKAGE_SETS[pkgSet].baked} bounds={{ w: 238, h: 114 }} />
                 ))}
                 {/* captions from the set's item labels. `baked` sets (A–D) already carry their
                     labels inside the artwork, so drawing them again would double them up. */}
@@ -1475,6 +1070,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 </>
               )}
             </div>
+            )}
           </div>
 
           {/* totals + terms. Terms & Conditions print on EVERY page (#4); the price block (subtotal /
@@ -1523,7 +1119,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 // chip's x untouched after a uniform resize, so growing a chip grew it straight INTO
                 // its stale-positioned neighbour, and shrinking-then-growing back overlapped them —
                 // the chip's "old proportion" of the row was never recomputed).
-                const GAP = 8
+                const GAP = 1   // just enough to guarantee no-overlap; keep chips close together
                 const resized = arr.map((x) => (x.id === sw.id ? n : { ...x, w: n.w, h: n.h }))
                 const rows = []
                 ;[...resized].sort((a, b) => a.y - b.y).forEach((s) => {
@@ -1681,7 +1277,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
               <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 5 }}>Click a swatch to set its colour &amp; name; drag to place.</span>
             </div>
 
-            {/* PACKAGE SET — pick ONE of the two sets shown under PACKAGE INCLUDES (#11) */}
+            {/* PACKAGE SET — pick ONE of the sets shown under PACKAGE INCLUDES (#11). Template B
+                (monument/pylon) has no package in the sheet — nothing to pick. */}
+            {!isMonoType && (
             <div>
               <div style={grpLabel}>Package set</div>
               {/* image dropdown (#8): the picker shows each set's actual item IMAGES, not text */}
@@ -1710,6 +1308,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
                 )}
               </div>
             </div>
+            )}
 
             {/* SPECIFICATIONS — aligned just under the SPECIFICATIONS header */}
             <div ref={setGrp('spec')}>
@@ -1728,8 +1327,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
               )}
             </div>
 
-            {/* SIDE VIEW — aligned to the SIDE VIEW section */}
-            {onSideViews && (
+            {/* SIDE VIEW — aligned to the SIDE VIEW section. Template B has none. */}
+            {onSideViews && !isMonoType && (
               <div ref={setGrp('sv')}>
                 <div style={grpLabel}>Side view</div>
                 <button type="button" data-sv-picker className="ghost" style={{ width: '100%' }}
@@ -1782,111 +1381,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, logo, sav
 
       {/* side-view picker — a floating panel at the RIGHT of the "+ Choose side views" button (#9) */}
       {onSideViews && mainView && pickingSV && (
-        <div data-sv-picker style={{ position: 'fixed', left: svAnchor.left, top: svAnchor.top, width: 620, maxHeight: '72vh', overflowY: 'auto', zIndex: 150, background: 'var(--navy-700)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.45)' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              <input
-                placeholder="Search side views… (e.g. raceway, monument)"
-                value={svSearch}
-                onChange={(e) => setSvSearch(e.target.value)}
-                style={{ width: '100%', maxWidth: 340 }}
-              />
-              {/* explicit no-side-view: clears every pick and removes the section + headline */}
-              <label style={{ width: 120, fontSize: 11, textAlign: 'center', cursor: 'pointer', border: sideViews.includes('__none__') ? '2px solid #f5a623' : '1px dashed #999', borderRadius: 6, padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 96, color: 'var(--text-dim, #888)' }}>
-                <input type="checkbox" checked={sideViews.includes('__none__')}
-                  onChange={(e) => onSideViews(e.target.checked ? ['__none__'] : [])} />
-                <span style={{ fontSize: 20, lineHeight: 1.4 }}>🚫</span>
-                <span>No side view<br />(hides the section)</span>
-              </label>
-              {/* two-level picker (#3): MAIN sign types first, click one → its side views, with a
-                  back button. Searching skips straight to matching cards across all groups. */}
-              {(() => {
-                const cards = [
-                  ...SIDE_VIEWS.map((sv) => ({ key: sv.key, label: sv.label, src: `/side_views/${sv.key}.png` })),
-                  ...svLib.filter((it) => it.data?.path).map((it) => ({ key: it.data.path, label: it.name, src: svSrc(it.data.path) })),
-                ]
-                const groups = new Map()
-                cards.forEach((c) => {
-                  const g = svGroupOf(c.label)
-                  if (!groups.has(g)) groups.set(g, [])
-                  groups.get(g).push(c)
-                })
-                const searching = !!svSearch.trim()
-                const CardGrid = ({ list }) => (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    {list.map((c) => {
-                      const on = sideViews.includes(c.key)
-                      return (
-                        <label key={c.key} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: on ? '2px solid #f5a623' : '1px solid #ccc', borderRadius: 6, padding: 4 }}>
-                          <input type="checkbox" checked={on} onChange={(e) => onSideViews(e.target.checked ? [...sideViews.filter((x) => x !== '__none__'), c.key] : sideViews.filter((x) => x !== c.key))} />
-                          <img src={c.src} alt={c.label} style={{ width: '100%', height: 70, objectFit: 'contain' }} />
-                          <div>{c.label}</div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                )
-                if (searching) {
-                  const hits = cards.filter((c) => String(c.label).toUpperCase().includes(svSearch.trim().toUpperCase()))
-                  return hits.length
-                    ? <div style={{ width: '100%' }}><CardGrid list={hits} /></div>
-                    : <div className="muted" style={{ fontSize: 12, width: '100%' }}>No side views match “{svSearch}”.</div>
-                }
-                if (!svGroup || !groups.has(svGroup)) {
-                  return (
-                    <div style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {SV_GROUP_ORDER.filter((g) => groups.has(g)).map((g) => (
-                        <button key={g} type="button" className="ghost" onClick={() => setSvGroup(g)}
-                          style={{ minWidth: 180, textAlign: 'left' }}>
-                          <b>{g}</b> <span className="muted">· {groups.get(g).length} →</span>
-                        </button>
-                      ))}
-                    </div>
-                  )
-                }
-                return (
-                  <div style={{ width: '100%' }}>
-                    <button type="button" className="ghost sm" style={{ marginBottom: 8 }} onClick={() => setSvGroup(null)}>← Main sign types</button>
-                    <div style={{ fontSize: 12, fontWeight: 700, margin: '2px 0 6px', color: 'var(--text-dim, #777)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{svGroup} ({groups.get(svGroup).length})</div>
-                    <CardGrid list={groups.get(svGroup)} />
-                  </div>
-                )
-              })()}
-              {/* one-off uploads on this quote that aren't in the library */}
-              {sideViews.filter((k) => !SIDE_VIEWS.some((s) => s.key === k) && !svLib.some((it) => it.data?.path === k)).map((k) => (
-                <label key={k} style={{ width: 120, fontSize: 10, textAlign: 'center', cursor: 'pointer', border: '2px solid #f5a623', borderRadius: 6, padding: 4 }}>
-                  <input type="checkbox" checked onChange={() => onSideViews(sideViews.filter((x) => x !== k))} />
-                  <img src={svSrc(k)} alt="uploaded side view" style={{ width: '100%', height: 70, objectFit: 'contain' }} />
-                  <div>YOUR UPLOAD</div>
-                </label>
-              ))}
-              <label style={{ width: 120, fontSize: 11, textAlign: 'center', cursor: 'pointer', border: '1px dashed #999', borderRadius: 6, padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 96, color: 'var(--text-dim, #888)' }}>
-                <input
-                  type="file" accept="image/*" style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0]
-                    if (!f || !info?.quoteId) return
-                    e.target.value = ''
-                    // name it (e.g. the sign type) so it's findable on every future quote
-                    const suggested = (tpl?.n || f.name.replace(/\.[^.]+$/, '')).toUpperCase()
-                    const title = (window.prompt('Name this side view so the whole team can reuse it:', suggested) || '').trim()
-                    try {
-                      const path = await uploadExtraFile(info.quoteId, f)
-                      onSideViews([...sideViews.filter((x) => x !== '__none__'), path])
-                      if (title) {
-                        await saveCatalogItem('side_view', title, { path })
-                        setSvLib((l) => [...l.filter((x) => x.name !== title.toUpperCase()), { id: 'new' + Date.now(), name: title.toUpperCase(), data: { path } }])
-                        flash(`Saved to the library as “${title.toUpperCase()}”.`)
-                      } else {
-                        flash('Side view added to this quote only (no name given).')
-                      }
-                    } catch { flash('Upload failed — try again.') }
-                  }}
-                />
-                <span style={{ fontSize: 22, lineHeight: 1 }}>⬆</span>
-                <span>Upload your own</span>
-              </label>
-            </div>
-        </div>
+        <SideViewPicker
+          svAnchor={svAnchor} svSearch={svSearch} setSvSearch={setSvSearch}
+          sideViews={sideViews} onSideViews={onSideViews}
+          svLib={svLib} setSvLib={setSvLib} svGroup={svGroup} setSvGroup={setSvGroup}
+          svSrc={svSrc} tpl={tpl} info={info} flash={flash} />
       )}
 
     </div>

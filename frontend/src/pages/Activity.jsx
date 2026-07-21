@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { getActivityFeed } from '../api/quotes'
-import { timeAgo, fullTime } from '../utils/timeAgo'
 import RevisionHistory from '../components/RevisionHistory'
 import { rise } from '../components/ui/motion'
+import { Input } from '../components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import ActivityRow from '../components/activity/ActivityRow'
 
 /* Airtable-style activity log: a live grid of EVERY quote with its latest change in the last
    columns (what changed · who · how long ago), newest first. Click any row to open that quote's
@@ -26,8 +28,6 @@ export default function Activity() {
         : (error?.response?.data?.error || error?.message || 'Could not load the activity feed.'))
     : ''
 
-  const money = (n) => (n > 0 ? '$' + Number(n).toLocaleString() : '—')
-
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return rows
@@ -41,21 +41,21 @@ export default function Activity() {
 
   return (
     <>
-      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+      <div className="page-head flex flex-wrap items-center justify-between gap-2.5">
         <div>
-          <h1 style={{ marginBottom: 2 }}>Activity Log</h1>
-          <div className="muted" style={{ fontSize: 13 }}>{rows.length} quote{rows.length === 1 ? '' : 's'} · {edited} with tracked changes</div>
+          <h1 className="mb-0.5">Activity Log</h1>
+          <div className="muted text-[13px]">{rows.length} quote{rows.length === 1 ? '' : 's'} · {edited} with tracked changes</div>
         </div>
-        <input
+        <Input
+          className="w-[260px]"
           placeholder="Search quote, company, person…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 260 }}
         />
       </div>
 
       {errMsg && (
-        <div className="err" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8 }}>
+        <div className="err mb-3.5 rounded-lg px-3.5 py-2.5">
           ⚠ {errMsg}
         </div>
       )}
@@ -63,50 +63,27 @@ export default function Activity() {
       {isLoading ? (
         <div className="center">Loading…</div>
       ) : isError ? null : (
-        <motion.div variants={rise} initial="hidden" animate="show" style={{ overflowX: 'auto' }}>
-          <table className="grid">
-            <thead>
-              <tr>
-                <th style={{ width: 46 }}></th>
-                <th>Quote</th>
-                <th>Company / Job</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th>Latest change</th>
-                <th>Changed by</th>
-                <th style={{ whiteSpace: 'nowrap' }}>When</th>
-              </tr>
-            </thead>
-            <tbody>
+        <motion.div variants={rise} initial="hidden" animate="show" className="overflow-x-auto">
+          <Table className="grid">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[46px]"></TableHead>
+                <TableHead>Quote</TableHead>
+                <TableHead>Company / Job</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead>Latest change</TableHead>
+                <TableHead>Changed by</TableHead>
+                <TableHead className="whitespace-nowrap">When</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {shown.map((r) => (
-                <tr key={r.quote_id} onClick={() => setHistoryFor(r.quote_id)} style={{ cursor: 'pointer' }} title="Open full version history">
-                  <td style={{ padding: 4 }}>
-                    {r.snapshot_image
-                      ? <img src={r.snapshot_image} alt="" style={{ width: 38, height: 48, objectFit: 'cover', objectPosition: 'top', borderRadius: 4, border: '1px solid var(--border)', background: '#fff', display: 'block' }} />
-                      : <div style={{ width: 38, height: 48, borderRadius: 4, border: '1px dashed var(--border)', display: 'grid', placeItems: 'center', color: 'var(--text-faint)', fontSize: 16 }}>—</div>}
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <div style={{ fontWeight: 700 }}>{r.quote_id}</div>
-                    {r.rev_label && <div className="muted" style={{ fontSize: 11 }}>{r.rev_label}</div>}
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{r.company}</div>
-                    {r.job_name && <div className="muted" style={{ fontSize: 12 }}>{r.job_name}</div>}
-                  </td>
-                  <td><span className="badge">{r.status}</span></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{money(r.price)}</td>
-                  <td style={{ maxWidth: 320 }}>
-                    {r.last_change
-                      ? <span>{r.last_change}{r.change_count > 1 && <span className="muted"> · +{r.change_count - 1} more</span>}</span>
-                      : <span className="muted">No changes yet</span>}
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{r.changed_by || <span className="muted">—</span>}</td>
-                  <td style={{ whiteSpace: 'nowrap' }} className="muted" title={fullTime(r.changed_at)}>{r.changed_at ? timeAgo(r.changed_at) : '—'}</td>
-                </tr>
+                <ActivityRow key={r.quote_id} row={r} onOpen={() => setHistoryFor(r.quote_id)} />
               ))}
-              {shown.length === 0 && <tr><td colSpan={8} className="center">No quotes match this search.</td></tr>}
-            </tbody>
-          </table>
+              {shown.length === 0 && <TableRow><TableCell colSpan={8} className="center">No quotes match this search.</TableCell></TableRow>}
+            </TableBody>
+          </Table>
         </motion.div>
       )}
 

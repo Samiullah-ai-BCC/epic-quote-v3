@@ -11,7 +11,7 @@ export default function KpiTile({ label, value, format = (v) => Math.round(v).to
   return (
     <motion.div className="kpi" variants={rise}>
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value" style={accent ? { color: 'var(--gold)' } : undefined}>
+      <div className={accent ? 'kpi-value text-gold' : 'kpi-value'}>
         {isNum ? format(n) : value}
       </div>
       <div className="kpi-foot">

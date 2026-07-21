@@ -1,9 +1,11 @@
 import { MOUNT_OPTS, TRIM_OPTS, ILLUM_OPTS } from './catalog'
+import { buildFaQuestions } from './faCatalog'
 
 /* Adaptive question builder — ported verbatim from V1 buildQuestions().
    `ai` is the optional AI spec result; its values become highlighted defaults. */
 export function buildQuestions(t, ai = {}) {
   ai = ai || {}
+  if (t.fa) return buildFaQuestions(t, ai)
   if (t.matrix) return buildMatrixQuestions(t, ai)
   const qs = []
 

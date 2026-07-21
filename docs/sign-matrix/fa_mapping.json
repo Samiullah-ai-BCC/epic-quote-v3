@@ -1,0 +1,822 @@
+{
+  "source": "QUOTE ESTIMATOR - FA.csv",
+  "families": {
+    "ILLUMINATED CHANNEL LETTERS": {
+      "no": "1",
+      "template": "A",
+      "signtypes": {
+        "HALO LIT CHANNEL LETTERS": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : HALO LIT CHANNEL LETTERS\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: STUD MOUNT\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "\"SIGN TYPE : HALO LIT CHANNEL LETTERS WITH RACEWAY\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\"\" X [WIDTH]\"\"\nRETURNS: [DEPTH]\"\"\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2\"\" DEEP 6\"\" TALL ALUMINUM RACEWAY\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\"\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : HALO LIT CHANNEL LETTER WITH BACKBOARD\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 2\" DEEP ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE BACKER, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : HALO LIT CHANNEL LETTER WITH FLAT ALUMINUM BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER : 2.5MM FLAT ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP] \nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : HALO LIT CHANNEL LETTER WITH ACM BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER : 4MM FLAT ACM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP] \nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : HALO LIT CHANNEL LETTER WITH ACRYLIC BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER : 8MM FLAT ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP] \nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "FACE LIT CHANNEL LETTERS": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS WITH RACEWAY\nLETTER FACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nLETTER RETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2\" DEEP, 6\" TALL ALUMINUM RACEWAY\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]                                    \nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS WITH BACKBOARD\nLETTER FACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nLETTER RETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 2\" DEEP ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE BACKER, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 2.5MM FLAT ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS WITH ACM BACKER\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 4MM ACM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE LIT CHANNEL LETTERS WITH ACRYLIC BACKER\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATION : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 8MM ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "FACE AND HALO LIT CHANNEL LETTERS": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE AND HALO LIT CHANNEL LETTERS\nLETTER FACE: ACRYLIC/POLYCARBONATE FACE WITH VINYL APPLICATION\nBACK: ACRYLIC BACK\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: STUD MOUNT\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • TRIM & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : FACE & HALO LIT CHANNEL LETTERS WITH RACEWAY\nLETTER FACE: WHITE ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2\" DEEP, 6\" TALL ALUMINUM RACEWAY\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : FACE & HALO LIT CHANNEL LETTERS WITH ALUMINUM BACKBOARD\nLETTER FACE: WHITE ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 2\" DEEP ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n•⁠  ⁠POWER SUPPLY TO BE INSIDE BACKER, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : FACE & HALO LIT CHANNEL LETTERS WITH ALUMINUM BACKER\nLETTER FACE: WHITE ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 2MM FLAT ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : FACE & HALO LIT CHANNEL LETTERS WITH ACM BACKER\nLETTER FACE: WHITE ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 4MM ACM BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE : FACE & HALO LIT CHANNEL LETTERS WITH ACRYLIC BACKER\nLETTER FACE: WHITE ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: METALLIC/STANDARD TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: BACKER MOUNT\nBACKER: 8MM ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "MARQUEE CHANNEL LETTERS": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: FLUSH MOUNT\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS WITH RACEWAY\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2” DEEP,  SERVICEABLE RACEWAY\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS WITH ALUMINUM BACKBOARD\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2” DEEP,  SERVICEABLE RACEWAY\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5 MM FLAT ALUMINUM \nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS WITH FLAT ACM BACKER\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM FLAT ACM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: MARQUEE CHANNEL LETTERS WITH FLAT ACRYLIC BACKER\nLETTER FACE: OPEN FACE ALUMINUM\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION: 12 V MARQUEE BULBS \nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM FLAT ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "OPEN FACE FAUX NEON CHANNEL LETTER": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON WITH RACEWAY\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\"\" X [WIDTH]\"\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2” DEEP,  SERVICEABLE RACEWAY\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • RACEWAY COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF RACEWAY WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON WITH ALUMINUM BACKBOARD\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: BACKBOARD MOUNT\nRACEWAY/BACKER: 2” DEEP, SERVICEABLE BACKBOARD\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF BACKBOARD WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON WITH FLAT ALUMINUM BACKER\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5 MM FLAT ALUMIUN BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON WITH FLAT ACM BACKER\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM FLAT ACM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: OPEN FACE CHANNEL LETTER WITH FAUX NEON WITH FLAT ACRYLIC BACKER\nFACE: ALUMINUM WITH ACRYLIC & NEON TUBING ON FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : FAUX LED NEON TUBING\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM FLAT ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\n  • BACKER COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Face & Side Lit Channel Letters": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS WITH RACEWAY\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2” DEEP,  SERVICEABLE RACEWAY\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE RACEWAY WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS WITH BACKBOARD CABINET\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2” DEEP SERVICEABLE BACKBOARD\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE BACKBOARD WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5MM THICK ALUMINUM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS WITH FLAT ACM BACKER\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM THICK ACM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: FACE & SIDE LIT CHANNEL LETTERS WITH FLAT ACRYLIC BACKER\nFACE: ACRYLIC WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM THICK ACRYLIC BACKER\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Side Lit Channel Letters": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS WITH RACEWAY\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2” DEEP,  SERVICEABLE RACEWAY\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE RACEWAY WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS WITH BACKBOARD CABINET\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2” DEEP SERVICEABLE BACKBOARD\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE BACKBOARD WITH ON/OFF SWITCH INSTALLED"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5MM THICK ALUMINUM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS WITH FLAT ACM BACKER\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM THICK ACM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SIDE LIT CHANNEL LETTERS WITH FLAT ACRYLIC BACKER\nFACE: ACRYLIC WITH OPAQUE VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nSIDES: TRANSLUCENT ACRYLIC \nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM THICK ACRYLIC BACKER\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Vacuum Formed Channel Letters": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "A",
+              "sideview": "",
+              "specs": ""
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "\"SIGN TYPE: VACUUM FORMED CHANNEL LETTERS WITH RACEWAY\nFACE: VACUUM FORMED ACRYLIC\nOVERALL DIMENSIONS: [HEIGHT]\"\" X [WIDTH]\"\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2\" DEEP, SERVICEABLE ALUMINUM RACEWAY\nAPPLICATION: [APPLICATION]\""
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: VACUUM FORMED CHANNEL LETTERS WITH ALUMINUM BACKBOARD\nFACE: VACUUM FORMED ACRYLIC\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2\" DEEP, SERVICEABLE ALUMINUM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: VACUUM FORMED CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nFACE: VACUUM FORMED ACRYLIC\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5 MM THICK ALUMINUM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: VACUUM FORMED CHANNEL LETTERS WITH FLAT ACM BACKER\nFACE: VACUUM FORMED ACRYLIC\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM THICK ACM BACKER\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: VACUUM FORMED CHANNEL LETTERS WITH FLAT ACRYLIC BACKER\nFACE: VACUUM FORMED ACRYLIC\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500 K LED MODULES (3 YEARS WARRANTY)\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM THICK ACRYLIC BACKER\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        }
+      }
+    },
+    "NON ILLUMINATED FABRICATED CHANNEL LETTERS": {
+      "no": "2",
+      "template": "A",
+      "signtypes": {
+        "Fabricated Channel Letters": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH/STUD MOUNT\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Raceway Mount (2\")",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS WITH RACEWAY\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: RACEWAY MOUNT\nRACEWAY/BACKER: 2\" DEEP, 6\" TALL ALUMINUM RACEWAY\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Backboard Cabinet (2\")",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS WITH ALUMINUM BACKBOARD \nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2\" DEEP ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Aluminum Backer (2.5 mm)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS WITH FLAT ALUMINUM BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 2.5 MM THICK ALUMINUM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat ACM Backer (4mm)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS WITH FLAT ACM BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 4 MM THICK ACM BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Flat Acrylic Backer (8mm)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE : NON ILLUMINATED FABRICATED CHANNEL LETTERS WITH FLAT ACRYLIC BACKER\nLETTER FACE: SS/ALUMINUM FACE\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nILLUMINATION : N/A\nMOUNTING: BACKER MOUNT\nRACEWAY/BACKER: 8 MM THICK ACRYLIC BACKER\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        }
+      }
+    },
+    "DIMENSIONAL FLAT CUT LETTERS": {
+      "no": "3",
+      "template": "A",
+      "signtypes": {
+        "Flat Cut Acrylic/PVC Letters": {
+          "thickness_axis": true,
+          "options": [
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 3/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/4\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 3/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/4\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/4\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 3/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/4\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1\" FLAT CUT ACRYLIC LETTERS\nFACE: ACRYLIC\nLETTERS THICKNESS: 1\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1\""
+            }
+          ]
+        },
+        "Flat Cut Aluminum Letters": {
+          "thickness_axis": true,
+          "options": [
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/8\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/8\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/8\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/4\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/4\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/4\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 3/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/8\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 3/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/8\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 3/8\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 3/8\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "3/8\""
+            },
+            {
+              "mounting": "Flush Mount (VHB)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH VHB)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            },
+            {
+              "mounting": "Flush Mount (Screws)",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: FLUSH MOUNT (WITH SCREWS)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            },
+            {
+              "mounting": "Stud Mount",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: 1/2\" FLAT CUT ALUMINUM LETTERS\nFACE: ALUMINUM/SS FACE\nLETTERS THICKNESS: 1/2\"\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nILLUMINATION : N/A\nMOUNTING: STUD MOUNT \nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]",
+              "thickness": "1/2\""
+            }
+          ]
+        }
+      }
+    },
+    "ILLUMINATED CABINETS": {
+      "no": "4",
+      "template": "A",
+      "signtypes": {
+        "Single Sided Face Lit Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "N/A",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED FACE LIT CABINET\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nTRIM CAP: STANDARD/METALLIC TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: EXTERIOR\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Single Sided Face & Halo Lit Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED FACE & HALO LIT CABINET\nFACE: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]\"\nBACK: FROSTED ACRYLIC\nTRIM CAP: STANDARD/METALLIC TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: EXTERIOR\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Double Sided Illuminated Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED ILLUMINATED CABINET\nFACES: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nTRIM CAP: STANDARD/METALLIC TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Single Sided Push Thru Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED FACE LIT PUSH THRU CABINET\nFACE: ROUTED ALUMINUM FACE WITH PUSH THRU ACRYLIC LETTERS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Single Sided Face & Halo lit Push Thru Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED FACE AND HALO LIT PUSH THRU CABINET\nFACE: ROUTED ALUMINUM FACE WITH PUSH THRU ACRYLIC LETTERS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nBACK: FROSTED ACRYLIC\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Double Sided Push Thru Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED FACE LIT PUSH THRU CABINET\nFACES: ROUTED ALUMINUM FACE WITH PUSH THRU ACRYLIC LETTERS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Single Sided Routed & Backed up Acrylic Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED ROUTED & BACKED UP ACRYLIC CABINET\nFACE: ROUTED ALUMINUM FACE WITH BACKED UP ACRYLIC LETTERS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nMOUNTING: FLUSH MOUNT\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Double Sided Routed & Backed up Acrylic Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED ROUTED AND BACKED UP ACRYLIC CABINET\nFACES: ROUTED ALUMINUM FACE WITH ROUTED AND BACKED UP ACRYLIC LETTERS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nRACEWAY/BACKER: N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        }
+      }
+    },
+    "NON ILLUMINATED CABINETS": {
+      "no": "5",
+      "template": "A",
+      "signtypes": {
+        "Single Sided Non Illuminated Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "N/A",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: SINGLE SIDED NON-ILLUMINATED CABINET\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nFACES: ALUMINUM/SS\nRETURNS: [DEPTH]\"\nILLUMINATED : N/A\nMOUNTING: FLUSH MOUNT\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Double Sided Non Illuminated Cabinet": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED NON-ILLUMINATED CABINET\nFACES: ALUMINUM/SS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\" \nRETURNS: [DEPTH]\"\nILLUMINATED : N/A\nCOLOR SPECS:\n  • FACE & RETURNS COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        }
+      }
+    },
+    "BLADE SIGNS": {
+      "no": "6",
+      "template": "A",
+      "signtypes": {
+        "Fabricated Illumimated Blade Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "N/A",
+              "package": "A",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED ILLUMINATED BLADE SIGN\nFACES: ACRYLIC FACE WITH VINYL APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nTRIM CAP: STANDARD/METALLIC TRIM CAP\nILLUMINATED : 6500K LED MODULES (3 YEAR WARRANTY)\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\n  • RETURN & TRIM COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]\n\n* POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
+            }
+          ]
+        },
+        "Fabricated Non Illuminated Blade Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: DOUBLE SIDED NON-ILLUMINATED BLADE SIGN\nFACES: ALUMINUM FACE WITH VINYL/PAINT APPLICATION\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nRETURNS: [DEPTH]”\nILLUMINATED : N/A\nCOLOR SPECS:\n  • FACE & RETURN COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Flat Blade Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "",
+              "package": "B",
+              "sideview": "",
+              "specs": "SIGN TYPE: FLAT BLADE SIGN\nBLADE FACE: ALUMINUM/SS\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nBLADE THICKNESS: 2.5 MM\nILLUMINATED : N/A\nCOLOR SPECS:\n  • FACE COLOR: [ASK REP]\nFINISH: SATIN\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        }
+      }
+    },
+    "LED NEON SIGNS": {
+      "no": "7",
+      "template": "A",
+      "signtypes": {
+        "Faux LED Neon Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "C",
+              "sideview": "",
+              "specs": "SIGN TYPE: FAUX LED NEON SIGN\nFACE: ACRYLIC WITH FAUX LED NEON\nNEON COLORS: [ASK REP]\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nSHAPE: [ASK REP]\nILLUMINATED : FAUX NEON LED\nMOUNTING: WALL MOUNTED\nACRYLIC: [ASK REP]\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Ceiling Hung",
+              "package": "D",
+              "sideview": "",
+              "specs": "SIGN TYPE: FAUX LED NEON SIGN\nFACE: ACRYLIC WITH FAUX LED NEON\nNEON COLORS: [ASK REP]\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nSHAPE: [ASK REP]\nILLUMINATED : FAUX NEON LED\nMOUNTING: CEILING MOUNTED\nACRYLIC: [ASK REP]\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        },
+        "Faux Acrylic Neon Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Flush Mount",
+              "package": "C",
+              "sideview": "",
+              "specs": "SIGN TYPE: ACRYLIC FAUX LED NEON SIGN\nFACE: ACRYLIC WITH FAUX LED NEON\nNEON COLORS: [ASK REP]\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nSHAPE: [ASK REP]\nILLUMINATED : FAUX NEON LED\nMOUNTING: WALL MOUNTED\nACRYLIC: [ASK REP]\nAPPLICATION: [APPLICATION]"
+            },
+            {
+              "mounting": "Ceiling Hung",
+              "package": "",
+              "sideview": "",
+              "specs": "SIGN TYPE: ACRYLIC FAUX LED NEON SIGN\nFACE: ACRYLIC WITH FAUX LED NEON\nNEON COLORS: [ASK REP]\nOVERALL DIMENSIONS: [HEIGHT]\" X [WIDTH]\"\nSHAPE: [ASK REP]\nILLUMINATED : FAUX NEON LED\nMOUNTING: CEILING MOUNTED\nACRYLIC: [ASK REP]\nAPPLICATION: [APPLICATION]"
+            }
+          ]
+        }
+      }
+    },
+    "PYLON SIGNS": {
+      "no": "8",
+      "template": "B",
+      "signtypes": {
+        "Pylon Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "N/A",
+              "package": "N/A",
+              "sideview": "N/A",
+              "specs": "Custom"
+            }
+          ]
+        }
+      }
+    },
+    "MONUMENT SIGNS": {
+      "no": "9",
+      "template": "B",
+      "signtypes": {
+        "Monument Sign": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "N/A",
+              "package": "N/A",
+              "sideview": "N/A",
+              "specs": "Custom"
+            }
+          ]
+        }
+      }
+    },
+    "\"+\" TYPE A NEW SIGN TYPE": {
+      "no": "10",
+      "template": "A",
+      "signtypes": {
+        "Custom": {
+          "thickness_axis": false,
+          "options": [
+            {
+              "mounting": "Custom",
+              "package": "Custom",
+              "sideview": "Custom",
+              "specs": "Custom"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

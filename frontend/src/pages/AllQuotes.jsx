@@ -1,296 +1,26 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { EASE } from '../components/ui/motion'
 import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
-import useAuthStore from '../store/authStore'
-import client, { fileUrl } from '../api/client'
-import { getRevisions, getGenerated } from '../api/quotes'
-import Proposal from '../components/Proposal'
-import { T } from '../generator/catalog'
-import { useSortable, SortTh, useColumns, ColumnPicker, gridKeyNav, downloadCsv, copyTsv } from '../components/grid'
+import { useSelector } from 'react-redux'
+import { selectIsAdmin, selectIsViewer } from '../store/authSlice'
+import { useSortable, useColumns, downloadCsv, copyTsv } from '../components/grid'
 import AddQuoteModal from '../components/AddQuoteModal'
 import RevisionHistory from '../components/RevisionHistory'
-
-// The PROPOSAL itself at the top of the View modal (#7): the latest version image when one
-// exists, else the real proposal rendered live from the saved state (read-only) — so View
-// always shows the document, never just text.
-function ViewProposalImage({ quote }) {
-  const [img, setImg] = useState(null)
-  const [gd, setGd] = useState(null)
-  const [page, setPage] = useState(0)
-  // Fit-to-viewport (#2): the proposal renders at its natural 816px width (~1056px+ tall). To show
-  // the WHOLE page in one go — no inner scrollbar — we measure the rendered height and scale the
-  // page down so it fits inside the modal viewport. Height is the constraint; width always fits.
-  const contentRef = useRef(null)
-  const [fit, setFit] = useState(1)
-  const [contentH, setContentH] = useState(0)
-  useLayoutEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const measure = () => {
-      const h = el.scrollHeight
-      if (!h) return
-      // modal viewport (90vh) minus the modal chrome: padding, the "Quote …" heading, the
-      // page-carousel bar, and margins. Conservative so the whole thing never scrolls.
-      const availH = window.innerHeight * 0.9 - 150
-      setContentH(h)
-      setFit(Math.min(1, availH / h))
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    window.addEventListener('resize', measure)
-    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
-  }, [gd, page])
-  useEffect(() => {
-    let alive = true
-    setImg(null); setGd(null); setPage(0)
-    // the live per-page render is primary (it pages sign-by-sign); the latest version image is
-    // the fallback for quotes whose generated data can't load.
-    getGenerated(quote.quote_id)
-      .then((g) => { if (alive) setGd(g || {}) })
-      .catch(() => getRevisions(quote.quote_id).then((d) => {
-        if (alive) setImg((d?.checkpoints || []).find((c) => c.snapshot_image)?.snapshot_image || null)
-      }).catch(() => {}))
-    return () => { alive = false }
-  }, [quote.quote_id])
-
-  // ‹ › arrow keys page through a multi-sign quote — the rep expects the keyboard to work, not
-  // only the on-screen buttons (Sami's golden principle: one task, every natural way to do it).
-  useEffect(() => {
-    const parts = (Array.isArray(gd?.parts) && gd.parts.length) ? gd.parts : (gd ? [gd] : [])
-    if (parts.length <= 1) return
-    const onKey = (e) => {
-      if (e.key === 'ArrowLeft') setPage((p) => Math.max(0, p - 1))
-      else if (e.key === 'ArrowRight') setPage((p) => Math.min(parts.length - 1, p + 1))
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [gd])
-
-  if (gd) {
-    // IMAGES ONLY (#12): the proposal itself, one page at a time — a multi-sign quote pages
-    // through A/B/… with ‹ › (a "multi-page wizard"), read-only.
-    const parts = (Array.isArray(gd.parts) && gd.parts.length) ? gd.parts : [gd]
-    const total = parts.reduce((s, p) => {
-      const price = Number(p?.custom_spec?.price ?? p?.answers?.price) || 0
-      const q = Math.max(1, parseInt(p?.proposal_state?.__qty ?? p?.custom_spec?.qty ?? p?.answers?.qty ?? 1, 10) || 1)
-      const extras = (Array.isArray(p?.proposal_state?.__items) ? p.proposal_state.__items : [])
-        .reduce((a, it) => a + Math.max(0, Number(it.qty) || 0) * Math.max(0, Number(it.unit) || 0), 0)
-      return s + price * q + extras
-    }, 0)
-    const info = { company: quote.company_name, client: quote.client_name, contact: quote.contact, email: quote.email, address: quote.address, job: quote.job_name, quoteId: quote.quote_id }
-    const multi = parts.length > 1
-    const i = Math.min(page, parts.length - 1)
-    const p = parts[i]
-    return (
-      <div style={{ marginBottom: 12 }}>
-        {multi && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
-            <button className="ghost sm" disabled={i === 0} onClick={() => setPage(i - 1)}>‹ Prev</button>
-            <b style={{ fontSize: 13 }}>Page {String.fromCharCode(65 + i)} of {String.fromCharCode(65 + parts.length - 1)}</b>
-            <button className="ghost sm" disabled={i === parts.length - 1} onClick={() => setPage(i + 1)}>Next ›</button>
-          </div>
-        )}
-        {/* The COMPLETE page in one go, scaled to fit the modal viewport (#2) — no inner slider.
-            The outer box reserves the scaled height; the inner 816px page is scaled by `fit`.
-            pointerEvents:none keeps it read-only. */}
-        <div style={{ height: contentH ? contentH * fit : undefined, display: 'flex', justifyContent: 'center', overflow: 'hidden' }}>
-          <div ref={contentRef} style={{ width: 816, transform: `scale(${fit})`, transformOrigin: 'top center', pointerEvents: 'none', borderRadius: 8, border: '1px solid var(--border)' }}>
-          <Proposal
-            key={i}
-            readOnly
-            mode={p.quote_type || gd.quote_type || 'custom'}
-            tpl={T.find((t) => t.n === p.tpl_name) || (p.tpl_name ? { n: p.tpl_name, st: 'SIGN TYPE: ' + p.tpl_name, mono: 1, colors: [] } : null)}
-            answers={p.answers || {}}
-            customSpec={p.custom_spec}
-            info={info}
-            artworkPath={p.artwork_path}
-            savedState={p.proposal_state}
-            sideViews={p.side_views || []}
-            paymentLink={gd.payment_link}
-            proposalNotes={p.proposal_notes}
-            partLabel={multi ? String.fromCharCode(65 + i) : null}
-            multi={multi}
-            isLast={i === parts.length - 1}
-            quoteTotal={multi ? total : null}
-          />
-          </div>
-        </div>
-      </div>
-    )
-  }
-  if (img) return (
-    <img src={img} alt="Latest proposal" style={{ width: '100%', maxHeight: 460, objectFit: 'contain', objectPosition: 'top', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }} />
-  )
-  return null
-}
-
-// Admin status manager (#16): add / rename / remove / reorder the pickable quote statuses.
-// Existing quotes keep whatever status string they already carry; "Done" is protected server-side.
-function StatusManager({ statuses, onClose, onSaved }) {
-  const [list, setList] = useState(statuses)
-  const [err, setErr] = useState('')
-  const [saving, setSaving] = useState(false)
-  const move = (i, d) => setList((l) => {
-    const n = [...l]; const j = i + d
-    if (j < 0 || j >= n.length) return l
-    ;[n[i], n[j]] = [n[j], n[i]]
-    return n
-  })
-  const save = async () => {
-    setSaving(true); setErr('')
-    try {
-      await client.put('/settings/statuses', { statuses: list.map((s) => s.trim()).filter(Boolean) })
-      onSaved()
-      onClose()
-    } catch (e) { setErr(e?.response?.data?.error || 'Could not save statuses.') }
-    finally { setSaving(false) }
-  }
-  return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ width: 460 }}>
-        <h2 style={{ marginTop: 0 }}>Manage statuses</h2>
-        <p className="muted" style={{ fontSize: 12.5 }}>Renames/removals never touch existing quotes — they keep their current status. “Done” can’t be removed (reports key off it).</p>
-        {err && <p className="err">{err}</p>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
-          {list.map((s, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input value={s} onChange={(e) => setList((l) => l.map((x, j) => (j === i ? e.target.value : x)))} style={{ flex: 1 }} />
-              <button className="ghost sm" title="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-              <button className="ghost sm" title="Move down" disabled={i === list.length - 1} onClick={() => move(i, +1)}>↓</button>
-              <button className="ghost sm" title={s === 'Done' ? '"Done" cannot be removed' : 'Remove'} disabled={s === 'Done'}
-                style={{ color: '#e05661' }} onClick={() => setList((l) => l.filter((_, j) => j !== i))}>×</button>
-            </div>
-          ))}
-        </div>
-        <button className="ghost sm" style={{ marginTop: 8 }} onClick={() => setList((l) => [...l, ''])}>+ Add status</button>
-        <div className="foot" style={{ marginTop: 14 }}>
-          <button className="ghost" onClick={onClose}>Cancel</button>
-          <button disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save statuses'}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Files carousel (#15): EVERY artwork the quote has ever had — the live art on each sign PLUS
-// older uploads that were later replaced (the backend mines version snapshots for those), the
-// customer file and the crunched artwork — paged with ‹ ›. PDFs show as an open-in-tab card.
-function ArtCarousel({ quote, onClose }) {
-  const [files, setFiles] = useState(null)
-  const [i, setI] = useState(0)
-  useEffect(() => {
-    let alive = true
-    client.get(`/quotes/${quote.quote_id}/artworks`).then(({ data }) => {
-      if (!alive) return
-      const list = (data?.artworks || []).map((a) => ({ label: a.label, url: fileUrl(a.url), isPdf: /\.pdf($|\?)/i.test(a.url) }))
-      setFiles(list)
-    }).catch(() => {
-      // endpoint unreachable — fall back to whatever the quote row already carries
-      const list = []
-      if (quote.artwork_url) list.push({ label: 'Artwork', url: fileUrl(quote.artwork_url), isPdf: false })
-      if (quote.customer_pdf) list.push({ label: 'Customer file', url: fileUrl(quote.customer_pdf), isPdf: /\.pdf($|\?)/i.test(quote.customer_pdf) })
-      setFiles(list)
-    })
-    return () => { alive = false }
-  }, [quote])
-
-  // ‹ › arrow keys page the files too (same golden-principle nav as the proposal carousel).
-  useEffect(() => {
-    if (!files || files.length <= 1) return
-    const onKey = (e) => {
-      if (e.key === 'ArrowLeft') setI((n) => Math.max(0, n - 1))
-      else if (e.key === 'ArrowRight') setI((n) => Math.min(files.length - 1, n + 1))
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [files])
-
-  const f = files && files[Math.min(i, files.length - 1)]
-  return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ width: 720, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <h2 style={{ margin: 0 }}>Files — {quote.quote_id}</h2>
-          <button className="ghost sm" onClick={onClose}>Close</button>
-        </div>
-        {!files && <div className="center" style={{ padding: 30 }}>Loading files…</div>}
-        {files && files.length === 0 && <div className="muted" style={{ padding: 20 }}>No files on this quote.</div>}
-        {f && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
-              <button className="ghost sm" disabled={i === 0} onClick={() => setI(i - 1)}>‹ Prev</button>
-              <b style={{ fontSize: 13 }}>{f.label} — {i + 1} of {files.length}</b>
-              <button className="ghost sm" disabled={i === files.length - 1} onClick={() => setI(i + 1)}>Next ›</button>
-            </div>
-            {f.isPdf
-              ? <div className="center" style={{ padding: 40, border: '1px dashed var(--border)', borderRadius: 8 }}>
-                  <a href={f.url} target="_blank" rel="noreferrer">📄 Open {f.label} (PDF)</a>
-                </div>
-              : <img src={f.url} alt={f.label}
-                  style={{ width: '100%', maxHeight: '62vh', objectFit: 'contain', background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }} />}
-            <a className="muted" style={{ fontSize: 12, marginTop: 8 }} href={f.url} target="_blank" rel="noreferrer">Open original in a new tab ↗</a>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// clean a currency entry to a plain numeric string (digits + one dot)
-const cleanMoney = (s) => {
-  let t = String(s).replace(/[^0-9.]/g, '')
-  const i = t.indexOf('.')
-  if (i !== -1) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, '').slice(0, 2)
-  return t
-}
-const fmtMoney = (v) => (v === '' || v == null || isNaN(Number(v)) ? '' : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-
-// Commits on blur only when the value actually changed.
-// `money` mode: shows $X,XXX.XX when idle, the plain number while editing, and cleans
-// input to digits — so deleting + retyping a price always re-formats itself (#19).
-function EditCell({ value, onCommit, type = 'text', width = 120, col, row, onPasteDown, readOnly, money }) {
-  const [v, setV] = useState(value ?? '')
-  const [focused, setFocused] = useState(false)
-  // follow server updates (bulk paste, another user's edit) — but never clobber active typing
-  useEffect(() => { if (!focused) setV(value ?? '') }, [value, focused])
-  const commit = () => { setFocused(false); if (String(v) !== String(value ?? '')) onCommit(v) }
-  if (readOnly) return <span>{value === null || value === undefined || value === '' ? '—' : (money ? fmtMoney(value) : String(value))}</span>
-  const display = money && !focused ? fmtMoney(v) : v
-  return (
-    <input
-      type={money ? 'text' : type}
-      inputMode={money ? 'decimal' : undefined}
-      value={display}
-      style={{ width }}
-      data-col={col}
-      data-row={row}
-      onChange={(e) => setV(money ? cleanMoney(e.target.value) : e.target.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={commit}
-      onKeyDown={(e) => (col != null ? gridKeyNav(e, col, row) : e.key === 'Enter' && e.currentTarget.blur())}
-      onPaste={(e) => {
-        // Excel-style: pasting a multi-line clipboard fills this column downwards, one row per line
-        if (!onPasteDown) return
-        const text = e.clipboardData.getData('text')
-        if (text.includes('\n')) {
-          e.preventDefault()
-          const values = text.replace(/\r/g, '').split('\n').filter((x, idx, arr) => x !== '' || idx < arr.length - 1)
-          setV(values[0] ?? '')
-          onPasteDown(values)
-        }
-      }}
-    />
-  )
-}
+import ViewProposalImage from '../components/quotes/ViewProposalImage'
+import StatusManager from '../components/quotes/StatusManager'
+import ArtCarousel from '../components/quotes/ArtCarousel'
+import QuoteFilters from '../components/quotes/QuoteFilters'
+import BulkActionsBar from '../components/quotes/BulkActionsBar'
+import QuotesTable from '../components/quotes/QuotesTable'
 
 export default function AllQuotes() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { isAdmin, isViewer } = useAuthStore()
+  const isAdmin = useSelector(selectIsAdmin)
+  const isViewer = useSelector(selectIsViewer)
   const { data: constants } = useConstants()
   const update = useUpdateQuote()
   const updateStatus = useUpdateStatus()
@@ -335,8 +65,8 @@ export default function AllQuotes() {
   const statuses = constants?.statuses || []
   const reps = constants?.sales_reps || []
   const team = constants?.team || []
-  const admin = isAdmin()
-  const readOnly = isViewer()   // viewer accounts: the grid becomes a pure report
+  const admin = isAdmin
+  const readOnly = isViewer   // viewer accounts: the grid becomes a pure report
 
   const patch = (id, field, value) => update.mutate({ id, patch: { [field]: value } })
 
@@ -399,177 +129,45 @@ export default function AllQuotes() {
   return (
     <div className="fill-page">
       <div className="page-head">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="flex items-center gap-3">
           <h1>All Quotes</h1>
           {assignedF && (
-            <span className="pill pill-purple" style={{ cursor: 'pointer' }} title="Click to clear this filter"
+            <span className="pill pill-purple cursor-pointer" title="Click to clear this filter"
               onClick={() => setSearchParams({})}>assigned to {assignedF} ✕</span>
           )}
         </div>
         {!readOnly && <button onClick={() => setShowAdd(true)}>+ New quote</button>}
       </div>
 
-      <div className="toolbar">
-        <input className="grow" placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 'auto' }}>
-          <option value="">All statuses</option>
-          <option value="__pending__">Pending (not Done)</option>
-          {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }} title="Only quotes assigned to me">
-          <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} style={{ width: 'auto' }} />
-          My quotes
-        </label>
-        <select value={sourceF} onChange={(e) => setSourceF(e.target.value)} style={{ width: 'auto' }} title="Filter by where the quote came from">
-          <option value="">All sources</option>
-          {(constants?.quote_sources || []).map((qs) => <option key={qs} value={qs}>{qs}</option>)}
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }} title="Only Rush / Super Rush quotes">
-          <input type="checkbox" checked={rushOnly} onChange={(e) => setRushOnly(e.target.checked)} style={{ width: 'auto' }} />
-          Rush only
-        </label>
-        <button className="ghost sm" title="Download the current view (or just the ticked rows) as a spreadsheet file" onClick={exportCsv}>⬇ CSV</button>
-        <button className="ghost sm" title="Copy the current view (or just the ticked rows) — paste into Excel/Google Sheets" onClick={copyRows}>⧉ Copy</button>
-        {admin && <button className="ghost sm" title="Add, rename, reorder or remove the pickable quote statuses" onClick={() => setManagingStatuses(true)}>⚙ Statuses</button>}
-        <ColumnPicker columns={columns} />
-      </div>
+      <QuoteFilters
+        search={search} setSearch={setSearch} status={status} setStatus={setStatus}
+        mine={mine} setMine={setMine} rushOnly={rushOnly} setRushOnly={setRushOnly}
+        sourceF={sourceF} setSourceF={setSourceF}
+        statuses={statuses} sources={constants?.quote_sources || []}
+        admin={admin} columns={columns}
+        onExportCsv={exportCsv} onCopyRows={copyRows} onManageStatuses={() => setManagingStatuses(true)}
+      />
 
-      {selIds.length > 0 && (
-        <div className="toolbar" style={{ background: 'rgba(249,166,0,0.08)', border: '1px solid rgba(249,166,0,0.35)', borderRadius: 8, padding: '6px 10px', alignItems: 'center' }}>
-          <b style={{ whiteSpace: 'nowrap' }}>{selIds.length} selected</b>
-          <select defaultValue="" style={{ width: 'auto' }} title="Set this status on every selected quote" onChange={(e) => { bulkStatus(e.target.value); e.target.value = '' }}>
-            <option value="">Set status…</option>
-            {statuses.map((st) => <option key={st} value={st}>{st}</option>)}
-          </select>
-          <select defaultValue="__none__" style={{ width: 'auto' }} title="Assign every selected quote to this person" onChange={(e) => { if (e.target.value !== '__none__') bulkAssign(e.target.value); e.target.value = '__none__' }}>
-            <option value="__none__">Assign to…</option>
-            <option value="">— unassign —</option>
-            {team.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {admin && <button className="danger sm" onClick={bulkDelete}>Delete selected</button>}
-          <button className="ghost sm" onClick={() => setSelected(new Set())}>Clear</button>
-        </div>
-      )}
+      <BulkActionsBar
+        selIds={selIds} statuses={statuses} team={team} admin={admin}
+        onBulkStatus={bulkStatus} onBulkAssign={bulkAssign} onBulkDelete={bulkDelete}
+        onClear={() => setSelected(new Set())}
+      />
 
       {isLoading ? (
         <div className="center">Loading…</div>
       ) : (
-        <div className="grid-wrap" style={{ overflow: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>{!readOnly && <input type="checkbox" checked={allVisibleSelected} title="Select every quote in the current view" style={{ width: 'auto' }} onChange={toggleAll} />}</th>
-                <th title="Row number">#</th>
-                <SortTh k="quote_id" sort={sort}>Quote ID</SortTh>
-                {columns.has('company') && <SortTh k="company_name" sort={sort}>Company</SortTh>}
-                {columns.has('client') && <SortTh k="client_name" sort={sort}>Client</SortTh>}
-                {columns.has('contact') && <th>Phone</th>}
-                {columns.has('job') && <SortTh k="job_name" sort={sort}>Job</SortTh>}
-                {columns.has('price') && <SortTh k="price" sort={sort}>Price</SortTh>}
-                {columns.has('be') && <th title="Breakeven production cost — internal only">BE Prod</th>}
-                {columns.has('be') && <th title="Breakeven shipping cost — internal only">BE Ship</th>}
-                {columns.has('profit') && <SortTh k="profit" sort={sort} title="Auto: price minus breakevens — internal only. Click to sort.">Profit</SortTh>}
-                {columns.has('rep') && <SortTh k="sales_rep" sort={sort}>Sales Rep</SortTh>}
-                {columns.has('assigned') && <SortTh k="assigned_to" sort={sort}>Assigned</SortTh>}
-                {columns.has('rush') && <SortTh k="rush" sort={sort}>Rush</SortTh>}
-                {columns.has('approval') && <th title="Price approval: ✓ = approved (who/when logged); 🔒 = locked — cannot send PDF/PNG/payment link until approved">Approval</th>}
-                {columns.has('order') && <th title="Customer placed the order — date is stamped automatically">Order</th>}
-                <SortTh k="status" sort={sort}>Status</SortTh>{columns.has('files') && <th>Files</th>}<th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sort.sorted.map((q, i) => (
-                <tr key={q.id} style={selected.has(q.quote_id) ? { background: 'rgba(249,166,0,0.07)' } : undefined}>
-                  <td>{!readOnly && <input type="checkbox" checked={selected.has(q.quote_id)} style={{ width: 'auto' }} onChange={() => toggleSel(q.quote_id)} />}</td>
-                  <td className="muted" style={{ fontSize: 11 }}>{i + 1}</td>
-                  <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>TEST</span>}{q.rush === 'Super Rush' && <span className="pill pill-coral" style={{ marginLeft: 6, fontSize: 10 }}>SUPER RUSH</span>}{q.rush === 'Rush' && <span className="pill pill-amber" style={{ marginLeft: 6, fontSize: 10 }}>RUSH</span>}</td>
-                  {columns.has('company') && <td><EditCell readOnly={readOnly} col="company" row={i} onPasteDown={pasteDown('company', i)} value={q.company_name} onCommit={(v) => patch(q.quote_id, 'company_name', v)} width={140} /></td>}
-                  {columns.has('client') && <td><EditCell readOnly={readOnly} col="client" row={i} onPasteDown={pasteDown('client', i)} value={q.client_name} onCommit={(v) => patch(q.quote_id, 'client_name', v)} /></td>}
-                  {columns.has('contact') && <td><EditCell readOnly={readOnly} col="contact" row={i} onPasteDown={pasteDown('contact', i)} value={q.contact} onCommit={(v) => patch(q.quote_id, 'contact', v)} /></td>}
-                  {columns.has('job') && <td><EditCell readOnly={readOnly} col="job" row={i} onPasteDown={pasteDown('job', i)} value={q.job_name} onCommit={(v) => patch(q.quote_id, 'job_name', v)} /></td>}
-                  {columns.has('price') && <td><EditCell money readOnly={readOnly} col="price" row={i} onPasteDown={pasteDown('price', i)} value={q.price ?? ''} width={100} onCommit={(v) => patch(q.quote_id, 'price', v)} /></td>}
-                  {columns.has('be') && <td><EditCell money readOnly={readOnly} col="bep" row={i} onPasteDown={pasteDown('bep', i)} value={q.breakeven_production ?? ''} width={90} onCommit={(v) => patch(q.quote_id, 'breakeven_production', v)} /></td>}
-                  {columns.has('be') && <td><EditCell money readOnly={readOnly} col="bes" row={i} onPasteDown={pasteDown('bes', i)} value={q.breakeven_shipping ?? ''} width={90} onCommit={(v) => patch(q.quote_id, 'breakeven_shipping', v)} /></td>}
-                  {columns.has('profit') && <td style={{ whiteSpace: 'nowrap', fontWeight: 600, color: q.profit == null ? undefined : q.profit >= 0 ? '#97c459' : '#e5484d' }}>
-                    {q.profit == null ? '—' : `$${Number(q.profit).toLocaleString()} (${q.profit_pct}%)`}
-                  </td>}
-                  {columns.has('rep') && <td>
-                    {admin ? (
-                      <select value={q.sales_rep || ''} style={{ width: 110 }} title="Sales rep — N/A makes it a shared quote" onChange={(e) => patch(q.quote_id, 'sales_rep', e.target.value)}>
-                        <option value="">— N/A —</option>
-                        {reps.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    ) : (q.sales_rep || '—')}
-                  </td>}
-                  {columns.has('assigned') && <td>
-                    <select disabled={readOnly} value={q.assigned_to || ''} style={{ width: 110 }} title="Who is working this quote" onChange={(e) => patch(q.quote_id, 'assigned_to', e.target.value)}>
-                      <option value="">—</option>
-                      {team.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </td>}
-                  {columns.has('rush') && <td>
-                    <select disabled={readOnly} value={q.rush || ''} style={{ width: 100, ...(q.rush === 'Super Rush' ? { borderColor: '#e5484d', color: '#e5484d', fontWeight: 700 } : q.rush === 'Rush' ? { borderColor: '#f9a600', color: '#f9a600', fontWeight: 600 } : {}) }} title="Rush level — rush quotes jump the needs-attention queue" onChange={(e) => patch(q.quote_id, 'rush', e.target.value)}>
-                      <option value="">—</option>
-                      <option value="Rush">Rush</option>
-                      <option value="Super Rush">Super Rush</option>
-                    </select>
-                  </td>}
-                  {columns.has('approval') && <td style={{ whiteSpace: 'nowrap' }}>
-                    <label title={q.price_approved ? `Approved by ${q.approved_by}${q.approved_at ? ' on ' + new Date(q.approved_at).toLocaleDateString() : ''}` : 'Tick to approve the price (you + date are logged)'} style={{ cursor: 'pointer' }}>
-                      <input type="checkbox" disabled={readOnly} checked={!!q.price_approved} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
-                    </label>{' '}
-                    <label title={q.approval_locked ? 'LOCKED — PDF/PNG/payment link blocked until the price is approved. Click to unlock.' : 'Lock this quote until the price is approved'} style={{ cursor: 'pointer', opacity: q.approval_locked ? 1 : 0.5 }}>
-                      <input type="checkbox" disabled={readOnly} checked={!!q.approval_locked} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
-                    </label>
-                  </td>}
-                  {columns.has('order') && <td style={{ textAlign: 'center' }}>
-                    <label title={q.order_confirmed ? `Order placed${q.order_placed_at ? ' on ' + new Date(q.order_placed_at).toLocaleDateString() : ''}` : 'Tick when the customer places the order (date is stamped)'} style={{ cursor: 'pointer' }}>
-                      <input type="checkbox" disabled={readOnly} checked={!!q.order_confirmed} style={{ width: 'auto' }} onChange={(e) => patch(q.quote_id, 'order_confirmed', e.target.checked)} /> 📦
-                    </label>
-                  </td>}
-                  <td>
-                    <select disabled={readOnly} value={q.status} style={{ width: 150 }} onChange={(e) => updateStatus.mutate({ id: q.quote_id, status: e.target.value })}>
-                      {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    {/* extra "also waiting on…" chips — a quote can wait on several people at once.
-                        The main status drives the numbers; chips add visibility. */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4, maxWidth: 190, alignItems: 'center' }}>
-                      {(q.tags || []).map((t) => (
-                        <span key={t} className="pill pill-purple" style={{ cursor: 'pointer', fontSize: 10 }} title="Click to remove"
-                          onClick={() => updateTags.mutate({ id: q.quote_id, tags: (q.tags || []).filter((x) => x !== t) })}>
-                          {t} ×
-                        </span>
-                      ))}
-                      <select disabled={readOnly} value="" style={{ width: 26, padding: '0 2px', height: 20, fontSize: 11 }} title="Also waiting on…"
-                        onChange={(e) => { const t = e.target.value; if (t) updateTags.mutate({ id: q.quote_id, tags: [...new Set([...(q.tags || []), t])] }) }}>
-                        <option value="">+</option>
-                        {statuses.filter((s) => s !== q.status && s !== 'Done' && !(q.tags || []).includes(s)).map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </td>
-                  {columns.has('files') && <td style={{ whiteSpace: 'nowrap' }}>
-                    {q.customer_pdf && <a href={fileUrl(q.customer_pdf)} target="_blank" rel="noreferrer">PDF</a>}{' '}
-                    {/* Art opens a carousel of ALL the quote's images (every sign's artwork +
-                        customer file + crunched), not just the first one (#15) */}
-                    {(q.artwork_url || q.customer_pdf || q.crunched_artwork) && (
-                      <button className="ghost sm" style={{ padding: '1px 7px' }} onClick={() => setArtFor(q)}>Art</button>
-                    )}{' '}
-                    {q.crunched_artwork && <a href={fileUrl(q.crunched_artwork)} target="_blank" rel="noreferrer">Crunch</a>}
-                  </td>}
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="ghost sm" onClick={() => setViewing(q)}>View</button>{' '}
-                    {!readOnly && <><button className="ghost sm" onClick={() => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/quotes' } })}>Edit</button>{' '}</>}
-                    {admin && <><button className="ghost sm" title="Field-level change history (who changed what, when)" onClick={() => setHistoryFor(q.quote_id)}>History</button>{' '}</>}
-                    {/* Test-flag toggle removed from the UI for now (Sami, 2026-07-14) — the
-                        is_test field and its KPI exclusion stay intact server-side. */}
-                    {admin && <button className="danger sm" onClick={() => remove(q)}>Delete</button>}
-                  </td>
-                </tr>
-              ))}
-              {quotes.length === 0 && <tr><td colSpan={19} className="center">No quotes found.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <QuotesTable
+          sort={sort} columns={columns} statuses={statuses} reps={reps} team={team}
+          admin={admin} readOnly={readOnly}
+          selected={selected} allVisibleSelected={allVisibleSelected}
+          onToggleAll={toggleAll} onToggleSel={toggleSel}
+          patch={patch} pasteDown={pasteDown} updateStatus={updateStatus} updateTags={updateTags}
+          onView={setViewing}
+          onEdit={(q) => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/quotes' } })}
+          onHistory={setHistoryFor} onDelete={remove} onArt={setArtFor}
+          isEmpty={quotes.length === 0}
+        />
       )}
 
       {viewing && (

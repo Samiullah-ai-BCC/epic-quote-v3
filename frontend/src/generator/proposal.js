@@ -3,6 +3,7 @@
 
 import { parseDims, composeDims } from './questions'
 import { mountingByLabel } from './catalog'
+import { buildFaSpecLines } from './faCatalog'
 
 const ILLUM_DEFAULT = '6500K LED MODULES (3 YEAR WARRANTY)'
 
@@ -53,6 +54,7 @@ export function esc(s) {
 // Returns an array of spec lines for a generator-mode quote.
 export function buildSpecLines(t, a = {}, ai = null) {
   if (!t) return []
+  if (t.fa) return buildFaSpecLines(t, a)
   if (t.matrix) return buildMatrixSpecLines(t, a)
   // monuments are free-form: render the AI's full spec (or a minimal block) instead of templated lines
   if (t.mono) {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Papa from 'papaparse'
 
 /* Reusable grid building blocks (Grid v1 — T1).
    useSortable: client-side sort state over any row array.
@@ -111,13 +112,9 @@ export function SortTh({ k, sort, children, title }) {
 }
 
 
-/* Grid v4: copy + CSV export. Fields with commas/quotes/newlines are quoted per RFC 4180. */
+/* Grid v4: copy + CSV export. RFC 4180 quoting handled by papaparse. */
 export function toCsv(headers, rows) {
-  const esc = (v) => {
-    const t = v === null || v === undefined ? '' : String(v)
-    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t
-  }
-  return [headers.map(esc).join(','), ...rows.map((r) => r.map(esc).join(','))].join('\r\n')
+  return Papa.unparse({ fields: headers, data: rows }, { newline: '\r\n' })
 }
 
 export function downloadCsv(filename, headers, rows) {
@@ -130,7 +127,7 @@ export function downloadCsv(filename, headers, rows) {
 }
 
 export async function copyTsv(headers, rows) {
-  const text = [headers.join('\t'), ...rows.map((r) => r.map((v) => (v ?? '')).join('\t'))].join('\n')
+  const text = Papa.unparse({ fields: headers, data: rows }, { delimiter: '\t' })
   try {
     await navigator.clipboard.writeText(text)
     return true
