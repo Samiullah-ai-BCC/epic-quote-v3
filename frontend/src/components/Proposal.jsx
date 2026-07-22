@@ -221,19 +221,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const [cropOpen, setCropOpen] = useState(false)   // proposal-side crop modal (react-easy-crop)
   const [cropBusy, setCropBusy] = useState(false)
   const [hideNotes, setHideNotes] = useState(!!savedState?.__hideNotes)   // #6 — Additional Notes removable
-  const [notesH, setNotesH] = useState(savedState?.__notesH || null)      // #9 — Additional Notes drag-resized height
-  const notesResizeRef = useRef(null)
-  useEffect(() => {
-    const el = notesResizeRef.current
-    if (!el) return
-    // native CSS `resize` gives the drag handle for free; we just need to persist what it lands on
-    const ro = new ResizeObserver(() => {
-      const h = Math.round(el.getBoundingClientRect().height)
-      setNotesH((prev) => (prev === h ? prev : h))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [hideNotes])
+  // The drag-to-resize handle (#9) is GONE: a fixed height + overflow:auto meant the PDF/PNG
+  // export captured a scrolled box and silently cut off notes below the fold. Notes must always
+  // render whole — the section simply grows with its content now.
   // #11 — chosen package set. Precedence: what the rep saved (old keys mapped via PKG_ALIAS)
   // > the letter this sign type is assigned in the sheet (tpl.pkg) > A.
   const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(tpl?.pkg) || 'A')
@@ -401,6 +391,24 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return () => document.removeEventListener('keydown', onKey)
   }, [mainView]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // One printed US-Letter page at 96dpi is 816×1056. The page div grows with content (notes
+  // auto-expand now). The PDF exporter scale-fits the whole capture onto ONE letter sheet, so a
+  // long page doesn't split — it prints SMALLER; and a PNG printed at 100% spills to sheet two.
+  // The standard layout (side-view list) already runs ~1190px, so the alarm only trips once the
+  // page grows meaningfully past that — i.e. when notes/specs start really stretching it.
+  const PAGE_H = 1056
+  const WARN_H = 1240   // ≈ standard layout + a couple of note lines of headroom
+  const [overBy, setOverBy] = useState(0)   // px past the warning height (0 = fine)
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+    const check = () => setOverBy(el.offsetHeight > WARN_H ? Math.round(el.offsetHeight - PAGE_H) : 0)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // fit the fixed 816px page into the available column width (keeps full-res for PDF)
   useEffect(() => {
     const fit = () => {
@@ -558,7 +566,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const dirtyRef = useRef(new Set(savedState?.__dirty || []))
 
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name), __dirty: [...dirtyRef.current], __specTpl: tpl?.n || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet, __notesH: notesH }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name), __dirty: [...dirtyRef.current], __specTpl: tpl?.n || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -577,7 +585,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
-  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes, pkgSet, notesH]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes, pkgSet]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = pageRef.current; if (!el) return
     const h = (e) => {
@@ -909,6 +917,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
       <div className="proposal-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'center', flexWrap: 'wrap' }}>
       <div ref={wrapRef} className="proposal-wrap" style={{ overflow: 'hidden', background: '#5a6270', padding: 20, borderRadius: 10, flex: '1 1 520px', minWidth: 0 }}>
+        {/* screen-only print-overflow warning — lives OUTSIDE the page div, so no export/PDF
+            capture ever includes it. Shows for every page of a multi-sign quote independently. */}
+        {overBy > 0 && (
+          <div style={{ maxWidth: 816 * scale, margin: '0 auto 10px', background: '#7f1d1d', color: '#fff', border: '1px solid #ef4444', borderRadius: 8, padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
+            ⚠ <strong>This page is too long for one printed sheet.</strong> It runs
+            {' '}~{Math.ceil(overBy / (PAGE_H / 11))}″ past US-Letter — the PDF will shrink everything
+            to fit (smaller text), and a full-size print will spill onto a second sheet.
+            Trim the Additional Notes / specs to keep it on one page.
+          </div>
+        )}
         <div className="proposal-fit" style={{ width: 816 * scale, height: scaledH, margin: '0 auto' }}>
         <div
           ref={pageRef}
@@ -1025,10 +1043,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     onMouseDown={(e) => { e.preventDefault(); setHideNotes(true) }}
                     style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, background: '#fff', border: '1.5px solid #e05661', borderRadius: '50%', color: '#e05661', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</span>
                 </div>
-                {/* drag the bottom-right corner to manage its height (#9) — native CSS resize, so
-                    no custom pointer-tracking needed; the height is persisted in __notesH. */}
-                <div ref={notesResizeRef} className="adj-ui-resize"
-                  style={{ resize: 'vertical', overflow: 'auto', minHeight: 40, maxHeight: 400, height: notesH ? `${notesH}px` : undefined }}>
+                {/* No fixed height / scrollbar here: the export renders exactly what's on screen,
+                    so notes must always be fully visible — the box grows with the text. */}
+                <div style={{ minHeight: 40 }}>
                   {E('notes', { fontSize: 10.5, padding: '8px 12px', outline: 'none' }, { noImagePaste: true })}
                 </div>
               </>}
