@@ -1,6 +1,16 @@
+import { sanitizePhone, useContactMethod } from '../../utils/contactMethod'
+
 // Presentational "Client Information" wizard step. All state lives in Generator();
 // this component only renders the controlled fields and calls back.
 export default function ClientStep({ client, setClient, admin, reps, repOther, setRepOther, saveClient }) {
+  const [contactMethod, setContactMethod] = useContactMethod(client.email, client.contact)
+  // Switching method is a real choice, not just "which box is showing" — the OTHER field is
+  // cleared so nothing stale is left behind for email-preferring displays elsewhere (Proposal,
+  // quote list, payment links) to pick up instead of what the rep actually selected.
+  const onContactMethodChange = (v) => {
+    setContactMethod(v)
+    setClient({ ...client, [v === 'phone' ? 'email' : 'contact']: '' })
+  }
   return (
     <div className="step">
       <div className="step-head"><span className="step-icon">👤</span><h3>Client Information</h3></div>
@@ -16,18 +26,28 @@ export default function ClientStep({ client, setClient, admin, reps, repOther, s
         </div>
       ))}
       <div className="step-section">2. Contact details</div>
-      {[['contact', 'Phone'], ['email', 'Email'], ['address', 'Address']].map(([k, label]) => (
-        <div className="field" key={k}>
-          <label>{label}</label>
-          <input
-            type={k === 'email' ? 'email' : 'text'}
-            inputMode={k === 'contact' ? 'tel' : undefined}
-            placeholder={k === 'contact' ? 'digits only' : k === 'email' ? 'name@company.com' : ''}
-            value={client[k] || ''}
-            onChange={(e) => setClient({ ...client, [k]: k === 'contact' ? e.target.value.replace(/[^0-9()+\-.\s]/g, '') : e.target.value })}
-          />
-        </div>
-      ))}
+      <div className="field">
+        <label>
+          Contact{' '}
+          <select value={contactMethod} onChange={(e) => onContactMethodChange(e.target.value)} style={{ marginLeft: 6 }}>
+            <option value="email">Email</option>
+            <option value="phone">Phone</option>
+          </select>
+        </label>
+        {contactMethod === 'phone' ? (
+          <input type="text" inputMode="tel" placeholder="digits only"
+            value={client.contact || ''}
+            onChange={(e) => setClient({ ...client, contact: sanitizePhone(e.target.value) })} />
+        ) : (
+          <input type="email" placeholder="name@company.com"
+            value={client.email || ''}
+            onChange={(e) => setClient({ ...client, email: e.target.value })} />
+        )}
+      </div>
+      <div className="field">
+        <label>Address</label>
+        <input type="text" value={client.address || ''} onChange={(e) => setClient({ ...client, address: e.target.value })} />
+      </div>
       <div className="step-section">3. Job details</div>
       <div className="field">
         <label>Job Name</label>

@@ -1,13 +1,24 @@
-import { Controller } from 'react-hook-form'
+import { Controller, useWatch } from 'react-hook-form'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
+import { sanitizePhone, useContactMethod } from '../../../utils/contactMethod'
 
 // Party fields that AI fills in (shown only after the read in AI mode; always in Custom).
 // Company autofill (#8/#9): known companies suggest as you type; a matched company fills its
 // ADDRESS only — the rep picks the exact contact from the dropdown (dropdown-ONLY autofill,
 // Sami 2026-07-14: auto-applying the first contact kept picking wrong people).
-export default function PartyFields({ control, register, choice, companyHits, exactHit, onCompanyChange, onPickContact, sources }) {
+export default function PartyFields({ control, register, setValue, choice, companyHits, exactHit, onCompanyChange, onPickContact, sources }) {
+  const email = useWatch({ control, name: 'email' })
+  const contact = useWatch({ control, name: 'contact' })
+  const [contactMethod, setContactMethod] = useContactMethod(email, contact)
+  // Switching method is a real choice, not just "which box is showing" — the OTHER field is
+  // cleared so nothing stale is left behind for email-preferring displays elsewhere (Proposal,
+  // quote list, payment links) to pick up instead of what the rep actually selected.
+  const onContactMethodChange = (v) => {
+    setContactMethod(v)
+    setValue(v === 'phone' ? 'email' : 'contact', '')
+  }
   return (
     <>
       <div className="grid gap-1.5 mb-3">
@@ -43,16 +54,25 @@ export default function PartyFields({ control, register, choice, companyHits, ex
           <Input id="nq-client" {...register('client_name')} />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="nq-phone">Phone</Label>
-          <Controller name="contact" control={control} render={({ field }) => (
-            <Input id="nq-phone" inputMode="tel" placeholder="digits only"
-              value={field.value} onChange={(e) => field.onChange(e.target.value.replace(/[^0-9()+\-.\s]/g, ''))} />
-          )} />
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="nq-contact">Contact</Label>
+            <Select value={contactMethod} onValueChange={onContactMethodChange}>
+              <SelectTrigger className="h-7 w-25 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="phone">Phone</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {contactMethod === 'phone' ? (
+            <Controller name="contact" control={control} render={({ field }) => (
+              <Input id="nq-contact" inputMode="tel" placeholder="digits only"
+                value={field.value} onChange={(e) => field.onChange(sanitizePhone(e.target.value))} />
+            )} />
+          ) : (
+            <Input id="nq-contact" type="email" placeholder="name@company.com" {...register('email')} />
+          )}
         </div>
-      </div>
-      <div className="grid gap-1.5 mb-3">
-        <Label htmlFor="nq-email">Email</Label>
-        <Input id="nq-email" type="email" placeholder="name@company.com" {...register('email')} />
       </div>
       <div className="grid gap-1.5 mb-3">
         <Label htmlFor="nq-address">Address</Label>

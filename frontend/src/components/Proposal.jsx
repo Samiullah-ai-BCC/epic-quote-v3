@@ -877,10 +877,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
   return (
     <div>
+<<<<<<< Updated upstream
       {!readOnly && (
         <div className="edit-hint" style={{ marginBottom: 10, fontSize: 13, color: 'var(--muted, #8a94a6)' }}>
         </div>
       )}
+=======
+>>>>>>> Stashed changes
       {pickFor && (
         <div style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', background: '#8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: 6, zIndex: 200, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
           🎨 Click the highlighted artwork to grab its color · press Esc to cancel
@@ -1307,23 +1310,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               <div style={grpLabel}>Package set</div>
               {/* image dropdown (#8): the picker shows each set's actual item IMAGES, not text */}
               <div data-pkg-picker style={{ position: 'relative' }}>
-                <button type="button" className="ghost" style={{ width: '100%', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}
+                <button type="button" className="ghost p-0" style={{ width: '100%', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}
                   title="Choose which set of included items shows under PACKAGE INCLUDES"
                   onClick={() => setPkgPicking((v) => !v)}>
                   {PACKAGE_SETS[pkgSet].items.map((it) => (
-                    <img key={it.img} src={it.img} alt={it.label} style={{ height: 26, objectFit: 'contain', background: '#fff', borderRadius: 3 }} />
+                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '90px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
                   ))}
                   <span style={{ fontSize: 11 }}>▾</span>
                 </button>
                 {pkgPicking && (
                   <div style={{ position: 'absolute', top: '105%', left: 0, right: 0, zIndex: 90, background: 'var(--navy-700)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.3))', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {Object.entries(PACKAGE_SETS).map(([k, v]) => (
-                      <button key={k} type="button" className="ghost"
+                      <button key={k} type="button" className="ghost p-0"
                         onClick={() => { setPkgSet(k); setPkgPicking(false) }}
                         style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 8, borderColor: pkgSet === k ? 'var(--gold)' : undefined }}
                         title={v.label}>
                         {v.items.map((it) => (
-                          <img key={it.img} src={it.img} alt={it.label} style={{ height: 44, objectFit: 'contain', background: '#fff', borderRadius: 4, padding: 2 }} />
+                          <img key={it.img} src={it.img} alt={it.label} style={{ height: '90px', objectFit: 'cover', background: '#fff', borderRadius: 4, padding: 2 }} />
                         ))}
                       </button>
                     ))}

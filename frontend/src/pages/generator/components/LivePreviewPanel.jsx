@@ -16,7 +16,6 @@ export default function LivePreviewPanel({
         <button className="ghost sm" onClick={onBack}>← Back</button>
         <button className="ghost sm" onClick={onSaveAndReturn} disabled={saving}>{saving ? 'Saving…' : '💾 Save & Return'}</button>
       </div>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Live preview — updates as you fill the steps; you can edit it directly.</div>
       <Proposal
         key={'live' + previewKey}
         mode={mode}

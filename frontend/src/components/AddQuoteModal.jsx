@@ -168,7 +168,7 @@ export default function AddQuoteModal({ onClose }) {
   const back = () => { setChoice(null); setRevealed(false); setFiles([]); reset(EMPTY) }
 
   const partyFields = (
-    <PartyFields control={control} register={register} choice={choice}
+    <PartyFields control={control} register={register} setValue={setValue} choice={choice}
       companyHits={companyHits} exactHit={exactHit}
       onCompanyChange={onCompanyChange} onPickContact={applyContact} sources={sources} />
   )
