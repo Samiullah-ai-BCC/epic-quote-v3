@@ -60,7 +60,7 @@ export default function PreviewStep({
               {/* per-page controls (#9): each sign page gets its OWN "Edit specs" (opens the
                   full wizard spec editor for THAT sign) and, when >1, a delete button. */}
               <div style={{ position: 'absolute', top: 0, right: 0, zIndex: 5, display: 'flex', gap: 6 }}>
-                <button className="ghost sm" onClick={() => editPart(i)} disabled={saving}
+                <button className="ghost sm mb-5" onClick={() => editPart(i)} disabled={saving}
                   title={`Edit the sign type & specifications of page ${multi ? partLetter(i) : ''}`.trim()}>
                   ✎ Edit specs{multi ? ' ' + partLetter(i) : ''}
                 </button>
