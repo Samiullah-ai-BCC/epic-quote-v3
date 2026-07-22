@@ -132,34 +132,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // Two default chips, stacked + left-aligned, anchored later to the FACE / RETURN & TRIM colour
     // lines. Default first BLACK, second WHITE (the common pair); the rep adjusts via the picker.
     return [
-      { id: 'face', name: 'BLACK', color: '#000000', x: 300, y: 690, w: SW_W, h: SW_H },
+      { id: 'face', name: 'BLACK', color: '#000000', x: 100, y: 690, w: SW_W, h: SW_H },
       { id: 'rettrim', name: 'WHITE', color: '#ffffff', x: 300, y: 712, w: SW_W, h: SW_H },
     ]
   })
   // Add a chip to the RIGHT of the existing ones, on the same row (auto-aligned).
   // With no existing chips (custom mode has no seeded colour lines), start inside the
   // SPECIFICATIONS block instead of floating over the item table.
-  // Visible TEXT runs on the page (spec lines, item description, notes) in unscaled page coords —
-  // swatches must not cover them (#8). Measured on demand at drag/add time.
-  const textObstacles = () => {
-    const page = pageRef.current; if (!page) return []
-    const sc = scaleRef.current || 1
-    const pr = page.getBoundingClientRect()
-    const rects = []
-    page.querySelectorAll('[data-key="specBody"], [data-key="itemDesc"], [data-key="notes"]').forEach((el) => {
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-      let n
-      while ((n = walker.nextNode())) {
-        if (!n.textContent.trim()) continue
-        const rng = document.createRange(); rng.selectNodeContents(n)
-        for (const r of rng.getClientRects()) {
-          if (r.width < 4 || r.height < 4) continue
-          rects.push({ x: (r.left - pr.left) / sc, y: (r.top - pr.top) / sc, w: r.width / sc, h: r.height / sc })
-        }
-      }
-    })
-    return rects
-  }
   // The SPECIFICATIONS column bounds (page coords) — swatches belong here and must never leave it.
   const specAreaRect = () => {
     const page = pageRef.current
@@ -181,13 +160,19 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // nudge right past obstacles, then clamp back into the SPECIFICATIONS column.
   const resolveOverlap = (arr, id) => {
     const me = arr.find((s) => s.id === id); if (!me) return arr
-    const obstacles = [...arr.filter((s) => s.id !== id), ...textObstacles()]
+    // Chips collide ONLY with other VISIBLE chips, at their exact pixel rects — text lines are no
+    // longer obstacles and there is zero margin/tolerance. Ghost chips must not block: 'rettrim'
+    // stays in the array while render-hidden (combined "FACE & RETURN COLOR" line → hideRet), and
+    // an emptied hand-chip without keep can linger too — colliding with an invisible chip reads
+    // as "I can't place a swatch on this empty spot" (the deleted-swatch's-place bug).
+    const visible = (s) => !(s.id === 'rettrim' && hideRet) && (s.id === 'face' || s.id === 'rettrim' || s.color || s.name || s.keep)
+    const obstacles = arr.filter((s) => s.id !== id && visible(s))
     const hits = (x, o) => x < o.x + o.w && x + me.w > o.x && me.y < o.y + o.h && me.y + me.h > o.y
     let x = me.x, guard = 0
     while (guard++ < 120) {
       const clash = obstacles.find((o) => hits(x, o))
       if (!clash) break
-      x = Math.round(clash.x + clash.w + 1)   // sit just to the right of whatever it collided with
+      x = Math.round(clash.x + clash.w)   // land flush against the chip it hit (0 gap)
     }
     const clamped = clampToArea({ ...me, x })
     return (clamped.x === me.x && clamped.y === me.y) ? arr : arr.map((s) => (s.id === id ? clamped : s))
@@ -207,14 +192,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     })
     setSelId('swatch-' + id)
   }
-  // After a drag/resize, snap a chip's row to a neighbour so rows stay aligned, THEN push it clear
-  // of any chip it now overlaps — chips can never sit on top of each other.
-  const snapRow = (id) => setSwatches((arr) => {
-    const me = arr.find((s) => s.id === id); if (!me) return arr
-    const near = arr.find((s) => s.id !== id && Math.abs(s.y - me.y) <= 18)
-    const snapped = near ? arr.map((s) => (s.id === id ? { ...s, y: near.y } : s)) : arr
-    return resolveOverlap(snapped, id)
-  })
+  // After a drag/resize: placement is ABSOLUTE — the chip stays exactly where the rep dropped it.
+  // (The old ±18px row-snap yanked a chip dropped just below a neighbour onto ITS row, which then
+  // collided and shoved it sideways — "I placed it under the black one and it teleported right".)
+  // The only correction left: two chips genuinely on the same pixels get separated.
+  const snapRow = (id) => setSwatches((arr) => resolveOverlap(arr, id))
   // #7 — the ITEM DETAILS artwork area background, so a grey-background artwork can sit on a
   // matching grey instead of clashing white. Persisted with the proposal state.
   const [artBg, setArtBg] = useState(savedState?.__artBg || '#ffffff')
@@ -897,7 +879,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     <div>
       {!readOnly && (
         <div className="edit-hint" style={{ marginBottom: 10, fontSize: 13, color: 'var(--muted, #8a94a6)' }}>
-          ✏️ Click any text to edit it. Edits and layout save automatically. Click an image for resize corners + crop edges.
         </div>
       )}
       {pickFor && (
@@ -1023,7 +1004,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
               the sheet — full-width specs instead of the 240px sidebar. */}
           <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
-            <div style={isMonoType ? undefined : { borderRight: '1px solid #777' }}>
+            {/* flex column: SPECIFICATIONS stretches to absorb whatever height the right column
+                forces on the grid row, so ADDITIONAL NOTES always hugs the BOTTOM of the box
+                instead of floating mid-column with a void under it (regression after the notes
+                height-cap removal — the old fixed notesH used to fill that space by accident). */}
+            <div style={{ display: 'flex', flexDirection: 'column', ...(isMonoType ? {} : { borderRight: '1px solid #777' }) }}>
               <div data-sec="specs" style={secHead}>SPECIFICATIONS</div>
               {/* specBody: paste blocked (sensitive #2). Its bottom border is the separator ABOVE
                   Additional Notes — drop it when notes are hidden so no line dangles (#4). */}
@@ -1035,7 +1020,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   whole page visibly shrinks the instant either of those happens — give it a floor
                   matching the FULL right sidebar (package ~136 + side view ~270) so page length stays
                   consistent no matter which sections are present. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', minHeight: (isMonoType || sideViews.includes('__none__')) ? 390 : (specLong ? 255 : 215), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', flex: '1 1 auto', minHeight: (isMonoType || sideViews.includes('__none__')) ? 390 : (specLong ? 255 : 215), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
@@ -1187,9 +1172,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         // being a normal flow stack, groups can never overlap (the old absolute attempt could).
         const setGrp = (k) => (el) => { grpRefs.current[k] = el }
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, }}>
             {/* UNDO / REDO (#7) — same history the Ctrl+Z / Ctrl+Y shortcuts walk */}
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Undo (Ctrl+Z)" onClick={() => applyHist(-1)}>↶ Undo</button>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Redo (Ctrl+Y)" onClick={() => applyHist(+1)}>↷ Redo</button>
             </div>

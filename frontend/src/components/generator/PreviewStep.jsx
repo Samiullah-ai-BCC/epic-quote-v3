@@ -39,7 +39,7 @@ export default function PreviewStep({
       </div>
 
       {deletedPage && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, padding: '9px 14px', background: 'var(--gold-soft)', border: '1px solid var(--gold)', borderRadius: 8, fontSize: 13 }}>
+        <div style={{ display: 'flex', margintop:40, alignItems: 'center', gap: 0, marginBottom: 12, padding: '9px 14px', background: 'var(--gold-soft)', border: '1px solid var(--gold)', borderRadius: 8, fontSize: 13 }}>
           <span>Page deleted.</span>
           <button className="ghost sm" onClick={undoDeletePage}>↶ Undo delete</button>
           <button className="ghost sm" style={{ marginLeft: 'auto' }} onClick={() => { clearTimeout(deleteTimer.current); setDeletedPage(null) }}>Dismiss</button>
