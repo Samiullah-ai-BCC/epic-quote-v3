@@ -188,7 +188,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // too — colliding with an invisible chip reads as "I can't place a swatch on this empty
     // spot" (the deleted-swatch's-place bug).
     const visible = (s) => !(s.id === 'rettrim' && hideRet) && (s.id === 'face' || s.id === 'rettrim' || s.color || s.name || s.keep)
-    const obstacles = [...arr.filter((s) => s.id !== id && visible(s)), ...textObstacles()]
+    const obstacles = [...arr.filter((s) => s.id !== id && visible(s)), ...textObstacles().map((r) => ({ ...r, text: true }))]
     // Push-right-only used to fail at the column's right edge: the nudge went right, then
     // clampToArea dragged the chip straight BACK onto its neighbour — visible chip-on-chip
     // overlap. Resolve with the SMALLEST shift in any direction instead (flush right, left,
@@ -196,7 +196,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // can never undo the separation.
     const area = specAreaRect()
     const inArea = (p) => !area || (p.x >= area.x + 2 && p.y >= area.y + 2 && p.x + me.w <= area.x + area.w - 2 && p.y + me.h <= area.y + area.h - 2)
-    const collide = (p) => obstacles.find((o) => p.x < o.x + o.w && p.x + me.w > o.x && p.y < o.y + o.h && p.y + me.h > o.y)
+    // Chips vs chips: exact-rect, zero tolerance. Chips vs TEXT: tolerant of GRAZING — the line
+    // pitch (~20px at 10.5px × 1.9) equals the chip height, so a chip sat inline next to a label
+    // unavoidably clips the neighbouring rows' glyph boxes by a few px; blocking that made "put
+    // the chip right after COLOR SPECS:" impossible (it fled upward). Real coverage — the chip
+    // actually sitting ON a line's letters — still collides: that needs >6px of vertical bite
+    // (glyph boxes are 8–12px tall) and >4px horizontally.
+    const collide = (p) => obstacles.find((o) => {
+      const dx = Math.min(p.x + me.w, o.x + o.w) - Math.max(p.x, o.x)
+      const dy = Math.min(p.y + me.h, o.y + o.h) - Math.max(p.y, o.y)
+      return o.text ? (dx > 4 && dy > 6) : (dx > 0 && dy > 0)
+    })
     // Clamp into the column BEFORE resolving. Clamping after was the overlap bug: a chip spawned
     // past the right edge collides with nothing out there, the loop exits clean, and only THEN
     // did the clamp drag it left — straight onto the chips it was never checked against.
@@ -667,6 +677,22 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       })
       return changed ? next : arr
     })
+  }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One-time load sanitize: chips SAVED while older overlap rules were live (or none at all)
+  // render at their stored spots forever — resolveOverlap only ever ran on drag/add, so a quote
+  // saved with a chip sitting on text keeps that overlap on every open ("still overlapping" on
+  // server-side quotes). After the page settles (text measurable, anchors applied), run every
+  // chip through the CURRENT resolver once; clean chips are untouched (resolver is a no-op).
+  const sanitizedRef = useRef(false)
+  useEffect(() => {
+    if (sanitizedRef.current || !pageRef.current) return
+    const t = setTimeout(() => {
+      if (sanitizedRef.current) return
+      sanitizedRef.current = true
+      setSwatches((arr) => arr.reduce((a, s) => resolveOverlap(a, s.id), arr))
+    }, 600)   // after the anchor pass + font layout settle
+    return () => clearTimeout(t)
   }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // #6 — measure each tagged proposal section's top so its control group can sit in front of it.
