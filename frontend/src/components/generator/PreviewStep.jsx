@@ -11,7 +11,7 @@ export default function PreviewStep({
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
-  savePart, commitPartArtworkFile, pageRefs, proposalRef, mode, editPart, deletePage,
+  savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, deletePage,
 }) {
   return (
     <div className="step">
@@ -55,12 +55,15 @@ export default function PreviewStep({
           // key includes letter + last-ness so a page REMOUNTS when those change (add/delete/
           // reorder) — its write-once proposal ID + price columns are recomputed correctly.
           const pageKey = `${p.__pid}|${multi ? partLetter(i) : 's'}|${isLast ? 'L' : '_'}`
-          return (
-            <div key={pageKey} style={{ position: 'relative' }}>
-              {/* per-page controls (#9): each sign page gets its OWN "Edit specs" (opens the
-                  full wizard spec editor for THAT sign) and, when >1, a delete button. */}
-              <span style={{ display: 'flex', gap: 6, marginBottom : '8px', width: "max-content", marginLeft: 'auto' }}>
-                <button className="ghost sm" onClick={() => editPart(i)} disabled={saving}
+          // Per-page actions render INSIDE the page's own controls column (Proposal pageActions):
+          // as a flow row above the page they pushed the whole sheet down (the dead white band).
+          // Living in the column they stay glued to THEIR page — after a reorder each row still
+          // edits/moves/deletes the sign it sits beside, because everything closes over `i` of
+          // the freshly-mapped render.
+          const pageActions = (
+            <>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="ghost sm" style={{ flex: 1 }} onClick={() => editPart(i)} disabled={saving}
                   title={`Edit the sign type & specifications of page ${multi ? partLetter(i) : ''}`.trim()}>
                   ✎ Edit specs{multi ? ' ' + partLetter(i) : ''}
                 </button>
@@ -68,11 +71,26 @@ export default function PreviewStep({
                   <button className="ghost sm" onClick={() => deletePage(i)} disabled={saving}
                     title={`Delete sign page ${partLetter(i)}`}
                     style={{ color: '#e05661', borderColor: '#e05661' }}>
-                    🗑 Delete page {partLetter(i)}
+                    🗑 {partLetter(i)}
                   </button>
                 )}
-              </span>
+              </div>
+              {multi && movePart && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="ghost sm" style={{ flex: 1 }} disabled={saving || i === 0}
+                    title={`Move page ${partLetter(i)} up — it becomes page ${i > 0 ? partLetter(i - 1) : partLetter(i)} and every letter, proposal ID and the last-page total re-sequence automatically`}
+                    onClick={() => movePart(i, -1)}>↑ Move up</button>
+                  <button className="ghost sm" style={{ flex: 1 }} disabled={saving || i === parts.length - 1}
+                    title={`Move page ${partLetter(i)} down`}
+                    onClick={() => movePart(i, +1)}>↓ Move down</button>
+                </div>
+              )}
+            </>
+          )
+          return (
+            <div key={pageKey} style={{ position: 'relative' }}>
               <Proposal
+                pageActions={pageActions}
                 ref={(el) => { pageRefs.current[p.__pid] = el; if (isLast) proposalRef.current = el }}
                 mode={p.quote_type || mode}
                 tpl={tplForPart(p)}

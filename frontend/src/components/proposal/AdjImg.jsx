@@ -7,7 +7,7 @@ import { detectSubjectBox } from './util'
 //  • EDGE bars crop (shrink the visible window; the image itself stays put and is clipped)
 // Absolute-positioned, so changing one never reflows the page. Geometry (incl. the crop window
 // ix/iy/iw/ih) is reported up via onLay; selection chrome carries "adj-ui" so PDF capture hides it.
-export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds }) {
+export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds, slotCenterX = null }) {
   // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
   // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
   // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
@@ -187,6 +187,13 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
                   // x positions; centring them stacked every tile at the same x (alignment bug).
                   if (bounds && !fitCenterH) {
                     fitted = { ...fitted, x: Math.round((bounds.w - fitted.w) / 2), y: Math.round((bounds.h - fitted.h) / 2) }
+                  }
+                  // fitCenterH tiles: centre each image on ITS OWN SLOT's midline. The aspect-fit
+                  // narrows w from the slot width, but x stayed at the slot's LEFT edge — every
+                  // package icon sat left-shifted in its slot. slotCenterX carries the slot's
+                  // centre from the layout that owns the slots.
+                  if (fitCenterH && slotCenterX != null) {
+                    fitted = fitBounds({ ...fitted, x: Math.round(slotCenterX - fitted.w / 2) })
                   }
                   setBox(fitted); onLay(fitted)
                 }

@@ -82,7 +82,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // readOnly: rendered inside the All Quotes "View" modal — the doc is shown, not edited (the
   //   wrapper already kills pointer events). We use it only to hide the "click any text to edit"
   //   hint, which is a lie in that context. Editing still happens in the Generator wizard.
-  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, readOnly = false }, fwdRef) {
+  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, readOnly = false,
+  pageActions = null }, fwdRef) {
   // approval lock: while the quote is locked and the price unapproved, nothing goes out
   const exportBlocked = !!(approval?.locked && !approval?.approved)
   const pageRef = useRef(null)
@@ -251,11 +252,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     })
     setSelId('swatch-' + id)
   }
-  // After a drag/resize: placement is ABSOLUTE — the chip stays exactly where the rep dropped it.
-  // (The old ±18px row-snap yanked a chip dropped just below a neighbour onto ITS row, which then
-  // collided and shoved it sideways — "I placed it under the black one and it teleported right".)
-  // The only correction left: two chips genuinely on the same pixels get separated.
-  const snapRow = (id) => setSwatches((arr) => resolveOverlap(arr, id))
+  // After a drag/resize: a chip dropped ROUGHLY level with a neighbour (±8px) snaps onto its
+  // exact row so side-by-side chips read as one aligned strip; anything further off is treated
+  // as deliberate free placement and stays exactly where dropped. (The original ±18px band was
+  // wide enough to catch "I placed it BELOW with a small gap" and teleport it — 8px only catches
+  // genuine same-row intent, and the minimal-shift resolver settles any resulting contact flush.)
+  const snapRow = (id) => setSwatches((arr) => {
+    const me = arr.find((s) => s.id === id); if (!me) return arr
+    const near = arr.find((s) => s.id !== id && s.y !== me.y && Math.abs(s.y - me.y) <= 8)
+    const snapped = near ? arr.map((s) => (s.id === id ? { ...s, y: near.y } : s)) : arr
+    return resolveOverlap(snapped, id)
+  })
   // #7 — the ITEM DETAILS artwork area background, so a grey-background artwork can sit on a
   // matching grey instead of clashing white. Persisted with the proposal state.
   const [artBg, setArtBg] = useState(savedState?.__artBg || '#ffffff')
@@ -1104,7 +1111,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   // fed that stunted width into the aspect-fit, leaving a wide baked image (A–D are
                   // ~3:1) far smaller than the box could actually hold. Match the real box shape
                   // instead so the aspect-fit gets the FULL available width to work with.
-                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 6, w: pkgW, h: 116 })} src={p.img} alt={p.label} lockAspect fitCenterH={116} reserveCaption={!PACKAGE_SETS[pkgSet].baked} bounds={{ w: 238, h: 114 }} />
+                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 6, w: pkgW, h: 116 })} src={p.img} alt={p.label} lockAspect fitCenterH={116} reserveCaption={!PACKAGE_SETS[pkgSet].baked}
+                    slotCenterX={pkgDefX(i, packageItems.length, pkgW) + pkgW / 2}
+                    bounds={{ w: 238, h: 114 }} />
                 ))}
                 {/* captions from the set's item labels. `baked` sets (A–D) already carry their
                     labels inside the artwork, so drawing them again would double them up. */}
@@ -1231,14 +1240,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           their proposal sections is gone — those margins were the wasted space.) */}
       {(() => {
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+            {/* per-page actions (Edit specs / Delete / Move ↑↓) live at the TOP of this page's own
+                column — as a flow row above the sheet they pushed the whole page down (dead band),
+                and here they can never act on the wrong page: the parent binds them per render. */}
+            {pageActions}
             {/* UNDO / REDO (#7) — same history the Ctrl+Z / Ctrl+Y shortcuts walk */}
             <div style={{ display: 'flex', gap: 6 }}>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Undo (Ctrl+Z)" onClick={() => applyHist(-1)}>↶ Undo</button>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Redo (Ctrl+Y)" onClick={() => applyHist(+1)}>↷ Redo</button>
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10}}>
                 <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Area bg</span>
                 {/* #5 — an eyedropper icon (not a big colour box): pick any colour off the screen
                     (EyeDropper API), falling back to a hidden native colour input. */}
@@ -1255,18 +1268,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   <button key={c} type="button" onClick={() => setArtBg(c)} title={c}
                     style={{ width: 22, height: 22, padding: 0, borderRadius: 4, border: artBg === c ? '2px solid var(--gold)' : '1px solid var(--border)', background: c, cursor: 'pointer' }} />
                 ))}
-                {artworkPath && onArtworkFile && (
+                {/* {artworkPath && onArtworkFile && (
                   <button type="button" onClick={() => setCropOpen(true)}
                     title="Crop the artwork (pan + zoom + drag the box) — output replaces the current artwork"
                     style={{ marginLeft: 6, padding: '2px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', color: '#333' }}>
                     ✂ Crop
                   </button>
-                )}
+                )} */}
               </div>
             </div>
 
             {/* DIMENSIONS — aligned just under ITEM DETAILS */}
-            <div>
+            <div style={{marginTop: 10}}>
               <button
                 type="button" className="ghost" style={{ width: '100%' }}
                 title="Add measurement arrows beside the artwork (drag to place, pull the dot to resize, click the label to type the size)"
@@ -1345,18 +1358,46 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               >+ Dimensions</button>
               {/* #4/#6 — add a row to the item table: Description + Amount only. Discount subtracts
                   from the total instead of adding (itemSigned). */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button type="button" className="ghost" style={{ flex: 1 }}
-                  title="Add another line item to the item table (its amount is ADDED to the subtotal)"
-                  onClick={addItem}>+ Line item</button>
-                <button type="button" className="ghost" style={{ flex: 1, color: '#e05661', borderColor: '#e05661' }}
-                  title="Give the customer a discount (its amount is SUBTRACTED from the subtotal)"
-                  onClick={addDiscount}>− Discount</button>
+              <div
+              style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  marginTop: 10
+                }}
+              >
+                <button
+                  type="button"
+                  className="ghost"
+                  style={{ width: '100%' }}
+                  title="Add another line item to the item table"
+                  onClick={addItem}
+                >
+                  + Line item
+                </button>
+
+                {/* Discount lives on the LAST page only — it subtracts from the combined quote
+                    total, which the last page carries (same rule as downloads/payment). */}
+                {isLast && (
+                  <button
+                    type="button"
+                    className="ghost"
+                    style={{
+                      width: '100%',
+                      color: '#e05661',
+                      borderColor: '#e05661'
+                    }}
+                    title="Give the customer a discount (its amount is SUBTRACTED from the quote total)"
+                    onClick={addDiscount}
+                  >
+                    − Discount
+                  </button>
+                )}
               </div>
             </div>
 
             {/* COLOURS — aligned to SPECIFICATIONS (where the COLOR SPECS live) */}
-            <div>
+            <div style={{marginTop:10}}>
               <button type="button" className="ghost" style={{ width: '100%' }} onClick={addSwatch}>+ Add color swatch</button>
             </div>
 
@@ -1365,12 +1406,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             {!isMonoType && (
             <div>
               {/* image dropdown (#8): the picker shows each set's actual item IMAGES, not text */}
-              <div data-pkg-picker style={{ position: 'relative' }}>
+              <div data-pkg-picker style={{ position: 'relative' , marginTop: 10}}>
                 <button type="button" className="ghost p-0" style={{ width: '100%', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}
                   title="Choose which set of included items shows under PACKAGE INCLUDES"
                   onClick={() => setPkgPicking((v) => !v)}>
                   {PACKAGE_SETS[pkgSet].items.map((it) => (
-                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '44px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
+                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '70px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
                   ))}
                   <span style={{ fontSize: 11 }}>▾</span>
                 </button>
@@ -1382,7 +1423,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                         style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 8, borderColor: pkgSet === k ? 'var(--gold)' : undefined }}
                         title={v.label}>
                         {v.items.map((it) => (
-                          <img key={it.img} src={it.img} alt={it.label} style={{ height: '44px', objectFit: 'cover', background: '#fff', borderRadius: 4, padding: 2 }} />
+                          <img key={it.img} src={it.img} alt={it.label} style={{ height: '80px', objectFit: 'cover', background: '#fff', borderRadius: 4, padding: 2 }} />
                         ))}
                       </button>
                     ))}
@@ -1403,7 +1444,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
             {/* SIDE VIEW — aligned to the SIDE VIEW section. Template B has none. */}
             {onSideViews && !isMonoType && (
-              <div>
+              <div style={{marginTop: 10}}>
                 <button type="button" data-sv-picker className="ghost" style={{ width: '100%' }}
                   onClick={(e) => {
                     // the picker opens as a panel at the BUTTON'S RIGHT (#9), not below the page
@@ -1420,7 +1461,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       {/* actions — downloads live ONCE, on the last page (#: single set of downloads per quote).
           The toast still shows per page (each part can flash its own save). */}
       {/* compact: PNG + PDF side by side so the whole control stack fits one glance (#7/#8) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 15 }}>
         {isLast && exportBlocked && <span style={{ color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
         {isLast && (
           <div style={{ display: 'flex', gap: 6 }}>
@@ -1433,9 +1474,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
       {/* Shopify payment link — only on the last page (one combined link per quote) */}
       {isLast && canCreatePaymentLinks && quoteId && (
-        <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
+        <div style={{ marginTop: 15, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
           <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>💳 Shopify payment link</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 , marginTop: 8}}>
             {/* all three payment options: same prominent style AND same full width (#6/#8) */}
             <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}

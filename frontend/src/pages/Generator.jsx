@@ -312,6 +312,29 @@ export default function Generator() {
     qc.invalidateQueries({ queryKey: ['dashboard'] })
   }
 
+  // Swap a sign page with its neighbour (↑/↓ on the preview step). ONLY the array order moves —
+  // every letter-derived thing follows automatically because it's all index-driven: partLetter(i)
+  // renames A/B/C…, the pageKey change remounts each moved page so its "PROPOSAL ID: …-X" line
+  // is rebuilt for the new letter, and isLast recomputes so the combined subtotal, downloads,
+  // Discount and payment-link buttons migrate to whichever page is now last. The active wizard
+  // part follows its page to keep edits landing on the same SIGN, not the same slot number.
+  const movePart = async (index, dir) => {
+    const target = index + dir
+    const current = partsRef.current
+    if (target < 0 || target >= current.length) return
+    const nextParts = [...current]
+    ;[nextParts[index], nextParts[target]] = [nextParts[target], nextParts[index]]
+    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, ...legacyPartFromGd(nextParts[0] || {}) }
+    partsRef.current = nextParts; generatedDataRef.current = payload
+    setParts(nextParts)
+    setGeneratedData(payload)
+    if (activePart === index) setActivePart(target)
+    else if (activePart === target) setActivePart(index)
+    await putGenerated(quoteId, payload)
+    qc.invalidateQueries({ queryKey: ['quotes'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
   // --- step handlers ---
   const saveClient = async () => {
     await updateQuote(quoteId, client)
@@ -654,7 +677,7 @@ export default function Generator() {
             collectPartImages={collectPartImages} linkTitle={linkTitle} captureAllPages={captureAllPages}
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
             savePaymentLink={savePaymentLink} logo={logo} paymentLink={paymentLink} quote={quote}
-            savePart={savePart} commitPartArtworkFile={commitPartArtworkFile}
+            savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
             pageRefs={pageRefs} proposalRef={proposalRef} mode={mode}
             editPart={editPart} deletePage={deletePage} />
         )}
