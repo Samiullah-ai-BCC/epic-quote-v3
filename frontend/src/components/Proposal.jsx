@@ -379,6 +379,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const swRef = useRef(swatches); swRef.current = swatches
   const layRef = useRef(layout); layRef.current = layout
   const clipRef = useRef(null)
+  const sideViewsRef = useRef(sideViews); sideViewsRef.current = sideViews
   useEffect(() => {
     const h = histRef.current
     if (h.silent) { h.silent = false; return }
@@ -404,6 +405,20 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const onKey = (e) => {
       // while typing in any text field/block, the browser's own shortcuts must win
       if (e.target?.closest?.('[contenteditable], input, textarea, select')) return
+      // Delete/Backspace on a SELECTED side-view tile removes it from the quote — the only
+      // other way was reopening the picker and unticking it. Scoped to side-view tiles only
+      // (rk `sv2-<key>`); other adjustables (artwork, swatches, package tiles) already have
+      // their own explicit remove controls and must not be affected by a stray Delete press.
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !(e.ctrlKey || e.metaKey)) {
+        const id = selRef.current
+        if (id?.startsWith('sv2-')) {
+          e.preventDefault()
+          const key = id.slice(4)
+          onSideViews && onSideViews(sideViewsRef.current.filter((k) => k !== key))
+          setSelId(null)
+        }
+        return
+      }
       if (!(e.ctrlKey || e.metaKey)) return
       const k = e.key.toLowerCase()
       if (k === 'z') { e.preventDefault(); applyHist(e.shiftKey ? +1 : -1) }
@@ -1142,10 +1157,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                           // tile instead of stacking: one view fills the (now bigger) box; several share it 2-per-row (#3)
                           const list = sideViews.filter((k) => k !== '__none__')
                           const one = list.length === 1
+                          const tileH = one ? 234 : 116   // matches each tile's own frame height below
                           return list.map((k, i) => (
+                            // lockAspect+fitCenterH: without these (the original bug) the aspect-fit-
+                            // on-load never runs, so a freshly uploaded side view — which usually has
+                            // real background margin, unlike the pre-cropped catalog art — just sits
+                            // shrunk inside its default frame instead of growing to fill the slot.
+                            // autoCrop trims that margin so the sign itself, not empty canvas, fills it.
                             <AdjImg key={k} {...adjProps(`sv2-${k}`, one
                               ? { x: 10, y: 8, w: 220, h: 234 }
-                              : { x: 6 + (i % 2) * 116, y: 6 + Math.floor(i / 2) * 122, w: 112, h: 116 })} src={svSrc(k)} alt={String(k)} bounds={{ w: 238, h: 248 }} />
+                              : { x: 6 + (i % 2) * 116, y: 6 + Math.floor(i / 2) * 122, w: 112, h: 116 })}
+                              src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false}
+                              bounds={{ w: 238, h: 248 }} />
                           ))
                         })()}
                   </div>

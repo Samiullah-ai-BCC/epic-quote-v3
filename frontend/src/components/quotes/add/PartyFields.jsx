@@ -22,6 +22,13 @@ export default function PartyFields({ control, register, setValue, choice, compa
   return (
     <>
       <div className="grid gap-1.5 mb-3">
+        <Label htmlFor="nq-qid">Quote ID <span className="muted font-normal">(required — assign your own, e.g. EC100123)</span></Label>
+        <Controller name="quote_id" control={control} render={({ field }) => (
+          <Input id="nq-qid" placeholder="EC100123" autoFocus
+            value={field.value} onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
+        )} />
+      </div>
+      <div className="grid gap-1.5 mb-3">
         <Label htmlFor="nq-company">Company Name <span className="muted font-normal">(Company or Client required)</span>{choice === 'ai' && <span className="muted font-normal"> — the sign company on the drawing</span>}</Label>
         <Controller name="company_name" control={control} render={({ field }) => (
           <Input id="nq-company" list="company-suggestions" placeholder="Start typing — repeat customers autofill"

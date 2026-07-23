@@ -155,18 +155,21 @@ class QuoteController extends Controller
         if (mb_strlen($salesRep) > 80) {
             return response()->json(['error' => 'Sales Representative name is too long (max 80 chars)'], 400);
         }
-        // Quote ID is auto-generated server-side (unique EC number). Quote source + order ID
-        // were dropped as a UX/feature decision. Only validate a Quote ID if one was supplied.
-        if ($qid !== '') {
-            // Custom IDs must look like real quote IDs (EC + digits) — junk IDs ("dfh") pollute
-            // dashboards, reports and search, and can't be told apart from real quotes.
-            if (!preg_match('/^EC\d{4,12}$/', $qid)) {
-                return response()->json(['error' => 'Quote ID must be EC followed by numbers (e.g. EC100123) — or leave it blank to auto-generate'], 400);
-            }
-            // case-insensitive uniqueness — "ec100012" must collide with "EC100012"
-            if (Quote::whereRaw('UPPER(quote_id) = ?', [$qid])->exists()) {
-                return response()->json(['error' => "Quote ID \"{$qid}\" already exists"], 400);
-            }
+        // Quote ID is now MANUAL (team decision, 2026-07): the rep types their own EC number so
+        // the team can track quotes by an ID they assigned themselves, instead of a server counter
+        // handing out numbers nobody chose. Required + validated here; still auto-fallback ONLY
+        // for non-UI creators (e.g. AirtableQuoteSync) that never go through this endpoint at all.
+        if ($qid === '') {
+            return response()->json(['error' => 'Quote ID is required (e.g. EC100123).'], 422);
+        }
+        // Custom IDs must look like real quote IDs (EC + digits) — junk IDs ("dfh") pollute
+        // dashboards, reports and search, and can't be told apart from real quotes.
+        if (!preg_match('/^EC\d{4,12}$/', $qid)) {
+            return response()->json(['error' => 'Quote ID must be EC followed by numbers (e.g. EC100123)'], 422);
+        }
+        // case-insensitive uniqueness — "ec100012" must collide with "EC100012"
+        if (Quote::whereRaw('UPPER(quote_id) = ?', [$qid])->exists()) {
+            return response()->json(['error' => "Quote ID \"{$qid}\" already exists"], 422);
         }
 
         // customer PDF/image, max 25 MB (#37)
@@ -216,8 +219,14 @@ class QuoteController extends Controller
                 }
             }
 
-            [$num, $autoId] = Setting::nextQuoteId();
-            $qid = $qid !== '' ? $qid : $autoId;   // auto-generate a unique EC id when none supplied
+            // quote_num is a separate unique integer column (sort key) — derive it from the rep's
+            // own EC number instead of burning the auto counter (Setting::nextQuoteId) on every
+            // manual create now that qid is never blank. Only fall back to the counter on the rare
+            // digit collision (e.g. "EC0100123" vs "EC100123" both intval to 100123).
+            $num = (int) preg_replace('/\D/', '', $qid);
+            if ($num <= 0 || Quote::where('quote_num', $num)->exists()) {
+                [$num] = Setting::nextQuoteId();
+            }
 
             // store customer file as {qid}_{original} — permanent (Cloudinary) like every upload
             $pdfFilename = null;
