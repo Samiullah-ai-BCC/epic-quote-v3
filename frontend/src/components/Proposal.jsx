@@ -877,13 +877,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
   return (
     <div>
-<<<<<<< Updated upstream
-      {!readOnly && (
-        <div className="edit-hint" style={{ marginBottom: 10, fontSize: 13, color: 'var(--muted, #8a94a6)' }}>
-        </div>
-      )}
-=======
->>>>>>> Stashed changes
       {pickFor && (
         <div style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', background: '#8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: 6, zIndex: 200, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}>
           🎨 Click the highlighted artwork to grab its color · press Esc to cancel
