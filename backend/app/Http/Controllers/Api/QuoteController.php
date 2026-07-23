@@ -640,9 +640,17 @@ class QuoteController extends Controller
         $qty = (int) ($part['proposal_state']['__qty'] ?? $part['custom_spec']['qty'] ?? $answers['qty'] ?? 1);
         $qty = max(1, $qty);
 
+        // Mirrors frontend/src/generator/parts.js:itemSigned() — keep both in lockstep by hand.
+        // A row has an explicit `amount` now (line items / discounts are Description + Amount
+        // only, #6); `kind === 'discount'` SUBTRACTS. Rows saved before this change have no
+        // amount/kind — fall back to their original qty × unit so an existing quote's price
+        // never silently shifts.
         $extras = 0.0;
         foreach ((array) ($part['proposal_state']['__items'] ?? []) as $it) {
-            $extras += max(0, (float) ($it['qty'] ?? 1)) * max(0, (float) ($it['unit'] ?? 0));
+            $amt = isset($it['amount']) && is_numeric($it['amount'])
+                ? max(0, (float) $it['amount'])
+                : max(0, (float) ($it['qty'] ?? 1)) * max(0, (float) ($it['unit'] ?? 0));
+            $extras += (($it['kind'] ?? '') === 'discount') ? -$amt : $amt;
         }
 
         if ($priceIn === null && $extras <= 0) {

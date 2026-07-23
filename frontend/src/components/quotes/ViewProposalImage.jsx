@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getRevisions, getGenerated } from '../../api/quotes'
 import Proposal from '../Proposal'
-import { resolveTplByName } from '../../generator/parts'
+import { resolveTplByName, itemSigned } from '../../generator/parts'
 
 // The PROPOSAL itself at the top of the View modal (#7): the latest version image when one
 // exists, else the real proposal rendered live from the saved state (read-only) — so View
@@ -68,8 +68,8 @@ export default function ViewProposalImage({ quote }) {
       const price = Number(p?.custom_spec?.price ?? p?.answers?.price) || 0
       const q = Math.max(1, parseInt(p?.proposal_state?.__qty ?? p?.custom_spec?.qty ?? p?.answers?.qty ?? 1, 10) || 1)
       const extras = (Array.isArray(p?.proposal_state?.__items) ? p.proposal_state.__items : [])
-        .reduce((a, it) => a + Math.max(0, Number(it.qty) || 0) * Math.max(0, Number(it.unit) || 0), 0)
-      return s + price * q + extras
+        .reduce((a, it) => a + itemSigned(it), 0)
+      return s + Math.max(0, price * q + extras)
     }, 0)
     const info = { company: quote.company_name, client: quote.client_name, contact: quote.contact, email: quote.email, address: quote.address, job: quote.job_name, quoteId: quote.quote_id }
     const multi = parts.length > 1

@@ -10,7 +10,7 @@ import { listCatalog, saveCatalogItem } from '../api/catalog'
 import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
 import { rasterizePdf } from '../generator/pdfRaster'
 import { fileUrl } from '../api/client'
-import { MAX_PRICE, FLOWS, PART_KEYS, makeCustomTpl, legacyPartFromGd, matchSignType, resolveTplByName } from '../generator/parts'
+import { MAX_PRICE, FLOWS, PART_KEYS, makeCustomTpl, legacyPartFromGd, matchSignType, resolveTplByName, itemSigned } from '../generator/parts'
 import { isCloudDoc, cloudRaster, cropToBox, urlToDataUrl } from '../generator/artwork'
 import ClientStep from '../components/generator/ClientStep'
 import ProjectStep from '../components/generator/ProjectStep'
@@ -210,8 +210,8 @@ export default function Generator() {
     const quantityRaw = parseInt(part?.proposal_state?.__qty ?? part?.custom_spec?.qty ?? part?.answers?.qty ?? 1, 10)
     const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1
     const extras = (Array.isArray(part?.proposal_state?.__items) ? part.proposal_state.__items : [])
-      .reduce((sum, item) => sum + Math.max(0, Number(item.qty) || 0) * Math.max(0, Number(item.unit) || 0), 0)
-    return price * quantity + extras
+      .reduce((sum, item) => sum + itemSigned(item), 0)
+    return Math.max(0, price * quantity + extras)
   }
   const grandTotal = parts.reduce((sum, part) => sum + partAmount(part), 0)
 

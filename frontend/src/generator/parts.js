@@ -77,3 +77,17 @@ export function resolveTplByName(name, storedSpec = null) {
   if (!name) return null
   return CATALOG_POOL().find((t) => t.n === name) || makeCustomTpl(name, storedSpec)
 }
+
+// One extra proposal_state.__items row's dollar amount — shared by Proposal.jsx (live total)
+// and Generator.jsx (part/grand total) so they can NEVER drift from each other or from the
+// backend's own copy (QuoteController::partTotal, same shape, kept in lockstep by hand).
+// A row has an explicit `amount` now (line items and discounts are Description + Amount only,
+// qty/unit price dropped — #6); `kind: 'discount'` SUBTRACTS instead of adding. Old rows saved
+// before this change have no `amount`/`kind` — fall back to their original qty × unit so nothing
+// on an existing quote silently changes price.
+export function itemSigned(it) {
+  const amt = (it && it.amount != null && it.amount !== '')
+    ? Math.max(0, Number(it.amount) || 0)
+    : Math.max(0, Number(it?.qty) || 0) * Math.max(0, Number(it?.unit) || 0)
+  return it?.kind === 'discount' ? -amt : amt
+}

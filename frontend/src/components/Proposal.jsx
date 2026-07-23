@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
 import { parseDims } from '../generator/questions'
+import { itemSigned } from '../generator/parts'
 import { sanitizeHtml } from '../utils/sanitizeHtml'
 import client, { fileUrl } from '../api/client'
 import { attachCheckpointImage } from '../api/quotes'
@@ -92,8 +93,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const [toast, setToast] = useState('')
   const [pickingSV, setPickingSV] = useState(false)
   const [svLib, setSvLib] = useState([])   // team side-view library ({name, data:{path}}) — shared across quotes
-  const [svSearch, setSvSearch] = useState('')   // search across ~100 side-view cards
-  const [svGroup, setSvGroup] = useState(null)   // #3 — selected main sign type in the two-level picker
   const [svAnchor, setSvAnchor] = useState({ left: 0, top: 0 })   // #9 — picker panel anchor (right of the button)
   useEffect(() => {
     if (!pickingSV) return
@@ -232,11 +231,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return (pos.x === me.x && pos.y === me.y) ? arr : arr.map((s) => (s.id === id ? { ...s, x: pos.x, y: pos.y } : s))
   }
 
+  const ROW_BAND = 18   // same tolerance the uniform-resize reflow already groups rows by
   const addSwatch = () => {
     const id = 'sw' + Date.now()
     setSwatches((s) => {
       const row = s.find((x) => x.id === 'face') || s[0]
-      const rightX = s.reduce((m, x) => Math.max(m, x.x + x.w), row ? row.x : 96)
+      // Auto-align to the SAME ROW the new chip is landing in, not the rightmost edge of ANY
+      // row — with multiple rows, the old "max x across every chip" put a new chip's x from a
+      // totally different row, so consecutive same-row chips drifted out of sync as more were
+      // added. Only chips within ROW_BAND of the target y count toward the row's right edge.
+      const rowMates = row ? s.filter((x) => Math.abs(x.y - row.y) <= ROW_BAND) : []
+      const rightX = rowMates.reduce((m, x) => Math.max(m, x.x + x.w), row ? row.x : 96)
       // A new chip copies the CURRENT size of the reference chip, not the SW_W/SW_H defaults —
       // if the rep widened their swatches, the next one matches instead of snapping back to 96×20.
       const w = row?.w ?? SW_W, h = row?.h ?? SW_H
@@ -290,7 +295,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const artBgInputRef = useRef(null)
   // #6 — align each control group to the vertical position of the proposal section it edits
   const controlsRef = useRef(null)
-  const [secTops, setSecTops] = useState(null)   // { items, specs, sideview } px tops, or null = fall back to stacked
   const [pickFor, setPickFor] = useState(null)   // swatch id currently sampling a color from the artwork
   const [loupe, setLoupe] = useState(null)       // { left, top, hex } magnifier following the cursor
   const artCanvasRef = useRef(null)              // cached CORS-readable canvas of the artwork (natural size)
@@ -414,7 +418,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         if (id?.startsWith('sv2-')) {
           e.preventDefault()
           const key = id.slice(4)
-          onSideViews && onSideViews(sideViewsRef.current.filter((k) => k !== key))
+          const rest = sideViewsRef.current.filter((k) => k !== key)
+          // Deleting the LAST tile must also remove the "SIDE VIEW" heading — an empty section
+          // with just a headline and a "[ No side view selected ]" placeholder reads as broken,
+          // not deleted. Empty rest → treat exactly like the picker's explicit "No side view".
+          onSideViews && onSideViews(rest.length ? rest : ['__none__'])
           setSelId(null)
         }
         return
@@ -442,32 +450,37 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return () => document.removeEventListener('keydown', onKey)
   }, [mainView]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // One printed US-Letter page at 96dpi is 816×1056. The page div grows with content (notes
-  // auto-expand now). The PDF exporter scale-fits the whole capture onto ONE letter sheet, so a
-  // long page doesn't split — it prints SMALLER; and a PNG printed at 100% spills to sheet two.
-  // The standard layout (side-view list) already runs ~1190px, so the alarm only trips once the
-  // page grows meaningfully past that — i.e. when notes/specs start really stretching it.
+  // ONE-PAGE CONFINEMENT: the page is a HARD 816×1056 (US Letter at 96dpi) — it cannot grow,
+  // and anything past the bottom edge is clipped (overflow:hidden on the page div). What the
+  // rep sees IS what exports and prints: exactly one sheet, always. The section sizes below
+  // (artwork 170, side view 190, spec floors) are tuned so the standard layout fits with room
+  // for a few note lines. When content still wants more than 1056px, it gets visibly cut at the
+  // page edge AND this watcher raises the red banner telling the rep to trim.
   const PAGE_H = 1056
-  const WARN_H = 1240   // ≈ standard layout + a couple of note lines of headroom
-  const [overBy, setOverBy] = useState(0)   // px past the warning height (0 = fine)
+  const [overBy, setOverBy] = useState(0)   // px of content clipped past the page bottom (0 = fits)
   useEffect(() => {
     const el = pageRef.current
     if (!el) return
-    const check = () => setOverBy(el.offsetHeight > WARN_H ? Math.round(el.offsetHeight - PAGE_H) : 0)
+    // scrollHeight = what the content WANTS; offsetHeight is pinned at PAGE_H by the clamp
+    const check = () => setOverBy(Math.max(0, el.scrollHeight - PAGE_H - 2))
     check()
     const ro = new ResizeObserver(check)
     ro.observe(el)
-    return () => ro.disconnect()
+    const t = setInterval(check, 800)   // scrollHeight changes don't fire ResizeObserver (height is fixed)
+    return () => { ro.disconnect(); clearInterval(t) }
   }, [])
 
-  // fit the fixed 816px page into the available column width (keeps full-res for PDF)
+  // Fit the fixed 816×1056 page into the available column width AND the viewport height — the
+  // whole sheet is always fully on screen with no scrolling (one-sight rule). Full-res kept for
+  // PDF (the capture drops the display scale).
   useEffect(() => {
     const fit = () => {
       if (!wrapRef.current || !pageRef.current) return
       const avail = wrapRef.current.clientWidth - 40 // wrapper padding
-      const s = Math.min(1, avail / 816)
+      const availH = Math.max(320, window.innerHeight - wrapRef.current.getBoundingClientRect().top - 40)
+      const s = Math.min(1, avail / 816, availH / PAGE_H)
       setScale(s)
-      setScaledH(pageRef.current.offsetHeight * s)
+      setScaledH(PAGE_H * s)
     }
     fit()
     const t = setTimeout(fit, 250) // refit after images/content settle
@@ -476,7 +489,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const ro = wrapRef.current ? new ResizeObserver(fit) : null
     if (ro && wrapRef.current) ro.observe(wrapRef.current)
     return () => { clearTimeout(t); window.removeEventListener('resize', fit); ro?.disconnect() }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Template B (monument/pylon, free-form — no package or side view). In custom mode `tpl` is
   // always null (that flow only ever tracks customSpec, never sets tpl_name on save — see
@@ -496,11 +509,15 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return Number.isFinite(q) && q > 0 ? q : 1
   })
   const [items, setItems] = useState(() => (Array.isArray(savedState?.__items) ? savedState.__items : []))
-  const grandTotal = price * qty + items.reduce((s, it) => s + Math.max(0, Number(it.qty) || 0) * Math.max(0, Number(it.unit) || 0), 0)
+  const grandTotal = Math.max(0, price * qty + items.reduce((s, it) => s + itemSigned(it), 0))
   // The figure the TOTALS block shows: the whole-quote sum on a multi-page quote, else this
   // proposal's own total. Deposits, the ≤$500 rule and payment all key off this.
   const totalsAmount = quoteTotal != null ? quoteTotal : grandTotal
-  const addItem = () => setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'ADDITIONAL ITEM', qty: 1, unit: 0 }])
+  // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
+  // they were never actually needed: a rep types the final dollar figure directly). `kind`
+  // distinguishes the two: 'discount' subtracts in itemSigned() above instead of adding.
+  const addItem = () => setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'ADDITIONAL ITEM', amount: 0, kind: 'add' }])
+  const addDiscount = () => setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'DISCOUNT', amount: 0, kind: 'discount' }])
   const patchItem = (id, patch) => setItems((arr) => arr.map((it) => (it.id === id ? { ...it, ...patch } : it)))
   const removeItem = (id) => setItems((arr) => arr.filter((it) => it.id !== id))
   // live money re-sync: when qty / line items change, rewrite the derived money blocks in place
@@ -710,54 +727,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return () => clearTimeout(t)
   }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // #6 — measure each tagged proposal section's top so its control group can sit in front of it.
-  useEffect(() => {
-    if (!mainView) return
-    const measure = () => {
-      const col = controlsRef.current
-      const page = pageRef.current
-      if (!col || !page) return
-      const base = col.getBoundingClientRect().top
-      const tops = {}
-      page.querySelectorAll('[data-sec]').forEach((el) => {
-        tops[el.dataset.sec] = Math.max(0, Math.round(el.getBoundingClientRect().top - base))
-      })
-      if (tops.items != null) setSecTops(tops)
-      else setSecTops(null)
-    }
-    measure()
-    const t = setTimeout(measure, 120)   // after fonts/images settle
-    return () => clearTimeout(t)
-  }, [mainView, scale, scaledH, specHTML, sideViews, artworkPath]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // #3 — pull each control group down so it sits IN FRONT of its proposal section. Groups stay in
-  // normal flow (a plain stack) and only get a computed margin-top, applied in ascending-target
-  // order with a cumulative pass — so unlike raw absolute positioning, overlap is impossible and
-  // a group can never sit ABOVE its natural stacked position (margins are clamped at 0).
-  const grpRefs = useRef({})
-  useEffect(() => {
-    if (!mainView) return
-    const col = controlsRef.current
-    if (!col) return
-    const order = [
-      ['art', secTops ? secTops.items : null],
-      ['dims', secTops ? secTops.items + 56 : null],
-      ['cols', secTops ? secTops.specs : null],
-      ['spec', secTops ? secTops.specs + 88 : null],
-      ['sv', secTops?.sideview != null ? secTops.sideview : null],
-    ]
-    // reset, then apply cumulatively (reading offsetTop after each write forces sync layout,
-    // so later groups see the margins already added above them)
-    order.forEach(([k]) => { const el = grpRefs.current[k]; if (el) el.style.marginTop = '0px' })
-    if (!secTops) return   // no measurement → keep the plain stack
-    const colTop = col.getBoundingClientRect().top
-    order.forEach(([k, target]) => {
-      const el = grpRefs.current[k]
-      if (!el || target == null) return
-      const natural = el.getBoundingClientRect().top - colTop
-      el.style.marginTop = Math.max(0, Math.round(target - natural)) + 'px'
-    })
-  }, [mainView, secTops]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The old "#6/#3" system that measured each proposal section's top and pulled its control
+  // group down to sit IN FRONT of it is GONE: those computed margins were the big empty gaps
+  // between buttons, and the controls must now read as one compact block visible in a single
+  // glance with no scrolling (one-page confinement) — a plain tight stack does exactly that.
 
   // #8 — keep the dimension arrows glued to the artwork in real time: when the artwork moves or
   // is resized, the arrows re-hug its edges (or the marked sign box), scaling their LENGTH while
@@ -983,10 +956,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             capture ever includes it. Shows for every page of a multi-sign quote independently. */}
         {overBy > 0 && (
           <div style={{ maxWidth: 816 * scale, margin: '0 auto 10px', background: '#7f1d1d', color: '#fff', border: '1px solid #ef4444', borderRadius: 8, padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
-            ⚠ <strong>This page is too long for one printed sheet.</strong> It runs
-            {' '}~{Math.ceil(overBy / (PAGE_H / 11))}″ past US-Letter — the PDF will shrink everything
-            to fit (smaller text), and a full-size print will spill onto a second sheet.
-            Trim the Additional Notes / specs to keep it on one page.
+            ⚠ <strong>Content is being cut off at the bottom of the page.</strong> The page is a
+            fixed US-Letter sheet — about {Math.ceil(overBy / (PAGE_H / 11) * 10) / 10}″ of content
+            is past the bottom edge and will NOT appear on screen, in the PDF, or in print.
+            Trim the Additional Notes / specs until this warning disappears.
           </div>
         )}
         <div className="proposal-fit" style={{ width: 816 * scale, height: scaledH, margin: '0 auto' }}>
@@ -994,7 +967,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           ref={pageRef}
           id="proposal-print-root"
           style={{
-            width: 816, minHeight: 560, background: '#fff', color: '#111',
+            width: 816, height: PAGE_H, overflow: 'hidden', background: '#fff', color: '#111',
             fontFamily: "'Roboto', Arial, sans-serif", fontSize: 12, textTransform: 'uppercase',
             boxSizing: 'border-box', paddingBottom: 14, position: 'relative',
             transformOrigin: 'top left', transform: `scale(${scale})`,
@@ -1023,11 +996,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
           {/* item details */}
           <div data-sec="items" style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
-          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 192, position: 'relative', background: artBg, overflow: 'hidden' }}>
+          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 170, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
-              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 24, w: 360, h: 144 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 192 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
+              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 20, w: 360, h: 130 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 170 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
-            {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144, rot: 0 }; return (
+            {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 20, w: 360, h: 130, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
                 style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, transform: `rotate(${a.rot || 0}deg)`, cursor: 'crosshair', zIndex: 80, outline: '2px dashed #8b5cf6', outlineOffset: -1 }} />
             ) })()}
@@ -1060,22 +1033,24 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 the price, go back to "Edit specs". */}
             {E('unitPrice', { ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }, { readOnly: true })}
             {E('totalPrice', { ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }, { readOnly: true })}
-            {/* extra line items (#4) — desc / qty / unit editable, total auto; × only on screen */}
+            {/* extra line items + discounts (#4/#6) — Description + Amount only now; the QTY/UNIT
+                PRICE columns are the PRIMARY row's alone, so these two cells stay blank for every
+                extra row (keeps the table's column lines continuous). A discount's amount is
+                entered as a plain positive number and shown/summed as a subtraction (itemSigned). */}
             {items.map((it) => {
-              const rowTotal = Math.max(0, Number(it.qty) || 0) * Math.max(0, Number(it.unit) || 0)
+              const isDiscount = it.kind === 'discount'
+              const amt = (it.amount != null && it.amount !== '') ? Math.max(0, Number(it.amount) || 0) : Math.max(0, Number(it.qty) || 0) * Math.max(0, Number(it.unit) || 0)
               return [
                 <div key={it.id + 'd'} style={{ ...cell, borderTop: 'none', position: 'relative' }}>
-                  <EditCell value={it.desc} onCommit={(v) => patchItem(it.id, { desc: v || 'ITEM' })} style={{ display: 'inline-block', minWidth: 60 }} />
-                  <span className="adj-ui" title="Remove this line item" onMouseDown={(e) => { e.preventDefault(); removeItem(it.id) }}
+                  <EditCell value={it.desc} onCommit={(v) => patchItem(it.id, { desc: v || (isDiscount ? 'DISCOUNT' : 'ITEM') })} style={{ display: 'inline-block', minWidth: 60 }} />
+                  <span className="adj-ui" title={`Remove this ${isDiscount ? 'discount' : 'line item'}`} onMouseDown={(e) => { e.preventDefault(); removeItem(it.id) }}
                     style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, background: '#fff', border: '1.5px solid #e05661', borderRadius: '50%', color: '#e05661', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</span>
                 </div>,
-                <EditCell key={it.id + 'q'} value={it.qty}
-                  onCommit={(v) => { const n = parseInt(v, 10); patchItem(it.id, { qty: Number.isFinite(n) && n > 0 ? n : 1 }) }}
-                  style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }} />,
-                <EditCell key={it.id + 'u'} value={money(it.unit)}
-                  onCommit={(v) => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); patchItem(it.id, { unit: Number.isFinite(n) && n >= 0 ? n : 0 }) }}
-                  style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }} />,
-                <div key={it.id + 't'} style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center' }}>{money(rowTotal)}</div>,
+                <div key={it.id + 'q'} style={{ ...cell, borderTop: 'none', borderLeft: 'none' }} />,
+                <div key={it.id + 'u'} style={{ ...cell, borderTop: 'none', borderLeft: 'none' }} />,
+                <EditCell key={it.id + 't'} value={isDiscount ? `− ${money(amt)}` : money(amt)}
+                  onCommit={(v) => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); patchItem(it.id, { amount: Number.isFinite(n) && n >= 0 ? n : 0 }) }}
+                  style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center', color: isDiscount ? '#e05661' : undefined }} />,
               ]
             })}
           </div>
@@ -1101,7 +1076,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   whole page visibly shrinks the instant either of those happens — give it a floor
                   matching the FULL right sidebar (package ~136 + side view ~270) so page length stays
                   consistent no matter which sections are present. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', flex: '1 1 auto', minHeight: (isMonoType || sideViews.includes('__none__')) ? 390 : (specLong ? 255 : 215), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', flex: '1 1 auto', minHeight: (isMonoType || sideViews.includes('__none__')) ? 330 : (specLong ? 215 : 180), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
@@ -1150,14 +1125,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               {!sideViews.includes('__none__') && (
                 <>
                   <div data-sec="sideview" style={secHead}>SIDE VIEW</div>
-                  <div style={{ position: 'relative', height: 250 }}>
+                  <div style={{ position: 'relative', height: 190 }}>
                     {sideViews.length === 0
                       ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
                       : (() => {
                           // tile instead of stacking: one view fills the (now bigger) box; several share it 2-per-row (#3)
                           const list = sideViews.filter((k) => k !== '__none__')
                           const one = list.length === 1
-                          const tileH = one ? 234 : 116   // matches each tile's own frame height below
+                          const tileH = one ? 174 : 86   // matches each tile's own frame height below
                           return list.map((k, i) => (
                             // lockAspect+fitCenterH: without these (the original bug) the aspect-fit-
                             // on-load never runs, so a freshly uploaded side view — which usually has
@@ -1165,10 +1140,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                             // shrunk inside its default frame instead of growing to fill the slot.
                             // autoCrop trims that margin so the sign itself, not empty canvas, fills it.
                             <AdjImg key={k} {...adjProps(`sv2-${k}`, one
-                              ? { x: 10, y: 8, w: 220, h: 234 }
-                              : { x: 6 + (i % 2) * 116, y: 6 + Math.floor(i / 2) * 122, w: 112, h: 116 })}
+                              ? { x: 10, y: 8, w: 218, h: 174 }
+                              : { x: 6 + (i % 2) * 116, y: 6 + Math.floor(i / 2) * 92, w: 112, h: 86 })}
                               src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false}
-                              bounds={{ w: 238, h: 248 }} />
+                              bounds={{ w: 238, h: 188 }} />
                           ))
                         })()}
                   </div>
@@ -1251,25 +1226,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
       {mainView && (
       <div ref={controlsRef} className="proposal-controls" style={{ flex: '0 0 220px', maxWidth: 220 }}>
-      {/* Each control group sits IN FRONT OF the proposal section it edits (#6): once the section
-          tops are measured, the groups are absolutely positioned to line up with ITEM DETAILS,
-          SPECIFICATIONS and SIDE VIEW. Before measurement (or if it fails) they stack in order. */}
+      {/* ONE compact stack, tight gaps — every control visible in a single glance with no
+          scrolling. (The old measured-margin system that spread groups down the page to face
+          their proposal sections is gone — those margins were the wasted space.) */}
       {(() => {
-        const grpLabel = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 6 }
-        // Ordered stack (Artwork → Dimensions → Colours → Specs → Side view — ascending section
-        // order). The #3 margin effect above pulls each group down to its section's measured top;
-        // being a normal flow stack, groups can never overlap (the old absolute attempt could).
-        const setGrp = (k) => (el) => { grpRefs.current[k] = el }
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* UNDO / REDO (#7) — same history the Ctrl+Z / Ctrl+Y shortcuts walk */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Undo (Ctrl+Z)" onClick={() => applyHist(-1)}>↶ Undo</button>
               <button type="button" className="ghost sm" style={{ flex: 1 }} title="Redo (Ctrl+Y)" onClick={() => applyHist(+1)}>↷ Redo</button>
             </div>
-            {/* ARTWORK — aligned to ITEM DETAILS */}
-            <div ref={setGrp('art')}>
-              <div style={grpLabel}>Artwork</div>
+            <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Area bg</span>
                 {/* #5 — an eyedropper icon (not a big colour box): pick any colour off the screen
@@ -1298,14 +1266,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             </div>
 
             {/* DIMENSIONS — aligned just under ITEM DETAILS */}
-            <div ref={setGrp('dims')}>
-              <div style={grpLabel}>Dimensions</div>
+            <div>
               <button
                 type="button" className="ghost" style={{ width: '100%' }}
                 title="Add measurement arrows beside the artwork (drag to place, pull the dot to resize, click the label to type the size)"
                 onClick={() => {
                   const p = parseDims(mode === 'custom' ? customSpec?.dims : answers?.dimensions)
-                  const a = layout.artwork || { x: 188, y: 24, w: 360, h: 144 }
+                  const a = layout.artwork || { x: 188, y: 20, w: 360, h: 130 }
                   // Bounding-box priority: manually marked sign box → auto-detected subject bbox
                   // (#2, canvas pixel scan) → the whole artwork frame. When a tighter box is found,
                   // the artwork frame is AUTO-CROPPED to it (the background margins are cut away),
@@ -1376,31 +1343,34 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     : 'Dimension arrows added — drag them into place.')
                 }}
               >+ Dimensions</button>
-              {/* #4 — add a row to the ITEM DESCRIPTION table (desc / qty / unit editable, totals auto) */}
-              <button type="button" className="ghost" style={{ width: '100%', marginTop: 8 }}
-                title="Add another line item to the item table (its qty × unit price feeds the subtotal)"
-                onClick={addItem}>+ Line item</button>
+              {/* #4/#6 — add a row to the item table: Description + Amount only. Discount subtracts
+                  from the total instead of adding (itemSigned). */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button type="button" className="ghost" style={{ flex: 1 }}
+                  title="Add another line item to the item table (its amount is ADDED to the subtotal)"
+                  onClick={addItem}>+ Line item</button>
+                <button type="button" className="ghost" style={{ flex: 1, color: '#e05661', borderColor: '#e05661' }}
+                  title="Give the customer a discount (its amount is SUBTRACTED from the subtotal)"
+                  onClick={addDiscount}>− Discount</button>
+              </div>
             </div>
 
             {/* COLOURS — aligned to SPECIFICATIONS (where the COLOR SPECS live) */}
-            <div ref={setGrp('cols')}>
-              <div style={grpLabel}>Colours</div>
+            <div>
               <button type="button" className="ghost" style={{ width: '100%' }} onClick={addSwatch}>+ Add color swatch</button>
-              <span className="muted" style={{ fontSize: 11, display: 'block', marginTop: 5 }}>Click a swatch to set its colour &amp; name; drag to place.</span>
             </div>
 
             {/* PACKAGE SET — pick ONE of the sets shown under PACKAGE INCLUDES (#11). Template B
                 (monument/pylon) has no package in the sheet — nothing to pick. */}
             {!isMonoType && (
             <div>
-              <div style={grpLabel}>Package set</div>
               {/* image dropdown (#8): the picker shows each set's actual item IMAGES, not text */}
               <div data-pkg-picker style={{ position: 'relative' }}>
                 <button type="button" className="ghost p-0" style={{ width: '100%', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}
                   title="Choose which set of included items shows under PACKAGE INCLUDES"
                   onClick={() => setPkgPicking((v) => !v)}>
                   {PACKAGE_SETS[pkgSet].items.map((it) => (
-                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '90px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
+                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '44px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
                   ))}
                   <span style={{ fontSize: 11 }}>▾</span>
                 </button>
@@ -1412,7 +1382,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                         style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 8, borderColor: pkgSet === k ? 'var(--gold)' : undefined }}
                         title={v.label}>
                         {v.items.map((it) => (
-                          <img key={it.img} src={it.img} alt={it.label} style={{ height: '90px', objectFit: 'cover', background: '#fff', borderRadius: 4, padding: 2 }} />
+                          <img key={it.img} src={it.img} alt={it.label} style={{ height: '44px', objectFit: 'cover', background: '#fff', borderRadius: 4, padding: 2 }} />
                         ))}
                       </button>
                     ))}
@@ -1422,27 +1392,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             </div>
             )}
 
-            {/* SPECIFICATIONS — aligned just under the SPECIFICATIONS header */}
-            <div ref={setGrp('spec')}>
-              <div style={grpLabel}>Specifications</div>
-              <button
-                type="button" className="ghost" style={{ width: '100%' }}
-                title="Replace the SPECIFICATIONS text with a fresh version built from the current answers (use after changing specs on an older quote). Your other edits are kept."
-                onClick={() => {
-                  const el = document.querySelector('#proposal-print-root [data-key="specBody"]')
-                  if (el) { el.innerHTML = sanitizeHtml(specHTML); queueSave(); flash('Spec text rebuilt from the current answers.') }
-                }}
-              >↻ Rebuild spec text</button>
-              {hideNotes && (
-                <button type="button" className="ghost" style={{ width: '100%', marginTop: 8 }}
+            {/* SPECIFICATIONS — aligned just under the SPECIFICATIONS header. The "Rebuild spec
+                text" button is gone (no longer needed); only the Notes restorer lives here now. */}
+            {hideNotes && (
+              <div>
+                <button type="button" className="ghost" style={{ width: '100%' }}
                   title="Bring the Additional Notes section back" onClick={() => setHideNotes(false)}>+ Notes</button>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* SIDE VIEW — aligned to the SIDE VIEW section. Template B has none. */}
             {onSideViews && !isMonoType && (
-              <div ref={setGrp('sv')}>
-                <div style={grpLabel}>Side view</div>
+              <div>
                 <button type="button" data-sv-picker className="ghost" style={{ width: '100%' }}
                   onClick={(e) => {
                     // the picker opens as a panel at the BUTTON'S RIGHT (#9), not below the page
@@ -1458,18 +1419,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
 
       {/* actions — downloads live ONCE, on the last page (#: single set of downloads per quote).
           The toast still shows per page (each part can flash its own save). */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+      {/* compact: PNG + PDF side by side so the whole control stack fits one glance (#7/#8) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
         {isLast && exportBlocked && <span style={{ color: '#e5484d', fontWeight: 600, fontSize: 13 }}>🔒 Locked — price approval needed before this quote can be sent out</span>}
-        {isLast && <button className="ghost" style={{ width: '100%' }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG image'}</button>}
-        {isLast && <button style={{ width: '100%' }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>{busy === 'pdf' ? 'Building PDF…' : '⬇ Download PDF'}</button>}
+        {isLast && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="ghost" style={{ flex: 1 }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPNG}>{busy === 'png' ? 'Rendering…' : '⬇ PNG'}</button>
+            <button style={{ flex: 1 }} disabled={busy || exportBlocked} title={exportBlocked ? 'Price approval required' : undefined} onClick={downloadPDF}>{busy === 'pdf' ? 'Building…' : '⬇ PDF'}</button>
+          </div>
+        )}
         {toast && <span style={{ color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
       </div>
 
       {/* Shopify payment link — only on the last page (one combined link per quote) */}
       {isLast && canCreatePaymentLinks && quoteId && (
-        <div style={{ marginTop: 18, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>💳 Shopify payment link</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>💳 Shopify payment link</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* all three payment options: same prominent style AND same full width (#6/#8) */}
             <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
@@ -1520,9 +1486,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       {/* side-view picker — a floating panel at the RIGHT of the "+ Choose side views" button (#9) */}
       {onSideViews && mainView && pickingSV && (
         <SideViewPicker
-          svAnchor={svAnchor} svSearch={svSearch} setSvSearch={setSvSearch}
-          sideViews={sideViews} onSideViews={onSideViews}
-          svLib={svLib} setSvLib={setSvLib} svGroup={svGroup} setSvGroup={setSvGroup}
+          svAnchor={svAnchor} sideViews={sideViews} onSideViews={onSideViews}
+          svLib={svLib} setSvLib={setSvLib}
           svSrc={svSrc} tpl={tpl} info={info} flash={flash} />
       )}
 
