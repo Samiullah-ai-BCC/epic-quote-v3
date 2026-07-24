@@ -53,6 +53,10 @@ export const syncSpecFromFields = (specText, cs) => {
     s = s.replace(/^((?:[A-Z ]*\s)?RETURNS?\s*:\s*).*$/im, `$1${p.h}"`)
          .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
   }
+  // Quotes saved before the placeholder was suppressed still carry the literal token in their
+  // spec text; it must never survive onto a proposal, with or without a depth to put there.
+  s = s.replace(/\[DEPTH\]["”]?/g, '').replace(/^([A-Z ]*RETURNS?\s*:)[ \t]+$/gim, '$1')
+
   const app = cs?.application
   if (app) {
     s = /^APPLICATION\s*:.*$/im.test(s) ? s.replace(/^(APPLICATION\s*:\s*).*$/im, `$1${app}`) : s

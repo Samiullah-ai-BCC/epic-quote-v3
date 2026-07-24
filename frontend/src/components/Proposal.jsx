@@ -413,6 +413,54 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return () => { ro.disconnect(); clearInterval(t) }
   }, [])
 
+  // THE PAGE LIMIT IS ENFORCED, NOT ANNOUNCED. A red banner still let the rep keep typing past
+  // the bottom edge, and everything past it is clipped by overflow:hidden — so the words existed
+  // in the saved state, were invisible on screen, and were absent from the PDF the customer got.
+  // Silently losing text a rep watched themselves type is worse than refusing the keystroke.
+  //
+  // Two independent ways to be full, because they fail differently: the PAGE overflows (overBy),
+  // or a single block overflows INSIDE its own fixed-height box while the page total still fits.
+  // Deletions are ALWAYS allowed — the only way out of a full page is to remove something, and a
+  // guard that blocks backspace traps the rep with no way back under the limit.
+  const overRef = useRef(0); overRef.current = overBy
+  const blockIsFull = (el) => !!el && el.scrollHeight > el.clientHeight + 1
+  const pageIsFull = (el) => overRef.current > 0 || blockIsFull(el)
+  // Buttons that ADD an element call this first; returns true when the caller must not proceed.
+  const refuseIfFull = (what) => {
+    if (overRef.current <= 0) return false
+    flash(`Page is full — ${what} would fall off the sheet. Remove or shorten something first.`)
+    return true
+  }
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+    const onBeforeInput = (e) => {
+      const t = e.target
+      if (!t || !el.contains(t) || !t.isContentEditable) return
+      // 'insert*' adds content; 'delete*'/history stay allowed so the rep can always recover.
+      if (!String(e.inputType || '').startsWith('insert')) return
+      if (!pageIsFull(t)) return
+      e.preventDefault()
+      flash('Page is full — this text would be cut off the printed sheet. Delete something first.')
+    }
+    // Enter inserts a line even when the browser reports no inputType (older paths), so it gets
+    // its own guard; a full block must not gain a new line under any input route.
+    const onKeyDown = (e) => {
+      if (e.key !== 'Enter') return
+      const t = e.target
+      if (!t || !el.contains(t) || !t.isContentEditable) return
+      if (!pageIsFull(t)) return
+      e.preventDefault()
+      flash('Page is full — no room for another line.')
+    }
+    el.addEventListener('beforeinput', onBeforeInput, true)
+    el.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      el.removeEventListener('beforeinput', onBeforeInput, true)
+      el.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [])
+
   // Fit the fixed 816×1056 page to the FULL available column width — always as big as the
   // column allows. The old viewport-height cap ("whole sheet on screen, no scrolling") shrank
   // the page to an illegible thumbnail on shorter windows; legibility beats no-scroll, so the
@@ -458,8 +506,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
   // they were never actually needed: a rep types the final dollar figure directly). `kind`
   // distinguishes the two: 'discount' subtracts in itemSigned() above instead of adding.
-  const addItem = () => setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'ADDITIONAL ITEM', amount: 0, kind: 'add' }])
-  const addDiscount = () => setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'DISCOUNT', amount: 0, kind: 'discount' }])
+  const addItem = () => { if (refuseIfFull('another line item')) return; setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'ADDITIONAL ITEM', amount: 0, kind: 'add' }]) }
+  const addDiscount = () => { if (refuseIfFull('a discount row')) return; setItems((arr) => [...arr, { id: 'li' + Date.now(), desc: 'DISCOUNT', amount: 0, kind: 'discount' }]) }
   const patchItem = (id, patch) => setItems((arr) => arr.map((it) => (it.id === id ? { ...it, ...patch } : it)))
   const removeItem = (id) => setItems((arr) => arr.filter((it) => it.id !== id))
   // live money re-sync: when qty / line items change, rewrite the derived money blocks in place
@@ -1289,6 +1337,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                               // Tiles stay INSIDE the SIDE VIEW box — they must never wander into
                               // SPECIFICATIONS. (bounds = the box's own inner size.)
                               src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false}
+                              // CENTRE each diagram on its own slot. fitCenterH narrows the frame from
+                              // the slot's width to the image's aspect, but x stayed at the slot's LEFT
+                              // edge — so every side view sat left-shifted, hard against the box border,
+                              // with the leftover space pooled on the right. Same fix the package tiles
+                              // already carry; the side views were simply never given the centre line.
+                              slotCenterX={one ? 119 : 6 + (i % 2) * 116 + 56}
                               bounds={{ w: 238, h: 158 }} />
                           ))
                         })()}

@@ -128,7 +128,15 @@ export function buildFaSpecLines(group, answers = {}) {
   const dims = (answers.dim_l && answers.dim_w) ? { h: stripInches(answers.dim_l), w: stripInches(answers.dim_w) } : { h: '', w: '' }
   return (leaf.lines || []).map((ln) => {
     if (ln.t === 'dims') return ln.v.replace('[HEIGHT]', dims.h || '[HEIGHT]').replace('[WIDTH]', dims.w || '[WIDTH]')
-    if (ln.t === 'depth') return ln.v.replace('[DEPTH]', answers.fa_depth ? stripInches(answers.fa_depth) : '[DEPTH]')
+    // An unknown depth leaves the line's VALUE blank — it never prints the token. [DEPTH] is
+    // scaffolding for the template, not words for a customer: the depth either comes from the
+    // sheet's thickness or the rep types it, so a proposal showing `RETURNS: [DEPTH]"` is just
+    // a placeholder that escaped onto a document someone is about to send. The inch mark goes
+    // with it, since `RETURNS: "` reads as broken too; the label stays so the rep sees the gap.
+    if (ln.t === 'depth') {
+      const d = answers.fa_depth ? stripInches(answers.fa_depth) : ''
+      return d ? ln.v.replace('[DEPTH]', d) : ln.v.replace(/\[DEPTH\]["”]?/, '').trimEnd()
+    }
     if (ln.t === 'application') return ln.v.replace('[APPLICATION]', answers.application || '[APPLICATION]')
     if (ln.t === 'field') {
       const v = answers[fieldKey(ln.label)] || ''

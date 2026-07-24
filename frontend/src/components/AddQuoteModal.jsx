@@ -71,7 +71,13 @@ export default function AddQuoteModal({ onClose }) {
     try {
       const { data } = await client.get('/companies/suggest', { params: { q: name } })
       setCompanyHits(data || [])
-      const hit = (data || []).find((c) => c.name.toLowerCase() === name.trim().toLowerCase())
+      // Compare on NORMALISED names. Real company rows carry double spaces and non-breaking
+      // spaces ("Signarama  Redmond", " Valley Sign Solutions"), which look identical on
+      // screen but never equal what a rep types — so the company read as unknown and its saved
+      // address was never filled in. Whitespace is not identity.
+      const norm = (s) => String(s || '').replace(/[\s ]+/g, ' ').trim().toLowerCase()
+      const typed = norm(name)
+      const hit = (data || []).find((c) => norm(c.name) === typed)
       setExactHit(hit || null)
       if (hit) {
         // Dropdown-ONLY autofill (#3, Sami 2026-07-14): a known company fills its ADDRESS, but
