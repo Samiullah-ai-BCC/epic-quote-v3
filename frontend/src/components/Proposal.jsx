@@ -38,11 +38,17 @@ const TERMS_HTML =
   "• Installation must follow UL and NEC guidelines and is the customer's responsibility.<br>" +
   '• Payment terms: 50% deposit upfront, remaining 50% before shipment. Orders under USD 500 are paid in full in advance.'
 
-const cell = { fontSize: 11, border: '1px solid #777', padding: '6px 8px', outline: 'none' }
+// EXPLICIT integer line-height on every text box in the captured page. With line-height
+// 'normal' the browser derives the box from font metrics, but html2canvas re-derives it its
+// own way and lands the baseline lower — visible in the exported PNG/PDF as the section
+// labels (ITEM DESCRIPTION / SPECIFICATIONS / SIDE VIEW / ADDITIONAL NOTES) sinking toward
+// the bottom of their grey bands while the bands themselves stayed put. An integer px
+// line-height leaves nothing to re-derive, so screen and export agree exactly.
+const cell = { fontSize: 11, lineHeight: '14px', border: '1px solid #777', padding: '6px 8px', outline: 'none' }
 const headCell = { ...cell, background: HEAD, fontWeight: 700, borderTop: 'none' }
 // Section header bar inside the single-framed specs/package box — border only on the bottom; the outer
 // box + the left column's right edge supply the frame, so the divider stays one continuous line.
-const secHead = { background: HEAD, fontWeight: 700, fontSize: 11, padding: '5px 8px', borderBottom: '1px solid #777' }
+const secHead = { background: HEAD, fontWeight: 700, fontSize: 11, lineHeight: '14px', padding: '5px 8px', borderBottom: '1px solid #777' }
 // PACKAGE INCLUDES is a SET — the rep picks ONE of the four standard packages the sheet
 // assigns per sign type (Package Includes column = A/B/C/D):
 //  • A: Installation Template + Power Supply      • C: Adaptor + Dimmer + Mounting Kit
@@ -383,79 +389,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  // ---- Undo / redo / copy / paste for proposal OBJECTS (#1): geometry + swatches history.
-  // Text blocks keep the browser's native undo (shortcuts are ignored while typing in them). ----
-  const histRef = useRef({ stack: [], idx: -1, silent: false })
-  const selRef = useRef(null); selRef.current = selId
-  const swRef = useRef(swatches); swRef.current = swatches
-  const layRef = useRef(layout); layRef.current = layout
-  const clipRef = useRef(null)
-  const sideViewsRef = useRef(sideViews); sideViewsRef.current = sideViews
-  useEffect(() => {
-    const h = histRef.current
-    if (h.silent) { h.silent = false; return }
-    h.stack = h.stack.slice(0, h.idx + 1)
-    h.stack.push({ layout, swatches })
-    if (h.stack.length > 80) h.stack.shift()
-    h.idx = h.stack.length - 1
-  }, [layout, swatches])
-  // shared by the Ctrl+Z/Y shortcuts AND the visible ↶/↷ buttons (#7)
-  const applyHist = (dir) => {
-    const h = histRef.current
-    const to = h.idx + dir
-    if (to < 0 || to >= h.stack.length) return
-    h.idx = to
-    // both writes batch into ONE history-effect run — one silent flag covers it
-    h.silent = true
-    setLayout(h.stack[to].layout)
-    setSwatches(h.stack[to].swatches)
-    flash(dir < 0 ? 'Undo' : 'Redo')
-  }
-  useEffect(() => {
-    if (!mainView) return
-    const onKey = (e) => {
-      // while typing in any text field/block, the browser's own shortcuts must win
-      if (e.target?.closest?.('[contenteditable], input, textarea, select')) return
-      // Delete/Backspace on a SELECTED side-view tile removes it from the quote — the only
-      // other way was reopening the picker and unticking it. Scoped to side-view tiles only
-      // (rk `sv2-<key>`); other adjustables (artwork, swatches, package tiles) already have
-      // their own explicit remove controls and must not be affected by a stray Delete press.
-      if ((e.key === 'Delete' || e.key === 'Backspace') && !(e.ctrlKey || e.metaKey)) {
-        const id = selRef.current
-        if (id?.startsWith('sv2-')) {
-          e.preventDefault()
-          const key = id.slice(4)
-          const rest = sideViewsRef.current.filter((k) => k !== key)
-          // Deleting the LAST tile must also remove the "SIDE VIEW" heading — an empty section
-          // with just a headline and a "[ No side view selected ]" placeholder reads as broken,
-          // not deleted. Empty rest → treat exactly like the picker's explicit "No side view".
-          onSideViews && onSideViews(rest.length ? rest : ['__none__'])
-          setSelId(null)
-        }
-        return
-      }
-      if (!(e.ctrlKey || e.metaKey)) return
-      const k = e.key.toLowerCase()
-      if (k === 'z') { e.preventDefault(); applyHist(e.shiftKey ? +1 : -1) }
-      else if (k === 'y') { e.preventDefault(); applyHist(+1) }
-      else if (k === 'c') {
-        const id = selRef.current
-        const sw = id?.startsWith('swatch-') ? swRef.current.find((s) => 'swatch-' + s.id === id) : null
-        if (sw) { clipRef.current = { type: 'swatch', data: { ...sw } }; flash('Swatch copied — Ctrl+V to paste') }
-      } else if (k === 'v') {
-        const clip = clipRef.current
-        if (clip?.type === 'swatch') {
-          e.preventDefault()
-          const id = 'sw' + Date.now()
-          setSwatches((arr) => [...arr, { ...clip.data, id, keep: true, moved: true, x: clip.data.x + 14, y: clip.data.y + 14 }])
-          setSelId('swatch-' + id)
-          flash('Swatch pasted')
-        }
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [mainView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ONE-PAGE CONFINEMENT: the page is a HARD 816×1056 (US Letter at 96dpi) — it cannot grow,
   // and anything past the bottom edge is clipped (overflow:hidden on the page div). What the
@@ -672,12 +605,138 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes, pkgSet]) // eslint-disable-line react-hooks/exhaustive-deps
+  // ---- Undo / redo / copy / paste for EVERYTHING on the proposal (#1). History used to cover
+  // only geometry + swatches, so Ctrl+Z did nothing for a line item, a discount, a quantity, the
+  // artwork background, the package set, a removed Notes section, or the text blocks. A snapshot
+  // is now the FULL editable state of the page: every piece of React state plus the innerHTML of
+  // every contenteditable block (they're uncontrolled, so their text lives in the DOM). ----
+  const histRef = useRef({ stack: [], idx: -1, silent: false })
+  const selRef = useRef(null); selRef.current = selId
+  const swRef = useRef(swatches); swRef.current = swatches
+  const layRef = useRef(layout); layRef.current = layout
+  const clipRef = useRef(null)
+  const sideViewsRef = useRef(sideViews); sideViewsRef.current = sideViews
+  // Text blocks as {key: html}. Read from the live DOM because EBlock/EditCell are uncontrolled.
+  const readBlocks = () => {
+    const page = pageRef.current
+    if (!page) return {}
+    const out = {}
+    page.querySelectorAll('[data-key]').forEach((el) => { out[el.dataset.key] = el.innerHTML })
+    return out
+  }
+  const writeBlocks = (blocks) => {
+    const page = pageRef.current
+    if (!page || !blocks) return
+    page.querySelectorAll('[data-key]').forEach((el) => {
+      const v = blocks[el.dataset.key]
+      // never fight the caret: skip the block being typed in
+      if (v != null && el.innerHTML !== v && document.activeElement !== el) el.innerHTML = v
+    })
+  }
+  const snapshot = () => ({ layout, swatches, items, qty, artBg, pkgSet, hideNotes, blocks: readBlocks() })
+  // Push a history entry for the OBJECT state. Text edits are pushed separately (below) because
+  // they don't flow through React state — they mutate the DOM directly.
+  useEffect(() => {
+    const h = histRef.current
+    if (h.silent) { h.silent = false; return }
+    h.stack = h.stack.slice(0, h.idx + 1)
+    h.stack.push(snapshot())
+    if (h.stack.length > 120) h.stack.shift()
+    h.idx = h.stack.length - 1
+  }, [layout, swatches, items, qty, artBg, pkgSet, hideNotes]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Text blocks: commit ONE history entry per editing burst (debounced), so Ctrl+Z steps through
+  // edits instead of individual keystrokes, and typing never floods the stack.
+  const textTimer = useRef(null)
+  const pushTextHistory = () => {
+    clearTimeout(textTimer.current)
+    textTimer.current = setTimeout(() => {
+      const h = histRef.current
+      const last = h.stack[h.idx]
+      const now = snapshot()
+      if (last && JSON.stringify(last.blocks) === JSON.stringify(now.blocks)) return
+      h.stack = h.stack.slice(0, h.idx + 1)
+      h.stack.push(now)
+      if (h.stack.length > 120) h.stack.shift()
+      h.idx = h.stack.length - 1
+    }, 500)
+  }
+  // shared by the Ctrl+Z/Y shortcuts AND the visible ↶/↷ buttons (#7)
+  const applyHist = (dir) => {
+    const h = histRef.current
+    const to = h.idx + dir
+    if (to < 0 || to >= h.stack.length) return
+    h.idx = to
+    const s = h.stack[to]
+    // every setState below batches into ONE history-effect run — one silent flag covers it
+    h.silent = true
+    setLayout(s.layout)
+    setSwatches(s.swatches)
+    setItems(s.items)
+    setQty(s.qty)
+    setArtBg(s.artBg)
+    setPkgSet(s.pkgSet)
+    setHideNotes(s.hideNotes)
+    writeBlocks(s.blocks)
+    queueSave()
+    flash(dir < 0 ? 'Undo' : 'Redo')
+  }
+  useEffect(() => {
+    if (!mainView) return
+    const onKey = (e) => {
+      const inText = !!e.target?.closest?.('[contenteditable], input, textarea, select')
+      // Ctrl+Z / Ctrl+Y are OURS everywhere, including inside a text block: the proposal's own
+      // stack now covers text too, so handing those keys to the browser's per-element native
+      // undo would split history in two (native for the block you're in, ours for everything
+      // else) and make Ctrl+Z's behaviour depend on where the caret happens to be.
+      const undoRedo = (e.ctrlKey || e.metaKey) && ['z', 'y'].includes(e.key.toLowerCase())
+      if (inText && !undoRedo) return
+      // Delete/Backspace on a SELECTED side-view tile removes it from the quote — the only
+      // other way was reopening the picker and unticking it. Scoped to side-view tiles only
+      // (rk `sv2-<key>`); other adjustables (artwork, swatches, package tiles) already have
+      // their own explicit remove controls and must not be affected by a stray Delete press.
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !(e.ctrlKey || e.metaKey)) {
+        const id = selRef.current
+        if (id?.startsWith('sv2-')) {
+          e.preventDefault()
+          const key = id.slice(4)
+          const rest = sideViewsRef.current.filter((k) => k !== key)
+          // Deleting the LAST tile must also remove the "SIDE VIEW" heading — an empty section
+          // with just a headline and a "[ No side view selected ]" placeholder reads as broken,
+          // not deleted. Empty rest → treat exactly like the picker's explicit "No side view".
+          onSideViews && onSideViews(rest.length ? rest : ['__none__'])
+          setSelId(null)
+        }
+        return
+      }
+      if (!(e.ctrlKey || e.metaKey)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z') { e.preventDefault(); applyHist(e.shiftKey ? +1 : -1) }
+      else if (k === 'y') { e.preventDefault(); applyHist(+1) }
+      else if (k === 'c') {
+        const id = selRef.current
+        const sw = id?.startsWith('swatch-') ? swRef.current.find((s) => 'swatch-' + s.id === id) : null
+        if (sw) { clipRef.current = { type: 'swatch', data: { ...sw } }; flash('Swatch copied — Ctrl+V to paste') }
+      } else if (k === 'v') {
+        const clip = clipRef.current
+        if (clip?.type === 'swatch') {
+          e.preventDefault()
+          const id = 'sw' + Date.now()
+          setSwatches((arr) => [...arr, { ...clip.data, id, keep: true, moved: true, x: clip.data.x + 14, y: clip.data.y + 14 }])
+          setSelId('swatch-' + id)
+          flash('Swatch pasted')
+        }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mainView]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const el = pageRef.current; if (!el) return
     const h = (e) => {
       const k = e.target?.closest?.('[data-key]')?.dataset?.key
       if (k) dirtyRef.current.add(k)   // hand-edited → this block now beats wizard-derived content
       queueSave()
+      pushTextHistory()   // text edits join the same undo/redo stack as objects
     }
     el.addEventListener('input', h)
     return () => el.removeEventListener('input', h)
@@ -1272,12 +1331,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           their proposal sections is gone — those margins were the wasted space.) */}
       {(() => {
         return (
-          // The stack is EXACTLY the sheet's height — never taller. minHeight alone let the
-          // buttons overflow far below the page whenever their natural height exceeded the
-          // sheet; a fixed height + space-between spreads them over the page edge when they
-          // fit, and scrolls within the page's own height when they don't. Either way nothing
-          // ever renders past the bottom of the proposal.
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8, marginTop: 14, height: Math.max(0, scaledH - 14), overflowY: 'auto' }}>
+          // Plain compact stack (the stretch-to-page-height experiment is gone — it spread the
+          // buttons oddly and overflowed the sheet).
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
             {/* per-page actions (Edit specs / Delete / Move ↑↓) live at the TOP of this page's own
                 column — as a flow row above the sheet they pushed the whole page down (dead band),
                 and here they can never act on the wrong page: the parent binds them per render. */}
