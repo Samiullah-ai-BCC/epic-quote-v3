@@ -75,7 +75,10 @@ export default function AddQuoteModal({ onClose }) {
       // spaces ("Signarama  Redmond", " Valley Sign Solutions"), which look identical on
       // screen but never equal what a rep types — so the company read as unknown and its saved
       // address was never filled in. Whitespace is not identity.
-      const norm = (s) => String(s || '').replace(/[\s ]+/g, ' ').trim().toLowerCase()
+      // Leading/trailing quotes come from rows whose CSV field was double-quoted and parsed
+      // literally (one stored name is `"D10 Signs  and Graphics `), so a rep typing the clean
+      // name never matched it. Edge punctuation is not part of a company's identity.
+      const norm = (s) => String(s || '').replace(/[\s ]+/g, ' ').trim().replace(/^["'\s]+|["'\s]+$/g, '').toLowerCase()
       const typed = norm(name)
       const hit = (data || []).find((c) => norm(c.name) === typed)
       setExactHit(hit || null)

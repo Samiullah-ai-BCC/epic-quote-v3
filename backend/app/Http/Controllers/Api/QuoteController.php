@@ -80,9 +80,18 @@ class QuoteController extends Controller
         // incl. the Airtable import) — NOT from quote rows, which were the source of the
         // cross-contamination blunder (#15). Each company returns ALL of its own saved contacts,
         // so nothing hides behind "the most complete one", and one company never shows another's.
+        // RELEVANCE ORDER, NOT ALPHABETICAL. This was `orderBy('name')->limit(10)`, so a substring
+        // search that matched many companies returned the ten alphabetically-first ones — and the
+        // company the rep actually typed could be the 40th. The frontend fills the address only on
+        // an EXACT name match, so if that row was not among the ten returned it did not exist as
+        // far as the UI was concerned: no autofill, and not in the suggestion list to pick either.
+        // "signs" matches 133 companies today; every one past the tenth was invisible.
+        // Exact match first, then starts-with, then contains, so the row being typed is always #1.
+        $lower = mb_strtolower($q);
         $rows = Company::where('name', 'like', '%'.$q.'%')
+            ->orderByRaw('CASE WHEN LOWER(name) = ? THEN 0 WHEN LOWER(name) LIKE ? THEN 1 ELSE 2 END', [$lower, $lower.'%'])
             ->orderBy('name')
-            ->limit(10)
+            ->limit(25)
             ->get(['id', 'name', 'address'])
             ->map(function ($c) {
                 // normalize whitespace (incl. non-breaking spaces) so "Sharon Khoo" doesn't show 3×
