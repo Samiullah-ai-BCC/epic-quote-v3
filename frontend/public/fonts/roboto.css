@@ -1,0 +1,12 @@
+/* Self-hosted Roboto (variable, weights 100-900, latin). Served same-origin so the PNG/PDF
+   export can EMBED it: html-to-image can only inline fonts whose stylesheet rules it can
+   read, and the Google Fonts <link> is cross-origin — its cssRules throw, the font was
+   silently skipped, and exports rendered in a wider fallback font that re-wrapped lines the
+   screen never wraps (overlapping "ADDITIONAL ITEM" / "50% DEPOSIT DUE NOW" in downloads). */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/roboto-var.woff2') format('woff2');
+}

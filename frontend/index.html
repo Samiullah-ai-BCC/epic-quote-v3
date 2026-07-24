@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <!-- Roboto is SELF-HOSTED (public/fonts). The Google Fonts <link> is cross-origin, so the
+         PNG/PDF export could not read its rules to embed the font and silently fell back to a
+         wider system font — re-wrapping lines in every download. Same-origin css is embeddable. -->
+    <link href="/fonts/roboto.css" rel="stylesheet" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Epic Craftings — Quote Generator</title>
   </head>
