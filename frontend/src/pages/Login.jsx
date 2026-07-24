@@ -47,6 +47,10 @@ export default function Login() {
     } catch (err) {
       if (err.response?.status === 429) {
         setError('Too many attempts — wait a minute, then try again.')
+      } else if (err.apiMisrouted) {
+        // Deployment fault, not a credential fault — show it verbatim so nobody spends the
+        // afternoon resetting passwords against a backend the app never reached.
+        setError(err.message)
       } else {
         setError(err.response?.data?.errors?.username?.[0] || err.response?.data?.message || 'Login failed.')
       }

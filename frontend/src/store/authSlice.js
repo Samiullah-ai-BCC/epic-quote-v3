@@ -11,10 +11,19 @@ const saved = (() => {
   }
 })()
 
-export const login = createAsyncThunk('auth/login', async ({ username, password }) => {
-  const { data } = await client.post('/login', { username, password })
-  localStorage.setItem('token', data.token)
-  return data
+export const login = createAsyncThunk('auth/login', async ({ username, password }, { rejectWithValue }) => {
+  try {
+    const { data } = await client.post('/login', { username, password })
+    localStorage.setItem('token', data.token)
+    return data
+  } catch (err) {
+    // createAsyncThunk serialises a thrown Error down to {name,message,stack,code}, which drops
+    // the client's `apiMisrouted` flag — the login screen would fall back to "Login failed." and
+    // hide the deployment fault it is meant to surface. Carry it across as a rejected VALUE,
+    // which unwrap() rethrows intact. Axios errors keep their `response` the same way.
+    if (err.apiMisrouted) return rejectWithValue({ apiMisrouted: true, message: err.message })
+    throw err
+  }
 })
 
 export const logout = createAsyncThunk('auth/logout', async () => {

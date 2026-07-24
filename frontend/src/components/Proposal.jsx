@@ -147,7 +147,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // The SPECIFICATIONS column bounds (page coords) — swatches belong here and must never leave it.
   const specAreaRect = () => {
     const page = pageRef.current
-    const spec = page?.querySelector('[data-key="specBody"]')?.parentElement   // the left column
+    // The SPEC BODY ITSELF, not its parent column. The column also contains ADDITIONAL NOTES,
+    // so clamping to it declared the notes block "inside the specifications area" and a chip
+    // dragged down there was left where it landed — the chip sitting in ADDITIONAL NOTES.
+    // Measured on the live sheet: column 408→695, specBody 431→635, notes 658→685.
+    const spec = page?.querySelector('[data-key="specBody"]')
     if (!page || !spec) return null
     const sc = scaleRef.current || 1
     const pr = page.getBoundingClientRect()
@@ -834,7 +838,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // drag/add and once at load. Watch the column's own geometry and re-clamp every chip whenever it
   // changes, so a chip can never be stranded outside by a box that moved underneath it.
   useEffect(() => {
-    const col = pageRef.current?.querySelector('[data-key="specBody"]')?.parentElement
+    const col = pageRef.current?.querySelector('[data-key="specBody"]')
     if (!col || typeof ResizeObserver === 'undefined') return
     let first = true
     const ro = new ResizeObserver(() => {
