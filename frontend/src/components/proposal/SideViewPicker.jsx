@@ -11,7 +11,7 @@ import { saveCatalogItem } from '../../api/catalog'
 // chosen, so browsing ~100 cards by hand is dead weight — the only manual action left is "No side
 // view" (explicit override) and uploading a one-off custom view.
 
-export default function SideViewPicker({ svAnchor, sideViews, onSideViews, svLib, setSvLib, svSrc, tpl, info, flash }) {
+export default function SideViewPicker({ svAnchor, sideViews, onSideViews, svLib, setSvLib, svSrc, info, flash }) {
   return (
         <div data-sv-picker style={{ position: 'fixed', left: svAnchor.left, top: svAnchor.top, width: 300, zIndex: 150, background: 'var(--navy-700)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.45)' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -37,19 +37,17 @@ export default function SideViewPicker({ svAnchor, sideViews, onSideViews, svLib
                     const f = e.target.files?.[0]
                     if (!f || !info?.quoteId) return
                     e.target.value = ''
-                    // name it (e.g. the sign type) so it's findable on every future quote
-                    const suggested = (tpl?.n || f.name.replace(/\.[^.]+$/, '')).toUpperCase()
-                    const title = (window.prompt('Name this side view so the whole team can reuse it:', suggested) || '').trim()
+                    // No naming prompt (team decision): free-typed names multiplied into a mess of
+                    // duplicates. The uploaded FILE's own name is the library name, automatically.
+                    const title = (f.name.replace(/\.[^.]+$/, '') || 'SIDE VIEW').toUpperCase()
                     try {
                       const path = await uploadExtraFile(info.quoteId, f)
                       onSideViews([...sideViews.filter((x) => x !== '__none__'), path])
-                      if (title) {
+                      try {
                         await saveCatalogItem('side_view', title, { path })
-                        setSvLib((l) => [...l.filter((x) => x.name !== title.toUpperCase()), { id: 'new' + Date.now(), name: title.toUpperCase(), data: { path } }])
-                        flash(`Saved to the library as “${title.toUpperCase()}”.`)
-                      } else {
-                        flash('Side view added to this quote only (no name given).')
-                      }
+                        setSvLib((l) => [...l.filter((x) => x.name !== title), { id: 'new' + Date.now(), name: title, data: { path } }])
+                      } catch { /* library save is best-effort; the quote itself has the view */ }
+                      flash(`Side view added (saved as “${title}”).`)
                     } catch { flash('Upload failed — try again.') }
                   }}
                 />

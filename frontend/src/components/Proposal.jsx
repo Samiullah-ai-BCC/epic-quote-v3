@@ -1169,8 +1169,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                             <AdjImg key={k} {...adjProps(`sv2-${k}`, one
                               ? { x: 10, y: 6, w: 218, h: 148 }
                               : { x: 6 + (i % 2) * 116, y: 5 + Math.floor(i / 2) * 78, w: 112, h: 72 })}
-                              src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false}
-                              bounds={{ w: 238, h: 158 }} />
+                              // NO bounds: side-view tiles are free to be dragged anywhere on the
+                              // page (e.g. into the empty spec area beside them) — the old clamp
+                              // confined their motion to the 238px SIDE VIEW box and the rep
+                              // couldn't use the open space next to it. The page's own overflow
+                              // (hidden at the sheet edge) is the only limit.
+                              src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false} />
                           ))
                         })()}
                   </div>
@@ -1258,7 +1262,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           their proposal sections is gone — those margins were the wasted space.) */}
       {(() => {
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+          // The stack spans the FULL height of the proposal sheet beside it (minHeight = the
+          // sheet's scaled height): space-between stretches the gaps dynamically so the buttons
+          // distribute over the whole page edge instead of bunching at the top with a void below.
+          // On short windows (content taller than the sheet) minHeight is a no-op and the stack
+          // just flows — gap: 8 stays as the floor so buttons never touch.
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8, marginTop: 14, minHeight: Math.max(0, scaledH - 14) }}>
             {/* per-page actions (Edit specs / Delete / Move ↑↓) live at the TOP of this page's own
                 column — as a flow row above the sheet they pushed the whole page down (dead band),
                 and here they can never act on the wrong page: the parent binds them per render. */}
@@ -1547,7 +1556,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         <SideViewPicker
           svAnchor={svAnchor} sideViews={sideViews} onSideViews={onSideViews}
           svLib={svLib} setSvLib={setSvLib}
-          svSrc={svSrc} tpl={tpl} info={info} flash={flash} />
+          svSrc={svSrc} info={info} flash={flash} />
       )}
 
     </div>
