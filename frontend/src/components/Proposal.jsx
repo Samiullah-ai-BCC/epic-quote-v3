@@ -401,11 +401,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // page edge AND this watcher raises the red banner telling the rep to trim.
   const PAGE_H = 1056
   const [overBy, setOverBy] = useState(0)   // px of content clipped past the page bottom (0 = fits)
+  const pageWantsRef = useRef(0)            // raw scrollHeight — headroom BEFORE the limit is crossed
   useEffect(() => {
     const el = pageRef.current
     if (!el) return
     // scrollHeight = what the content WANTS; offsetHeight is pinned at PAGE_H by the clamp
-    const check = () => setOverBy(Math.max(0, el.scrollHeight - PAGE_H - 2))
+    const check = () => { pageWantsRef.current = el.scrollHeight; setOverBy(Math.max(0, el.scrollHeight - PAGE_H - 2)) }
     check()
     const ro = new ResizeObserver(check)
     ro.observe(el)
@@ -422,12 +423,29 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // or a single block overflows INSIDE its own fixed-height box while the page total still fits.
   // Deletions are ALWAYS allowed — the only way out of a full page is to remove something, and a
   // guard that blocks backspace traps the rep with no way back under the limit.
+  // STOP AT THE LINE THAT WOULD CROSS, NOT THE ONE AFTER IT. Refusing input only once the
+  // content ALREADY overflows lets the crossing keystroke land first, so the sheet settles a
+  // line past the edge and that line is clipped — the limit is enforced one line too late.
+  // The guard therefore leaves ONE LINE of headroom: the block refuses while a further line
+  // still fits, so the last line the rep can type is the last line that actually prints.
   const overRef = useRef(0); overRef.current = overBy
-  const blockIsFull = (el) => !!el && el.scrollHeight > el.clientHeight + 1
-  const pageIsFull = (el) => overRef.current > 0 || blockIsFull(el)
+  const lineOf = (el) => {
+    const lh = parseFloat(getComputedStyle(el).lineHeight)
+    return Number.isFinite(lh) && lh > 0 ? lh : (parseFloat(getComputedStyle(el).fontSize) || 11) * 1.3
+  }
+  // A block is "full" when one more line would not fit INSIDE its own fixed-height box.
+  const blockIsFull = (el) => !!el && el.scrollHeight + lineOf(el) > el.clientHeight + 1
+  // Measured LIVE at the moment of the keystroke — the watcher above only samples every 800ms,
+  // and a guard reading a stale height would let a burst of typing through before catching up.
+  const pageWants = () => (pageRef.current ? pageRef.current.scrollHeight : pageWantsRef.current)
+  // The PAGE is full when one more line of THIS block would push the sheet past 1056.
+  const pageIsFull = (el) => (pageWants() + lineOf(el) > PAGE_H) || blockIsFull(el)
   // Buttons that ADD an element call this first; returns true when the caller must not proceed.
+  // A new table row is taller than a line of text, so it needs its own headroom to be honest:
+  // reporting "there is room" and then clipping the row is the same bug in another costume.
+  const ROW_H = 26
   const refuseIfFull = (what) => {
-    if (overRef.current <= 0) return false
+    if (pageWants() + ROW_H <= PAGE_H) return false
     flash(`Page is full — ${what} would fall off the sheet. Remove or shorten something first.`)
     return true
   }
