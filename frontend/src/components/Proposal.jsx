@@ -432,8 +432,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const lh = parseFloat(getComputedStyle(el).lineHeight)
     return Number.isFinite(lh) && lh > 0 ? lh : (parseFloat(getComputedStyle(el).fontSize) || 11) * 1.3
   }
-  // A block is "full" when one more line would not fit INSIDE its own fixed-height box.
-  const blockIsFull = (el) => !!el && el.scrollHeight + lineOf(el) > el.clientHeight + 1
+  // A block is "full" ONLY when its own box already clips it (a fixed-height box overflowing).
+  // The sheet's editable blocks (spec body, notes) AUTO-GROW, so for them scrollHeight equals
+  // clientHeight at all times — the previous check added lineOf() to the left side, which for
+  // an auto-growing block reduces to `lineHeight > 1`: ALWAYS true. Every such block reported
+  // itself full forever, on any page, which is the "Page is full" banner under blank space.
+  // Auto-growing blocks are governed by the PAGE headroom check below, not by this one.
+  const blockIsFull = (el) => !!el && el.scrollHeight > el.clientHeight + 1
   // scrollHeight CANNOT measure headroom on this sheet. The page div is height-pinned with
   // overflow:hidden, so its scrollHeight saturates at PAGE_H — it never reads LESS than 1056
   // however empty the page is. `scrollHeight + line > 1056` was therefore always true, and the
@@ -1353,14 +1358,19 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               {!sideViews.includes('__none__') && (
                 <>
                   <div data-sec="sideview" style={secHead}>SIDE VIEW</div>
-                  <div style={{ position: 'relative', height: 160 }}>
+                  {/* A single construction diagram gets a TALLER box (230 vs 160): these drawings
+                      are portrait with ~10 labelled callouts, and at 148px tall the label text is
+                      simply not legible. The resize clamp (`bounds` below) matches the box, which
+                      is also what let the diagram be ENLARGED no further than 158px no matter how
+                      much empty page sat underneath — the clamp, not the page, was the ceiling. */}
+                  <div style={{ position: 'relative', height: sideViews.filter((k) => k !== '__none__').length === 1 ? 230 : 160 }}>
                     {sideViews.length === 0
                       ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
                       : (() => {
                           // tile instead of stacking: one view fills the (now bigger) box; several share it 2-per-row (#3)
                           const list = sideViews.filter((k) => k !== '__none__')
                           const one = list.length === 1
-                          const tileH = one ? 148 : 72   // matches each tile's own frame height below
+                          const tileH = one ? 218 : 72   // matches each tile's own frame height below
                           return list.map((k, i) => (
                             // lockAspect+fitCenterH: without these (the original bug) the aspect-fit-
                             // on-load never runs, so a freshly uploaded side view — which usually has
@@ -1368,7 +1378,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                             // shrunk inside its default frame instead of growing to fill the slot.
                             // autoCrop trims that margin so the sign itself, not empty canvas, fills it.
                             <AdjImg key={k} {...adjProps(`sv2-${k}`, one
-                              ? { x: 10, y: 6, w: 218, h: 148 }
+                              ? { x: 10, y: 6, w: 218, h: 218 }
                               : { x: 6 + (i % 2) * 116, y: 5 + Math.floor(i / 2) * 78, w: 112, h: 72 })}
                               // Tiles stay INSIDE the SIDE VIEW box — they must never wander into
                               // SPECIFICATIONS. (bounds = the box's own inner size.)
@@ -1379,7 +1389,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                               // with the leftover space pooled on the right. Same fix the package tiles
                               // already carry; the side views were simply never given the centre line.
                               slotCenterX={one ? 119 : 6 + (i % 2) * 116 + 56}
-                              bounds={{ w: 238, h: 158 }} />
+                              bounds={one ? { w: 238, h: 228 } : { w: 238, h: 158 }} />
                           ))
                         })()}
                   </div>
