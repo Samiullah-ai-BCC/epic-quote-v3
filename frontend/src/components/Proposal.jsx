@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import html2canvas from 'html2canvas'
+import { toCanvas } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
 import { parseDims } from '../generator/questions'
@@ -24,7 +24,7 @@ const svSrc = (k) => (/^(https?:|\/storage)/i.test(String(k)) ? fileUrl(k) : `/s
 /* M2 proposal preview: renders the captured quote as a print-ready document.
    Every labelled block is contentEditable; edits are captured into proposal_state
    (persisted via the wizard's saveProgress) and survive reopen. Export = client-side
-   html2canvas → PNG/jsPDF (server-side Gotenberg comes in P7). */
+   html-to-image → PNG/jsPDF (server-side Gotenberg comes in P7). */
 
 const TERMS_HTML =
   '<b>Note:</b><br>' +
@@ -38,12 +38,11 @@ const TERMS_HTML =
   "• Installation must follow UL and NEC guidelines and is the customer's responsibility.<br>" +
   '• Payment terms: 50% deposit upfront, remaining 50% before shipment. Orders under USD 500 are paid in full in advance.'
 
-// EXPLICIT integer line-height on every text box in the captured page. With line-height
-// 'normal' the browser derives the box from font metrics, but html2canvas re-derives it its
-// own way and lands the baseline lower — visible in the exported PNG/PDF as the section
-// labels (ITEM DESCRIPTION / SPECIFICATIONS / SIDE VIEW / ADDITIONAL NOTES) sinking toward
-// the bottom of their grey bands while the bands themselves stayed put. An integer px
-// line-height leaves nothing to re-derive, so screen and export agree exactly.
+// EXPLICIT integer line-height on every text box in the captured page. This began as a fix for
+// the exported labels sinking inside their grey bands; the export now goes through the browser's
+// own layout engine (see `render`), so it is no longer load-bearing for that. It stays because
+// fixed line-heights are what make the sheet's rows land on predictable pixel boundaries —
+// the specs block's height budget and the page-fill maths both assume it.
 const cell = { fontSize: 11, lineHeight: '14px', border: '1px solid #777', padding: '6px 8px', outline: 'none' }
 const headCell = { ...cell, background: HEAD, fontWeight: 700, borderTop: 'none' }
 // Section header bar inside the single-framed specs/package box — border only on the bottom; the outer
@@ -69,7 +68,7 @@ const resolvePkgSet = (k) => (k && PACKAGE_SETS[k] ? k : (k && PACKAGE_SETS[PKG_
 const pkgTileW = (n) => Math.max(56, Math.min(150, Math.floor((240 - (n + 1) * 10) / n)))
 const pkgDefX = (i, n, w) => Math.round(((240 - n * w) / (n + 1)) * (i + 1) + w * i)
 
-const HD_SCALE = 3   // html2canvas DPI factor for PNG/PDF downloads (~288dpi on a Letter page — crisp text)
+const HD_SCALE = 3   // capture DPI factor for PNG/PDF downloads (~288dpi on a Letter page — crisp text)
 
 function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, mainView, signBox,
   // --- multi-page (multi-sign) quote props ---
@@ -800,7 +799,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       const next = arr.map((s) => {
         if (s.moved) return s                    // rep dragged it by hand → stop re-anchoring (#1)
         const t = target[s.id]
-        if (t && (s.x !== t.x || s.y !== t.y)) { changed = true; return { ...s, x: t.x, y: t.y } }
+        if (!t) return s
+        // Anchoring parks the chip just right of its "…COLOR" label. On a long label (e.g.
+        // "• FACE & RETURN COLOR:") that x plus the chip's width runs past the SPECIFICATIONS
+        // column's right edge, and this pass wrote it straight to state without the clamp every
+        // other chip movement goes through — so the chip hung outside the box it belongs to.
+        const c = clampToArea({ ...s, x: t.x, y: t.y })
+        if (s.x !== c.x || s.y !== c.y) { changed = true; return c }
         return s
       })
       return changed ? next : arr
@@ -822,6 +827,31 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     }, 600)   // after the anchor pass + font layout settle
     return () => clearTimeout(t)
   }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The SPECIFICATIONS column is not a fixed box — it grows and shrinks as the rep edits the spec
+  // text or toggles the notes block. A chip that was legally placed inside the tall version of the
+  // column is left hanging outside the short one, and nothing re-checked it: the clamp ran on
+  // drag/add and once at load. Watch the column's own geometry and re-clamp every chip whenever it
+  // changes, so a chip can never be stranded outside by a box that moved underneath it.
+  useEffect(() => {
+    const col = pageRef.current?.querySelector('[data-key="specBody"]')?.parentElement
+    if (!col || typeof ResizeObserver === 'undefined') return
+    let first = true
+    const ro = new ResizeObserver(() => {
+      if (first) { first = false; return }        // the initial observation is the current layout
+      setSwatches((arr) => {
+        let changed = false
+        const next = arr.map((s) => {
+          const c = clampToArea(s)
+          if (c.x !== s.x || c.y !== s.y) { changed = true; return c }
+          return s
+        })
+        return changed ? next : arr
+      })
+    })
+    ro.observe(col)
+    return () => ro.disconnect()
+  }, [specHTML]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The old "#6/#3" system that measured each proposal section's top and pulled its control
   // group down to sit IN FRONT of it is GONE: those computed margins were the big empty gaps
@@ -855,6 +885,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // Dimension arrows are NOT auto-added — the customer's artwork often already shows them,
   // and adding a second set is wrong (#7). Use the "+ Dimensions" button to add them by hand.
 
+  // THE CAPTURE IS DONE BY THE BROWSER, NOT BY A TEXT-LAYOUT REIMPLEMENTATION.
+  //
+  // html2canvas re-implements text layout, and its baseline math disagrees with the browser
+  // whenever line-height differs from the font's natural height — it centres the glyphs in the
+  // line box its own way. Measured on this sheet: the ITEM DETAILS label rasterised 9.5px BELOW
+  // where the browser paints it, which is the "text keeps sliding down in the PNG/PDF" report.
+  // Two previous fixes tried to satisfy that math by pinning integer line-heights; both only
+  // reduced the gap, because the gap is proportional to (line-height − font-size) and every text
+  // box on a proposal has one.
+  //
+  // html-to-image serialises the node into an SVG <foreignObject> and lets the BROWSER lay it
+  // out, so the export is the same layout engine that painted the screen — screen == export by
+  // construction, not by calibration. Same measurement after the swap: 1.5px, i.e. antialiasing.
+  //
+  // Consequences worth knowing: object-fit:contain now works for real (the manual letterboxing
+  // html2canvas needed is gone, and with it the per-export mutation of every image's left/top),
+  // and the scroll-pinning workaround is gone too — foreignObject has no scroll dependency.
   const render = async (opts = {}) => {
     // capture at the page's true 816px size (drop the fit-to-fit scale during render)
     const el = pageRef.current
@@ -865,44 +912,20 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // clean mode (Shopify product image): hide the price/deposit block
     const priceBlocks = opts.clean ? [...el.querySelectorAll('[data-price-block]')] : []
     priceBlocks.forEach((b) => { b.dataset._vis = b.style.visibility; b.style.visibility = 'hidden' })
-    // html2canvas ignores object-fit:contain and STRETCHES images to their box (squashed
-    // package/side-view images in the PNG). Emulate the letterboxing with explicit geometry
-    // for the capture, then restore.
-    const imgs = [...el.querySelectorAll('[data-rk] img')].filter((im) => im.naturalWidth > 0)
-    const savedCss = imgs.map((im) => ({ im, css: im.style.cssText }))
-    imgs.forEach((im) => {
-      const bw = im.offsetWidth, bh = im.offsetHeight
-      if (!bw || !bh) return
-      const r = im.naturalWidth / im.naturalHeight
-      let w = bw, h = bw / r
-      if (h > bh) { h = bh; w = bh * r }
-      im.style.left = (parseFloat(im.style.left || 0) + (bw - w) / 2) + 'px'
-      im.style.top = (parseFloat(im.style.top || 0) + (bh - h) / 2) + 'px'
-      im.style.width = w + 'px'
-      im.style.height = h + 'px'
-      im.style.objectFit = 'fill'
-    })
-    // html2canvas resolves every node against the DOCUMENT origin, but rasterises text using the
-    // CURRENT scroll offset — so a page captured while the window was scrolled came out with its
-    // text nudged down relative to the boxes/rules around it. Pin the scroll to 0 for the capture
-    // (and tell html2canvas so explicitly), then restore exactly where the rep was.
-    const sx0 = window.scrollX, sy0 = window.scrollY
-    window.scrollTo(0, 0)
     try {
       // Capture DPI. On-screen/Shopify use 2×; PDF/PNG downloads use a higher factor so the
       // rasterised text stays crisp when zoomed (2× ≈ 150dpi looked pixelated — #PDF/PNG).
-      return await html2canvas(el, {
-        scale: opts.scale || 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
-        scrollX: 0, scrollY: 0,
-        windowWidth: document.documentElement.clientWidth,
-        windowHeight: document.documentElement.clientHeight,
+      return await toCanvas(el, {
+        pixelRatio: opts.scale || 2,
+        backgroundColor: '#ffffff',
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+        cacheBust: true,
       })
     } finally {
       el.style.transform = prev
       handles.forEach((h) => { h.style.visibility = '' })
-      savedCss.forEach(({ im, css }) => { im.style.cssText = css })
       priceBlocks.forEach((b) => { b.style.visibility = b.dataset._vis || ''; delete b.dataset._vis })
-      window.scrollTo(sx0, sy0)
     }
   }
 
@@ -1030,7 +1053,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       if (a) {
         const sc = scaleRef.current || 1                    // page is shown scaled on screen
         const pageRect = el.getBoundingClientRect(), r = a.getBoundingClientRect()
-        // html2canvas rendered `el` unscaled at HD_SCALE → 1 unscaled css px = HD_SCALE canvas px = HD_SCALE*fit pt
+        // the capture rendered `el` unscaled at HD_SCALE → 1 unscaled css px = HD_SCALE canvas px = HD_SCALE*fit pt
         const k = HD_SCALE * fit
         const lx = ox + ((r.left - pageRect.left) / sc) * k
         const ly = oy + ((r.top - pageRect.top) / sc) * k
@@ -1496,8 +1519,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     className="ghost"
                     style={{
                       width: '100%',
-                      color: '#15ff00',
-                      borderColor: '#15ff00'
+                      color: '#00A86B',
+                      borderColor: '#00A86B'
                     }}
                     title="Give the customer a discount (its amount is SUBTRACTED from the quote total)"
                     onClick={addDiscount}

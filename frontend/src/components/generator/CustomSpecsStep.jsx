@@ -39,7 +39,15 @@ export default function CustomSpecsStep({
   // Rebuild the spec text for the CURRENT type + the given mounting/thickness (auto-picks the
   // first option of each when not yet chosen — #7 "thickness/mounting not being asked/picked").
   const applyFaConfig = (mounting, thickness, trimcap) => {
-    const answers = { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap }
+    // Feed the dimensions the rep ALREADY typed into the template as well, so [HEIGHT]/[WIDTH]/
+    // [DEPTH] resolve at the source instead of being patched back in afterwards. The 3rd dimension
+    // IS the return depth — that is the only place this flow collects it (the live wizard's
+    // fa_depth question does not exist here), so without it the template kept its [DEPTH] token.
+    const d = parseDims(customSpec?.dims)
+    const answers = {
+      fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap,
+      dim_l: d.l, dim_w: d.w, fa_depth: d.h,
+    }
     const specText = syncSpecFromFields(buildSpecLines(cat, answers, null).join('\n'), customSpec)
     // The construction diagram is a property of the exact leaf, not of the sign type: trim cap
     // and mounting each change what the side view must show. Follow the leaf unless the rep

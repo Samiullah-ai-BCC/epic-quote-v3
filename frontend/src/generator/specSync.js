@@ -44,8 +44,13 @@ export const syncSpecFromFields = (specText, cs) => {
       ? s.replace(/^(.*DIMENSIONS[^:]*):.*$/im, `$1: ${dims}`)
       : (/^SIGN TYPE\s*:.*$/im.test(s) ? s.replace(/^(SIGN TYPE\s*:.*)$/im, `$1\nOVERALL DIMENSIONS: ${dims}`) : `OVERALL DIMENSIONS: ${dims}\n` + s)
   }
+  // Depth owns the WHOLE value of the RETURNS line. The old rule only matched an optional
+  // leading number and left the rest of the line standing, so a freshly prefilled FA template
+  // (`RETURNS: [DEPTH]"`) came out as `RETURNS: 3" [DEPTH]"` — the depth landed but the
+  // placeholder printed next to it on the proposal. `LETTER RETURNS:` is the same line under
+  // another name in several FA templates and must be caught by the same rule.
   if (p.h) {
-    s = s.replace(/^(RETURNS?\s*:\s*)(?:[\d./]+["”]\s*)?/im, `$1${p.h}" `)
+    s = s.replace(/^((?:[A-Z ]*\s)?RETURNS?\s*:\s*).*$/im, `$1${p.h}"`)
          .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
   }
   const app = cs?.application

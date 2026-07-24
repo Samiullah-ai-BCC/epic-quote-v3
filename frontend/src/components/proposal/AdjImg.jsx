@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { detectSubjectBox } from './util'
 
+// How much of the artwork area's HEIGHT a freshly-uploaded artwork should occupy. A wide sign
+// hits the area's width first and lands under this — that is the aspect ratio's call, not a
+// failure to fill. The rep can still resize freely afterwards; this only sets the default.
+const ART_FILL_H = 0.95
+
 // Canva-style adjustable image. Click to select, then:
 //  • drag the body to move, the top grip to rotate
 //  • CORNER circles resize (scale the image)
@@ -182,10 +187,28 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
                       }
                     }
                   }
-                  // centre the fitted frame inside its bounds — ONLY for a single free image (the
+                  // FILL THE ARTWORK AREA, then centre — ONLY for a single free image (the
                   // artwork). Package tiles / side views use fitCenterH and have deliberate spread
                   // x positions; centring them stacked every tile at the same x (alignment bug).
+                  //
+                  // The fit above sizes to the DEFAULT FRAME's width (360 of a 734-wide area), so a
+                  // fresh upload landed at roughly three-quarters height and left the area looking
+                  // half-empty. Scale the fitted frame — after any autoCrop, so it is the SIGN that
+                  // grows, not its background margin — until it uses ART_FILL_H of the area's
+                  // height, or the full width for a wide sign, whichever limit is reached first.
+                  // The crop window (ix/iy/iw/ih) is part of the same geometry and scales with it,
+                  // otherwise the frame grows while the image inside it stays put.
                   if (bounds && !fitCenterH) {
+                    const k = Math.min((bounds.h * ART_FILL_H) / fitted.h, bounds.w / fitted.w)
+                    if (k > 0 && Math.abs(k - 1) > 0.001) {
+                      const sc = (v) => Math.round((v || 0) * k)
+                      fitted = fitBounds({
+                        ...fitted,
+                        w: sc(fitted.w), h: sc(fitted.h),
+                        ix: sc(fitted.ix), iy: sc(fitted.iy),
+                        iw: sc(fitted.iw || fitted.w), ih: sc(fitted.ih || fitted.h),
+                      })
+                    }
                     fitted = { ...fitted, x: Math.round((bounds.w - fitted.w) / 2), y: Math.round((bounds.h - fitted.h) / 2) }
                   }
                   // fitCenterH tiles: centre each image on ITS OWN SLOT's midline. The aspect-fit
