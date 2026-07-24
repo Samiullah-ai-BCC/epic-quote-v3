@@ -13,31 +13,29 @@ export default function PreviewStep({
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, deletePage,
 }) {
-  return (
-    <div className="step">
-      {/* the wizard controls live right above the proposal (#2). "Done" saves a version
-          (rev) with the rendered image (#4); Back asks save-or-delete (#3). "+ Add sign page"
-          appends another sign to this quote (top-right of the preview canvas). */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, marginRight: 6 }}>Proposal{parts.length > 1 ? ` — ${parts.length} signs` : ''}</h3>
-        <button className="ghost sm" onClick={() => setExitAsk(true)}>← Back</button>
-        {/* Only ONE "Edit specs" entry point (#12): the per-page button below, top-right of
-            each proposal page — it knows exactly which sign it's editing (editPart(i)). This
-            toolbar used to have a second one that stepped back a flow index without saying
-            which part it affected — confusing on a multi-sign quote and pure duplication on a
-            single-sign one. */}
-        {/* ONE finish button: Done = save everything, mint the version (rev + image), leave */}
-        <button className="sm" disabled={!!cpBusy || saving}
+  // Quote-level actions (Back / Done / + Add sign page) live at the TOP of the FIRST page's
+  // controls column — the old toolbar row above the sheet (plus the "Proposal" heading and the
+  // .step panel chrome) was pure vertical waste on the one step where the sheet needs every
+  // pixel. Only ONE "Edit specs" entry point (#12) — the per-page row below, which knows
+  // exactly which sign it edits. Done = save everything + mint the version (rev + image).
+  const quoteActions = (
+    <>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button className="ghost sm" style={{ flex: 1 }} onClick={() => setExitAsk(true)}>← Back</button>
+        <button className="sm" style={{ flex: 1 }} disabled={!!cpBusy || saving}
           title="Save everything, record this version (rev with the rendered proposal image) and return"
           onClick={async () => { await saveCheckpoint(); navigate(exitTo) }}>
-          {cpBusy ? 'Saving version…' : '✓ Done'}
+          {cpBusy ? 'Saving…' : '✓ Done'}
         </button>
-        <button className="ghost sm" style={{ marginLeft: 'auto' }} disabled={saving}
-          title="Add another sign to this quote — one client, one combined total"
-          onClick={addPage}>＋ Add sign page</button>
-        {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
       </div>
-
+      <button className="ghost sm" disabled={saving}
+        title="Add another sign to this quote — one client, one combined total"
+        onClick={addPage}>＋ Add sign page</button>
+      {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
+    </>
+  )
+  return (
+    <div>
       {deletedPage && (
         <div style={{ display: 'flex', margintop:40, alignItems: 'center', gap: 0, marginBottom: 12, padding: '9px 14px', background: 'var(--gold-soft)', border: '1px solid var(--gold)', borderRadius: 8, fontSize: 13 }}>
           <span>Page deleted.</span>
@@ -62,6 +60,7 @@ export default function PreviewStep({
           // the freshly-mapped render.
           const pageActions = (
             <>
+              {i === 0 && quoteActions}
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="ghost sm" style={{ flex: 1 }} onClick={() => editPart(i)} disabled={saving}
                   title={`Edit the sign type & specifications of page ${multi ? partLetter(i) : ''}`.trim()}>

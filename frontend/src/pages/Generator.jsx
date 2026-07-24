@@ -620,12 +620,18 @@ export default function Generator() {
         <ExitAskModal admin={admin} saving={saving} saveAndReturn={saveAndReturn}
           quoteId={quoteId} qc={qc} navigate={navigate} onClose={() => setExitAsk(false)} />
       )}
-      <WizardHeader mode={mode} quoteId={quoteId} company={quote?.company_name}
-        customerPdf={quote?.customer_pdf} onViewDrawing={() => setShowDrawing(true)} />
+      {/* The preview step gets the WHOLE viewport for the sheet + its controls: the page title
+          ("Custom Quote Creator … — company") and the step progress bar carry no information the
+          rep needs while polishing the proposal, and their ~90px came straight out of the page. */}
+      {step !== 'preview' && (
+        <>
+          <WizardHeader mode={mode} quoteId={quoteId} company={quote?.company_name}
+            customerPdf={quote?.customer_pdf} onViewDrawing={() => setShowDrawing(true)} />
+          <WizardProgressBar flow={flow} currentIndex={flowIndex} />
+        </>
+      )}
 
-      <WizardProgressBar flow={flow} currentIndex={flowIndex} />
-
-      <div className={'wizard' + (livePreview && step !== 'preview' ? ' wiz-cols' : '')} style={step === 'preview' ? { maxWidth: 'min(1180px, 96%)' } : livePreview ? { maxWidth: 'min(1500px, 97%)' } : undefined}>
+      <div className={'wizard' + (livePreview && step !== 'preview' ? ' wiz-cols' : '')} style={step === 'preview' ? { maxWidth: 'min(1180px, 96%)', marginTop: 0 } : livePreview ? { maxWidth: 'min(1500px, 97%)' } : undefined}>
        <div className="wiz-main">
         {step === 'client' && (
           <ClientStep client={client} setClient={setClient} admin={admin} reps={reps}

@@ -624,6 +624,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         .replace(/<b>\s*PHONE\s*:?\s*<\/b>\s*[^<]*/i, `<b>CONTACT:</b> ${esc(email || phone)}`)
         .replace(/(<br\s*\/?>)?\s*<b>\s*EMAIL\s*:?\s*<\/b>\s*[^<]*/i, '')
     }
+    // TRAILING-BLANK PURGE: hand-edited spec/notes blocks accumulate empty lines at their end
+    // (Enter presses saved as <br>/<div><br></div>/&nbsp; runs) — invisible, but each one is a
+    // full line of page height. On a fixed one-page sheet that waste is exactly the room the
+    // rep needs for real note lines (found live: a quote carrying EIGHT saved blank spec lines
+    // ≈ 134px — seven "missing" lines of the Canva standard). Trimming the END only: blank
+    // lines BETWEEN content are deliberate spacing and stay.
+    for (const k of ['specBody', 'notes']) {
+      if (typeof merged[k] === 'string') {
+        merged[k] = merged[k].replace(/(?:\s|&nbsp;|<br\s*\/?>|<div>(?:\s|&nbsp;|<br\s*\/?>)*<\/div>)+$/gi, '')
+        if (k === 'notes' && merged[k] === '') merged[k] = '&nbsp;'
+      }
+    }
     return merged
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -986,31 +998,31 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           {/* header — 110px used to leave a big gap before PROPOSAL (the contact block only runs
               ~87px tall from its top:20 start); trimmed to fit it with a little breathing room,
               closer to the reference template's tight header-to-heading spacing (#10). */}
-          <div style={{ height: 92, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center' }}>
+          <div style={{ height: 70, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center' }}>
             <img src="/quote-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
-              style={{ height: 60, objectFit: 'contain', display: 'block' }} />
-            {E('contact', { position: 'absolute', right: 40, top: 20, fontSize: 9, textAlign: 'right', lineHeight: 1.85 })}
+              style={{ height: 52, objectFit: 'contain', display: 'block' }} />
+            {E('contact', { position: 'absolute', right: 40, top: 12, fontSize: 9, textAlign: 'right', lineHeight: 1.7 })}
           </div>
 
-          <div style={{ padding: '4px 40px 0' }}>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: '#1a2433' }}>PROPOSAL</div>
+          <div style={{ padding: '2px 40px 0' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, color: '#1a2433', lineHeight: 1.2 }}>PROPOSAL</div>
           </div>
 
           {/* info grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '6px 40px 0', gap: 4 }}>
-            {E('infoLeft', { fontSize: 11, lineHeight: 1.9 })}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '4px 40px 0', gap: 4 }}>
+            {E('infoLeft', { fontSize: 11, lineHeight: 1.6 })}
             {E('infoRight', infoRightPad != null
-              ? { fontSize: 11, lineHeight: 1.9, textAlign: 'left', paddingLeft: infoRightPad }
-              : { fontSize: 11, lineHeight: 1.9, textAlign: 'right' })}
+              ? { fontSize: 11, lineHeight: 1.6, textAlign: 'left', paddingLeft: infoRightPad }
+              : { fontSize: 11, lineHeight: 1.6, textAlign: 'right' })}
           </div>
 
           {/* item details */}
-          <div data-sec="items" style={{ margin: '10px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
-          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 170, position: 'relative', background: artBg, overflow: 'hidden' }}>
+          <div data-sec="items" style={{ margin: '6px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
+          <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 150, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
-              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 20, w: 360, h: 130 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 170 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
+              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
-            {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 20, w: 360, h: 130, rot: 0 }; return (
+            {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 16, w: 360, h: 118, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
                 style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, transform: `rotate(${a.rot || 0}deg)`, cursor: 'crosshair', zIndex: 80, outline: '2px dashed #8b5cf6', outlineOffset: -1 }} />
             ) })()}
@@ -1026,7 +1038,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           {/* item table — DESCRIPTION / QTY / UNIT / TOTAL on EVERY page (each sign shows its own
               price now). The last page additionally carries the COMBINED quote total in the
               totals block below; per-page item prices are the part's own. */}
-          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: '1fr 56px 104px 104px' }}>
+          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: '1fr 56px 104px 104px' }}>
             <div style={{ ...headCell, borderTop: '1px solid #777' }}>ITEM DESCRIPTION</div>
             <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none', textAlign: 'center' }}>QTY</div>
             <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none', textAlign: 'center' }}>UNIT PRICE</div>
@@ -1060,7 +1072,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 <div key={it.id + 'u'} style={{ ...cell, borderTop: 'none', borderLeft: 'none' }} />,
                 <EditCell key={it.id + 't'} value={isDiscount ? `− ${money(amt)}` : money(amt)}
                   onCommit={(v) => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); patchItem(it.id, { amount: Number.isFinite(n) && n >= 0 ? n : 0 }) }}
-                  style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center', color: isDiscount ? '#e05661' : undefined }} />,
+                  style={{ ...cell, borderTop: 'none', borderLeft: 'none', textAlign: 'center', color: isDiscount ? '#111111' : undefined }} />,
               ]
             })}
           </div>
@@ -1069,7 +1081,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               column's right border, so it's continuous no matter which column ends up taller.
               Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
               the sheet — full-width specs instead of the 240px sidebar. */}
-          <div style={{ margin: '7px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
+          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
             {/* flex column: SPECIFICATIONS stretches to absorb whatever height the right column
                 forces on the grid row, so ADDITIONAL NOTES always hugs the BOTTOM of the box
                 instead of floating mid-column with a void under it (regression after the notes
@@ -1086,7 +1098,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   whole page visibly shrinks the instant either of those happens — give it a floor
                   matching the FULL right sidebar (package ~136 + side view ~270) so page length stays
                   consistent no matter which sections are present. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: 1.9, padding: '10px 12px', flex: '1 1 auto', minHeight: (isMonoType || sideViews.includes('__none__')) ? 330 : (specLong ? 215 : 180), whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {/* One small uniform floor. The old inflated floor for mono / no-side-view quotes
+                  existed to keep the PAGE length consistent when the right column emptied — dead
+                  logic now that the sheet is a hard 1056px: the page can't shrink, so the big
+                  floor only stole the very room the rep needs for Additional Notes lines. */}
+              {E('specBody', { fontSize: 10.5, lineHeight: 1.6, padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
@@ -1097,14 +1113,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 {/* No fixed height / scrollbar here: the export renders exactly what's on screen,
                     so notes must always be fully visible — the box grows with the text. */}
                 <div style={{ minHeight: 40 }}>
-                  {E('notes', { fontSize: 10.5, padding: '8px 12px', outline: 'none' }, { noImagePaste: true })}
+                  {E('notes', { fontSize: 10.5, lineHeight: 1.6, padding: '6px 12px', outline: 'none' }, { noImagePaste: true })}
                 </div>
               </>}
             </div>
             {!isMonoType && (
             <div>
               <div style={secHead}>PACKAGE INCLUDES</div>
-              <div style={{ position: 'relative', height: 116, borderBottom: '1px solid #777' }}>
+              <div style={{ position: 'relative', height: 100, borderBottom: '1px solid #777' }}>
                 {packageItems.map((p, i) => (
                   // Package tiles of the CHOSEN set (#11). Key includes the set so switching sets
                   // remounts with fresh default positions.
@@ -1114,9 +1130,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   // fed that stunted width into the aspect-fit, leaving a wide baked image (A–D are
                   // ~3:1) far smaller than the box could actually hold. Match the real box shape
                   // instead so the aspect-fit gets the FULL available width to work with.
-                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 6, w: pkgW, h: 116 })} src={p.img} alt={p.label} lockAspect fitCenterH={116} reserveCaption={!PACKAGE_SETS[pkgSet].baked}
+                  <AdjImg key={`${pkgSet}-${p.label}`} {...adjProps(`pkg-${pkgSet}-${p.label}`, { x: pkgDefX(i, packageItems.length, pkgW), y: 5, w: pkgW, h: 100 })} src={p.img} alt={p.label} lockAspect fitCenterH={100} reserveCaption={!PACKAGE_SETS[pkgSet].baked}
                     slotCenterX={pkgDefX(i, packageItems.length, pkgW) + pkgW / 2}
-                    bounds={{ w: 238, h: 114 }} />
+                    bounds={{ w: 238, h: 98 }} />
                 ))}
                 {/* captions from the set's item labels. `baked` sets (A–D) already carry their
                     labels inside the artwork, so drawing them again would double them up. */}
@@ -1126,7 +1142,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     <div key={`cap-${pkgSet}-${p.label}`} style={{
                       position: 'absolute',
                       left: t ? t.x : pkgDefX(i, packageItems.length, pkgW),
-                      top: t ? t.y + t.h + 4 : 78,
+                      top: t ? t.y + t.h + 4 : 66,
                       width: t ? t.w : pkgW,
                       textAlign: 'center', fontSize: 7.5, letterSpacing: 1, color: '#555', fontWeight: 600, lineHeight: 1.15,
                     }}>{p.label}</div>
@@ -1137,14 +1153,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               {!sideViews.includes('__none__') && (
                 <>
                   <div data-sec="sideview" style={secHead}>SIDE VIEW</div>
-                  <div style={{ position: 'relative', height: 190 }}>
+                  <div style={{ position: 'relative', height: 160 }}>
                     {sideViews.length === 0
                       ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 10, textTransform: 'none' }}>[ No side view selected ]</span>
                       : (() => {
                           // tile instead of stacking: one view fills the (now bigger) box; several share it 2-per-row (#3)
                           const list = sideViews.filter((k) => k !== '__none__')
                           const one = list.length === 1
-                          const tileH = one ? 174 : 86   // matches each tile's own frame height below
+                          const tileH = one ? 148 : 72   // matches each tile's own frame height below
                           return list.map((k, i) => (
                             // lockAspect+fitCenterH: without these (the original bug) the aspect-fit-
                             // on-load never runs, so a freshly uploaded side view — which usually has
@@ -1152,10 +1168,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                             // shrunk inside its default frame instead of growing to fill the slot.
                             // autoCrop trims that margin so the sign itself, not empty canvas, fills it.
                             <AdjImg key={k} {...adjProps(`sv2-${k}`, one
-                              ? { x: 10, y: 8, w: 218, h: 174 }
-                              : { x: 6 + (i % 2) * 116, y: 6 + Math.floor(i / 2) * 92, w: 112, h: 86 })}
+                              ? { x: 10, y: 6, w: 218, h: 148 }
+                              : { x: 6 + (i % 2) * 116, y: 5 + Math.floor(i / 2) * 78, w: 112, h: 72 })}
                               src={svSrc(k)} alt={String(k)} lockAspect autoCrop fitCenterH={tileH} reserveCaption={false}
-                              bounds={{ w: 238, h: 188 }} />
+                              bounds={{ w: 238, h: 158 }} />
                           ))
                         })()}
                   </div>
@@ -1288,7 +1304,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 title="Add measurement arrows beside the artwork (drag to place, pull the dot to resize, click the label to type the size)"
                 onClick={() => {
                   const p = parseDims(mode === 'custom' ? customSpec?.dims : answers?.dimensions)
-                  const a = layout.artwork || { x: 188, y: 20, w: 360, h: 130 }
+                  const a = layout.artwork || { x: 188, y: 16, w: 360, h: 118 }
                   // Bounding-box priority: manually marked sign box → auto-detected subject bbox
                   // (#2, canvas pixel scan) → the whole artwork frame. When a tighter box is found,
                   // the artwork frame is AUTO-CROPPED to it (the background margins are cut away),
@@ -1387,8 +1403,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     className="ghost"
                     style={{
                       width: '100%',
-                      color: '#e05661',
-                      borderColor: '#e05661'
+                      color: '#15ff00',
+                      borderColor: '#15ff00'
                     }}
                     title="Give the customer a discount (its amount is SUBTRACTED from the quote total)"
                     onClick={addDiscount}

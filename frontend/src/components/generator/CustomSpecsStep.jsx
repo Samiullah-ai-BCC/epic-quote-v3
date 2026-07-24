@@ -29,11 +29,24 @@ export default function CustomSpecsStep({
   const mountOpts = cat?.fa ? faMountingOptions(cat, customSpec?.fa_thickness) : []
   const thickOpts = cat?.fa && cat.hasThickness ? faThicknessOptions(cat) : []
 
+  // Item Description format: "{Sign Type} WITH {Mounting} FOR {Company}" — the mounting is part
+  // of what the customer is buying, so it belongs in the line-item text. Types without a
+  // mounting (non-FA / free-typed) fall back to "{Sign Type} FOR {Company}".
+  const itemDescFor = (base, mounting) =>
+    `${base}${mounting ? ` WITH ${String(mounting).toUpperCase()}` : ''} FOR ${client.company_name || 'CUSTOMER'}`
+
   // Rebuild the spec text for the CURRENT type + the given mounting/thickness (auto-picks the
   // first option of each when not yet chosen — #7 "thickness/mounting not being asked/picked").
   const applyFaConfig = (mounting, thickness) => {
     const specText = syncSpecFromFields(buildSpecLines(cat, { fa_mounting: mounting, fa_thickness: thickness }, null).join('\n'), customSpec)
-    setCustomSpec({ ...customSpec, fa_mounting: mounting, fa_thickness: thickness, specText })
+    // Keep the Item Description's mounting in step with the dropdown — but NEVER overwrite a
+    // description the rep hand-edited: only regenerate when the current text still exactly
+    // matches what the auto-format produced for the previous mounting.
+    const autoBefore = itemDescFor(cat?.desc || customTypeSel, customSpec?.fa_mounting)
+    const itemDesc = (!customSpec?.itemDesc || customSpec.itemDesc === autoBefore)
+      ? itemDescFor(cat?.desc || customTypeSel, mounting)
+      : customSpec.itemDesc
+    setCustomSpec({ ...customSpec, fa_mounting: mounting, fa_thickness: thickness, specText, itemDesc })
   }
 
   return (
@@ -72,7 +85,7 @@ export default function CustomSpecsStep({
             }
             setCustomSpec({
               ...customSpec,
-              itemDesc: `${(nextCat?.desc || v)} FOR ${client.company_name || 'CUSTOMER'}`,
+              itemDesc: itemDescFor(nextCat?.desc || v, mounting),
               specText,
               application: customSpec?.application || 'EXTERIOR',
               price: customSpec?.price || '',
