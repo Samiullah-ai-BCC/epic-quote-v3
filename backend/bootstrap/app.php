@@ -46,6 +46,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // Pure Bearer-token auth (#130) — NOT cookie/CSRF SPA mode.
         // statefulApi() would force CSRF on requests from SANCTUM_STATEFUL_DOMAINS
         // (e.g. the vite dev origin), causing 419 on token logins.
+
+        // UNAUTHENTICATED MUST MEAN 401, NEVER 500. Laravel's Authenticate middleware redirects
+        // guests to the route named 'login' unless the request expects JSON — and this app is
+        // API-only, so that route does not exist: the redirect threw RouteNotFoundException
+        // ("Route [login] not defined"), a 500, which sails straight past the
+        // AuthenticationException -> 401 handler below. The SPA sets Accept: application/json and
+        // so was served a correct 401; anything that does not (a browser address-bar hit, an
+        // uptime check, a proxy that strips the header) got a 500 and read as "the API is down"
+        // instead of "you are not logged in" — which is exactly how a routine auth failure got
+        // mistaken for a broken database. Returning null means "do not redirect", so the guest
+        // path always raises AuthenticationException and always renders as 401 JSON.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
