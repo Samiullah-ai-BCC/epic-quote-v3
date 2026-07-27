@@ -2,6 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { toCanvas } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
+import { resolveSignTypeName } from '../generator/faCatalog'
+import { T } from '../generator/catalog'
 import { parseDims } from '../generator/questions'
 import { itemSigned } from '../generator/parts'
 import { sanitizeHtml } from '../utils/sanitizeHtml'
@@ -619,6 +621,41 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     }).join('<br>')
   }, [mode, tpl, answers, customSpec, aiResult])
 
+  // WHICH SIGN TYPE this proposal's spec text describes. In custom mode `tpl` is null, so the
+  // old `tpl?.n` was always null here and the "type changed -> rebuild the spec" guard below
+  // could never fire — the saved spec outlived every type change. Derived from the persisted
+  // customSpec.signType, falling back to the spec's own SIGN TYPE line for older quotes. It is
+  // the TYPE only (not the mounting), so it stays stable while the rep changes mounting.
+  const specTypeKey = mode === 'custom' ? (resolveSignTypeName(customSpec, T) || '') : (tpl?.n || '')
+  // A saved spec belongs to the type it was written for. If the type has moved on, that text is
+  // wrong — including a hand-edited version of it, because the edit described the OLD product.
+  // Which type the SAVED text itself describes. Needed because every quote saved before this fix
+  // stored `__specTpl: null` (it was computed from `tpl?.n`, always null in custom mode), so the
+  // marker alone can never detect a mismatch on existing data. The saved spec's own
+  // "SIGN TYPE:" line is the fallback witness — and a free-typed spec with no such line yields
+  // '' and is therefore never touched.
+  const savedSpecType = useMemo(() => {
+    const html = savedState?.specBody
+    if (!html) return ''
+    // The SIGN TYPE line is always the FIRST line of a catalog spec, so the first <br>-segment is
+    // all we need — and reading just it keeps this free of newline handling.
+    const firstLine = String(html).split(/<br\s*\/?>/i)[0].replace(/<[^>]+>/g, '').trim()
+    return resolveSignTypeName({ specText: firstLine }, T) || ''
+  }, [savedState?.specBody]) // eslint-disable-line react-hooks/exhaustive-deps
+  // EITHER witness is enough, because neither is reliable alone:
+  //  • `__specTpl` is a label written at save time. It can be saved OUT OF STEP with the text it
+  //    labels — the marker took the new type while the DOM still held the old spec (EBlock is
+  //    write-once), producing a quote whose marker said "Flat Cut" over FACE LIT text.
+  //  • the saved text's own SIGN TYPE line only resolves when it happens to spell a catalog name;
+  //    several templates do not (`SIGN TYPE: 1/4" FLAT CUT ACRYLIC LETTERS` vs the catalog's
+  //    "Flat Cut Acrylic/PVC Letters"), so on its own it misses those.
+  // Each condition only fires on a genuine mismatch, so OR-ing them detects strictly more without
+  // ever flagging a spec that does match.
+  const typeChangedSinceSave = !!(specTypeKey && (
+    (savedState?.__specTpl && savedState.__specTpl !== specTypeKey) ||
+    (savedSpecType && savedSpecType !== specTypeKey)
+  ))
+
   const today = new Date()
   const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
 
@@ -653,7 +690,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     }
     // A saved spec belongs to the sign type it was written for — if the type has changed
     // since, the saved text is guaranteed wrong, so rebuild it fresh for the new type.
-    if (savedState?.specBody && savedState.__specTpl && tpl?.n && savedState.__specTpl !== tpl.n) {
+    if (savedState?.specBody && typeChangedSinceSave) {
       merged.specBody = def.specBody
     }
     // MIGRATION (#6): old saved blocks (incl. hand-edited ones) still carry separate PHONE +
@@ -696,10 +733,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   })
 
   // blocks the user typed into ON the proposal — only these keep their saved copy over wizard data
-  const dirtyRef = useRef(new Set(savedState?.__dirty || []))
+  // blocks the user typed into ON the proposal — only these keep their saved copy over wizard data.
+  // `specBody` is dropped from that set when the sign type has changed since the save: the edit was
+  // about the previous product, so it must not outrank the new type's spec.
+  const dirtyRef = useRef(new Set((savedState?.__dirty || []).filter((k) => !(k === 'specBody' && typeChangedSinceSave))))
 
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __specTpl: tpl?.n || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __specTpl: specTypeKey || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -718,6 +758,36 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
+
+  // ── SPECIFICATIONS FOLLOWS THE WIZARD, LIVE ────────────────────────────────────────────────
+  // EBlock writes its content ONCE on mount and ignores every later `html` prop (deliberately —
+  // React re-applying the original html would erase whatever the rep typed). So a spec rebuilt on
+  // the Edit-specs step never reached the preview standing right next to it: the sheet went on
+  // showing the previous type's SPECIFICATIONS while its own sign type, item description and side
+  // view had all moved on. `setBlock` is the one honest channel after mount — the money blocks
+  // already use it; the spec text never did.
+  //
+  // Ownership is respected exactly as before: a block the rep edited ON the proposal keeps their
+  // words. The one exception is a SIGN TYPE change, where the edit described a different product —
+  // the same rule the item description and the side view already follow.
+  const specSyncMounted = useRef(false)
+  const lastSpecType = useRef(null)
+  useEffect(() => {
+    if (!specSyncMounted.current) {
+      specSyncMounted.current = true; lastSpecType.current = specTypeKey; return   // mount already wrote it
+    }
+    const typeChanged = lastSpecType.current !== specTypeKey
+    if (typeChanged) {
+      lastSpecType.current = specTypeKey
+      dirtyRef.current.delete('specBody')   // that edit belonged to the old sign type
+    } else if (dirtyRef.current.has('specBody')) {
+      return                                 // rep owns this text within the same type — leave it
+    }
+    // innerHTML assignment fires no 'input' event, so this can never mark the block dirty itself.
+    setBlock('specBody', specHTML)
+    queueSave()
+  }, [specHTML, specTypeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes, pkgSet]) // eslint-disable-line react-hooks/exhaustive-deps
   // ---- Undo / redo / copy / paste for EVERYTHING on the proposal (#1). History used to cover
   // only geometry + swatches, so Ctrl+Z did nothing for a line item, a discount, a quantity, the

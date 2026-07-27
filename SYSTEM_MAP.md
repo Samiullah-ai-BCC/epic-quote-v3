@@ -50,6 +50,25 @@ Everything below reads the SAME text. A change to the spec's shape ripples to al
 Executable ripple map: adding a line item / typing in the spec must move every chip by the same
 delta (verified live, not by reasoning).
 
+### The proposal's SPECIFICATIONS block must FOLLOW the wizard
+`EBlock` writes its content ONCE on mount and ignores every later `html` prop (deliberate — React
+re-applying the original html would erase what the rep typed). **`setBlock` is therefore the only
+honest channel after mount.** The money blocks always used it; the spec text did not, so a spec
+rebuilt on the Edit-specs step never reached the preview beside it.
+
+Ownership: a block the rep edited ON the proposal keeps their words (`__dirty`), EXCEPT across a
+SIGN TYPE change — that edit described a different product, the same rule the item description and
+side view follow.
+
+Detecting "the saved spec is for another type" needs BOTH witnesses OR-ed, because neither is
+reliable alone:
+- `__specTpl` is a label written at save time and can be saved OUT OF STEP with the text it labels
+  (marker took the new type while the write-once DOM still held the old spec).
+- the saved text's own `SIGN TYPE:` line only resolves when it spells a catalog name; several
+  templates do not (`SIGN TYPE: 1/4" FLAT CUT ACRYLIC LETTERS` vs `Flat Cut Acrylic/PVC Letters`).
+Also note `__specTpl` was historically `tpl?.n`, i.e. always null in custom mode — the guard that
+depended on it was dead code for every custom quote.
+
 ## ITEM DESCRIPTION — SOURCE OF TRUTH: `MOUNTING_DESC` in `frontend/src/generator/faCatalog.js`
 Format: `{SIGN TYPE} WITH {MOUNTING PHRASE} FOR {COMPANY}`, or `{SIGN TYPE} FOR {COMPANY}` when
 the mounting adds nothing (Flush Mount). The mounting phrase is the CUSTOMER-FACING wording, not

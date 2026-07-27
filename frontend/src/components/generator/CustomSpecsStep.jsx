@@ -239,7 +239,7 @@ export default function CustomSpecsStep({
                       TEAM'S CUSTOM TYPES <span className="muted" style={{ fontWeight: 400 }}>· {signLib.length} →</span>
                     </div>
                   )}
-                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new sign type…</div>
+                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>  {/* Chqanged the  text "➕ Type a new sign type" to "➕ Type a new custom sign type" */}
                   <div className="sign-opt muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
                 </div>
               ) : (
