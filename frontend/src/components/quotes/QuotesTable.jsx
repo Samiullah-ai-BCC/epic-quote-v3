@@ -41,13 +41,18 @@ export default function QuotesTable({
   const { widths, setWidth } = useColumnWidths()
   const visible = COLS.filter((c) => c.always || columns.has(c.show))
   const widthOf = (c) => widths[c.key] ?? c.def
+  // The table is given the EXACT sum of its columns. Left to `max-content` the browser computes
+  // a wider intrinsic size (buttons and nowrap headers push it out), then spreads the surplus
+  // across every column — so a column dragged to 70px rendered at 122px and no narrow width
+  // ever stuck. An explicit total means each <col> gets precisely what it asked for.
+  const totalWidth = visible.reduce((n, c) => n + widthOf(c), 0)
 
   return (
     <div className="grid-wrap overflow-auto">
       {/* `resizable-grid` switches this table to table-layout:fixed, which is what makes a
           dragged width actually stick — under the default `auto` the browser re-measures from
           cell content and quietly ignores the width it was given. */}
-      <table className="resizable-grid">
+      <table className="resizable-grid" style={{ width: totalWidth }}>
         <colgroup>
           {visible.map((c) => <col key={c.key} style={{ width: widthOf(c) }} />)}
         </colgroup>

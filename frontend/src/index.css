@@ -649,7 +649,10 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
    column width stick (auto layout re-measures from cell content and discards it), but it also
    stops every OTHER table on the site from sizing itself to its content, so it must not leak
    onto the dashboard/report grids that rely on that. */
-.grid-wrap table.resizable-grid { table-layout: fixed; width: max-content; min-width: 100%; }
+/* width comes from the component (the exact sum of the column widths) — do NOT set
+   max-content here: it inflates the table and the surplus is spread over every column,
+   which silently overrides any narrow width the rep drags. */
+.grid-wrap table.resizable-grid { table-layout: fixed; }
 /* Cells clip rather than force a column wider than the rep dragged it. */
 .grid-wrap table.resizable-grid th,
 .grid-wrap table.resizable-grid td { overflow: hidden; text-overflow: ellipsis; }
@@ -661,7 +664,11 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 /* The grab strip. Sits inside the header's right edge, full height, invisible until hovered
    so the header still reads as a header. 9px wide because a 1px line is unhittable. */
 .col-resize-handle {
-  position: absolute; top: 0; right: -4px; width: 9px; height: 100%;
+  /* right:0, NOT a negative offset. The header cell clips its overflow (so a long label cannot
+     force the column wider), which sliced a handle hanging outside down to a ~5px strip — small
+     enough that a grab usually landed on the header instead and re-sorted the grid. Fully inside
+     the cell, the whole 10px is grabbable. */
+  position: absolute; top: 0; right: 0; width: 10px; height: 100%;
   cursor: col-resize; z-index: 3; touch-action: none;
   background: transparent; transition: background .12s;
 }

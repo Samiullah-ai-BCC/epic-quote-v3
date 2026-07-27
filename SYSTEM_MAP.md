@@ -92,3 +92,17 @@ Sanctum ability, because normal tokens carry `*` and `tokenCan()` would match ev
 Suggestions are ranked exact → starts-with → contains. Alphabetical ordering with a LIMIT hid the
 exactly-typed company past row 10 (`Signarama` matches 266 rows), so its address never autofilled.
 Name comparison normalises whitespace and edge quotes; real rows contain both.
+
+## QUOTES GRID COLUMNS — SOURCE OF TRUTH: `COLS` in `frontend/src/components/quotes/QuotesTable.jsx`
+The header is generated from `COLS`; the body cells are hand-written in `QuoteRow.jsx`. **The two
+orders must match exactly** — a column inserted in one and not the other shifts every cell after
+it under the wrong heading, silently. Adding a column means editing BOTH files in the same commit.
+- Widths are keyed by column NAME (`useColumnWidths`, localStorage `quotes.colwidths.v1`), never
+  by index: the column picker hides columns, so an index-keyed map hands one column's width to
+  whichever column slides into that slot.
+- The table needs `table-layout: fixed` AND an explicit total width (the sum of the visible
+  columns). Under `auto` a dragged width is discarded; under `width: max-content` the browser
+  inflates the table and spreads the surplus across every column, so narrow widths never stick.
+- `react-draggable` (via `react-resizable`) references `process.env.DRAGGABLE_DEBUG`. `process`
+  does not exist in the browser, so it throws on every drag start unless vite.config.js `define`s
+  that expression. Symptom: dragging does nothing at all, with an empty console.
