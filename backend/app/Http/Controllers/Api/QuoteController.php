@@ -52,6 +52,27 @@ class QuoteController extends Controller
                 : $q->where('rush', $rush);
         }
 
+        // Company filter (?company=…) — a substring match on the company name, kept separate from
+        // the free-text search so a rep can pin one customer AND still search within their quotes.
+        if ($company = trim((string) $request->query('company', ''))) {
+            $q->where('company_name', 'like', '%'.$company.'%');
+        }
+
+        // Date range on the quote's own created_at (?date_from / ?date_to, YYYY-MM-DD).
+        // date_to is taken as INCLUSIVE of the whole day: a rep filtering "to 27 July" means
+        // everything up to the end of the 27th, not up to 00:00 on it — an exclusive bound
+        // silently hides the very day's quotes they are usually looking for.
+        if ($from = trim((string) $request->query('date_from', ''))) {
+            try {
+                $q->where('created_at', '>=', \Illuminate\Support\Carbon::parse($from)->startOfDay());
+            } catch (\Throwable) { /* an unparseable date filters nothing, rather than erroring */ }
+        }
+        if ($to = trim((string) $request->query('date_to', ''))) {
+            try {
+                $q->where('created_at', '<=', \Illuminate\Support\Carbon::parse($to)->endOfDay());
+            } catch (\Throwable) { /* ditto */ }
+        }
+
         if ($search = $request->query('search')) {
             $like = '%'.$search.'%';
             $q->where(function ($w) use ($like) {

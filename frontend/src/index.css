@@ -468,13 +468,25 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .fu-actions button { display: inline-flex; align-items: center; gap: 6px; }
 
 /* pipeline tile grid */
-.pipe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 14px 16px; }
-.pipe-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 11px 12px;
-  background: var(--navy-900); border: 1px solid var(--border-soft); border-radius: 11px; cursor: pointer; box-shadow: none;
+.pipe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; }
+/* Each tile carries a COLOURED LEFT EDGE matching its stage. Uniform tiles on a uniform panel
+   read as one undifferentiated block ("too intact / one piece") and the eye has nothing to
+   anchor on; the stripe plus a firmer border makes every tile a separate, scannable object. */
+.pipe-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  padding: 11px 12px 11px 15px; overflow: hidden;
+  background: var(--navy-900); border: 1px solid var(--border); border-radius: 11px; cursor: pointer;
+  box-shadow: 0 1px 2px rgb(16 24 40 / .04);
   transition: border-color .12s, transform .08s, box-shadow .12s; }
+.pipe-tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--seg, #cbd5e1); }
 .pipe-tile:hover { border-color: var(--gold); transform: translateY(-2px); box-shadow: var(--shadow); }
-.pipe-tile.on { border-color: var(--gold); background: var(--gold-soft); }
-.pipe-tile.zero { opacity: .5; }
+.pipe-tile.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: 0 0 0 1px var(--gold) inset; }
+/* stage accent colours — same palette the icon chips use, so tile and chip agree */
+.pipe-tile.seg-gray { --seg: #94a3b8; } .pipe-tile.seg-blue { --seg: #378add; }
+.pipe-tile.seg-amber { --seg: #ba7517; } .pipe-tile.seg-coral { --seg: #d85a30; }
+.pipe-tile.seg-teal { --seg: #1d9e75; } .pipe-tile.seg-purple { --seg: #7f77dd; }
+.pipe-tile.seg-green { --seg: #639922; } .pipe-tile.seg-pink { --seg: #d4537e; }
+/* An empty stage fades but keeps its stripe — still identifiable, clearly not active. */
+.pipe-tile.zero { opacity: .62; }
 .pt-ico { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 3px; }
 .pt-num { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1; }
 .pt-lbl { font-size: 10.5px; color: var(--text-dim); font-weight: 600; line-height: 1.25; }

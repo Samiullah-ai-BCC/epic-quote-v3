@@ -6,6 +6,7 @@ use App\Constants\AppConstants;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\Totp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -35,15 +36,76 @@ class AuthController extends Controller
             ]);
         }
 
+        // 2FA: the password alone earns a CHALLENGE, not a session. The challenge is a short-lived
+        // encrypted payload rather than a real token, so a correct password never yields anything
+        // that can call the API before the second factor is proven. Accounts without 2FA are
+        // untouched by this branch and log in exactly as before.
+        if ($user->hasTwoFactor()) {
+            return response()->json([
+                'two_factor_required' => true,
+                'challenge' => encrypt(['uid' => $user->id, 'exp' => now()->addMinutes(5)->timestamp]),
+            ]);
+        }
+
+        return response()->json($this->issueSession($user));
+    }
+
+    /**
+     * Second step of a 2FA login: exchange the challenge + a TOTP (or recovery) code for a token.
+     * Throttled at the route, because this endpoint is the one an attacker with a stolen password
+     * would brute-force — six digits is only 10^6, and unlimited attempts make that trivial.
+     */
+    public function twoFactorChallenge(Request $request): JsonResponse
+    {
+        $request->validate([
+            'challenge' => 'required|string',
+            'code'      => 'required|string',
+        ]);
+
+        try {
+            $payload = decrypt($request->input('challenge'));
+        } catch (\Throwable) {
+            return response()->json(['message' => 'This sign-in attempt is no longer valid. Please log in again.'], 422);
+        }
+        if (!is_array($payload) || ($payload['exp'] ?? 0) < now()->timestamp) {
+            return response()->json(['message' => 'This sign-in attempt has expired. Please log in again.'], 422);
+        }
+
+        $user = User::find($payload['uid'] ?? null);
+        if (!$user || !$user->hasTwoFactor()) {
+            return response()->json(['message' => 'This sign-in attempt is no longer valid. Please log in again.'], 422);
+        }
+
+        $code = trim((string) $request->input('code'));
+
+        if (Totp::verify((string) $user->two_factor_secret, $code)) {
+            return response()->json($this->issueSession($user));
+        }
+
+        // Recovery codes are single-use: match case-insensitively, then burn it.
+        $codes = $user->two_factor_recovery_codes ?? [];
+        $idx = array_search(strtoupper($code), array_map('strtoupper', $codes), true);
+        if ($idx !== false) {
+            unset($codes[$idx]);
+            $user->forceFill(['two_factor_recovery_codes' => array_values($codes)])->save();
+            ActivityLog::record($user->id, 'two_factor_recovery_used', "{$user->username} signed in with a recovery code (".count($codes).' left)');
+
+            return response()->json($this->issueSession($user));
+        }
+
+        return response()->json(['message' => 'That code is not valid.'], 422);
+    }
+
+    /** Stamp the login and mint the API token — the one place a session is created. */
+    private function issueSession(User $user): array
+    {
         $user->forceFill(['last_login' => now()])->save();
         ActivityLog::record($user->id, 'login', "{$user->username} logged in");
 
-        $token = $user->createToken('api-token')->plainTextToken;
-
-        return response()->json([
-            'token' => $token,
+        return [
+            'token' => $user->createToken('api-token')->plainTextToken,
             'user'  => $user->toApi(),
-        ]);
+        ];
     }
 
     public function logout(Request $request): JsonResponse
@@ -57,7 +119,12 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['user' => $request->user()->toApi()]);
+        // `impersonating` lets the client rebuild the "viewing as" banner after a page refresh,
+        // instead of trusting a flag it stashed in localStorage.
+        return response()->json([
+            'user' => $request->user()->toApi(),
+            'impersonating' => $request->user()->currentAccessToken()?->name === 'impersonation',
+        ]);
     }
 
     // V1 GET /api/constants

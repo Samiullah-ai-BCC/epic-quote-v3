@@ -32,6 +32,9 @@ export default function AllQuotes() {
   const [mine, setMine] = useState(false)
   const [rushOnly, setRushOnly] = useState(false)
   const [sourceF, setSourceF] = useState('')
+  const [company, setCompany] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [viewing, setViewing] = useState(null)
   const [artFor, setArtFor] = useState(null)              // #15 — quote whose files carousel is open
   const [managingStatuses, setManagingStatuses] = useState(false)   // #16 — admin status manager open
@@ -51,6 +54,9 @@ export default function AllQuotes() {
   else if (assignedF) params.assigned = assignedF
   if (rushOnly) params.rush = '1'
   if (sourceF) params.source = sourceF
+  if (company.trim()) params.company = company.trim()
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
   const { data: quotes = [], isLoading } = useQuotes(params)
   const sort = useSortable(quotes)
   // Grid v2: hideable columns (choice remembered per browser)
@@ -143,6 +149,8 @@ export default function AllQuotes() {
         search={search} setSearch={setSearch} status={status} setStatus={setStatus}
         mine={mine} setMine={setMine} rushOnly={rushOnly} setRushOnly={setRushOnly}
         sourceF={sourceF} setSourceF={setSourceF}
+        company={company} setCompany={setCompany}
+        dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo}
         statuses={statuses} sources={constants?.quote_sources || []}
         admin={admin} columns={columns}
         onExportCsv={exportCsv} onCopyRows={copyRows} onManageStatuses={() => setManagingStatuses(true)}

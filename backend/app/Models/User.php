@@ -26,11 +26,18 @@ class User extends Authenticatable
         'role',
         'last_login',
         'can_create_payment_links',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
     ];
 
+    // The TOTP secret and recovery codes never leave the server in an API payload — they are
+    // returned ONCE, explicitly, by the enrolment endpoint and never again.
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     protected function casts(): array
@@ -38,8 +45,18 @@ class User extends Authenticatable
         return [
             'password'   => 'hashed',
             'last_login' => 'datetime',
+            // encrypted at rest: a leaked DB dump must not hand over working 2FA seeds
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
             'can_create_payment_links' => 'boolean',
         ];
+    }
+
+    /** 2FA is live for this account only once a first code has been verified. */
+    public function hasTwoFactor(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && !empty($this->two_factor_secret);
     }
 
     public function isAdmin(): bool
@@ -82,6 +99,7 @@ class User extends Authenticatable
             'email'      => $this->email ?? '',
             'role'       => $this->role,
             'can_create_payment_links' => $this->canCreatePaymentLinks(),
+            'two_factor_enabled' => $this->hasTwoFactor(),
             'last_login' => $this->last_login?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

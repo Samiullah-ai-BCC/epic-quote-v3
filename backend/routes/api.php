@@ -7,6 +7,9 @@ Route::get('/health', fn() => response()->json(['status' => 'ok', 'version' => '
 
 // Auth
 Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login'])->middleware('throttle:6,1');
+// Second factor. Throttled hard: this is the endpoint a stolen password would be brute-forced
+// against, and a 6-digit code is only 10^6 possibilities.
+Route::post('/two-factor/challenge', [App\Http\Controllers\Api\AuthController::class, 'twoFactorChallenge'])->middleware('throttle:6,1');
 Route::post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/me', [App\Http\Controllers\Api\AuthController::class, 'me'])->middleware('auth:sanctum');
 
@@ -17,10 +20,27 @@ Route::post('/shopify/webhook/orders-paid', [App\Http\Controllers\Api\ShopifyWeb
 Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
     Route::get('/constants', [App\Http\Controllers\Api\AuthController::class, 'constants']);
 
+    // Two-factor: managing your OWN second factor. Blocked inside an impersonated session —
+    // an admin viewing as someone must not be able to re-enrol or strip that person's 2FA.
+    Route::middleware('not.impersonating')->group(function () {
+        Route::get('two-factor', [App\Http\Controllers\Api\TwoFactorController::class, 'show']);
+        Route::post('two-factor/enable', [App\Http\Controllers\Api\TwoFactorController::class, 'enable']);
+        Route::post('two-factor/confirm', [App\Http\Controllers\Api\TwoFactorController::class, 'confirm']);
+        Route::delete('two-factor', [App\Http\Controllers\Api\TwoFactorController::class, 'disable']);
+    });
+
+    // Leaving an impersonated session must stay reachable FROM one, so it sits outside the guard.
+    Route::post('impersonate/stop', [App\Http\Controllers\Api\ImpersonationController::class, 'stop']);
+
     // Users (admin only — V1 parity)
     Route::middleware('role:admin')->group(function () {
         Route::apiResource('users', App\Http\Controllers\Api\UserController::class);
-        Route::put('users/{user}/password', [App\Http\Controllers\Api\UserController::class, 'changePassword']);
+        // Credential-changing admin powers are unavailable from a borrowed session.
+        Route::middleware('not.impersonating')->group(function () {
+            Route::put('users/{user}/password', [App\Http\Controllers\Api\UserController::class, 'changePassword']);
+            Route::post('users/{user}/two-factor/reset', [App\Http\Controllers\Api\TwoFactorController::class, 'reset']);
+            Route::post('users/{user}/impersonate', [App\Http\Controllers\Api\ImpersonationController::class, 'start']);
+        });
     });
 
     // Team catalog: custom sign types + uploaded side views, shared by both quote modes

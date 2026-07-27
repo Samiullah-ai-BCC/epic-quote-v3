@@ -6,6 +6,7 @@ use App\Constants\AppConstants;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Rules\AllowedEmailDomain;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +29,7 @@ class UserController extends Controller
         $data = $request->validate([
             'username'  => 'required|string|max:80',
             'full_name' => 'nullable|string|max:120',
-            'email'     => 'nullable|email|max:120',
+            'email'     => ['nullable', 'email', 'max:120', new AllowedEmailDomain()],
             'role'      => ['required', Rule::in(AppConstants::ROLES)],
             'password'  => 'nullable|string',
         ]);
@@ -41,7 +42,10 @@ class UserController extends Controller
 
         $user = User::create([
             'username'  => $username,
-            'full_name' => $data['full_name'] ?: $username,
+            // `?? ''` before the `?:` — full_name is validated as NULLABLE, so omitting it is
+            // legal, but reading the key unguarded raised "Undefined array key" and turned a
+            // valid create-user request into a 500. Falls back to the username, as intended.
+            'full_name' => ($data['full_name'] ?? '') ?: $username,
             'email'     => trim($data['email'] ?? ''),
             'role'      => $data['role'],
             // NO Hash::make here: User casts password to 'hashed', which hashes on assignment.
@@ -65,7 +69,7 @@ class UserController extends Controller
         $data = $request->validate([
             'username'  => 'sometimes|string|max:80',
             'full_name' => 'sometimes|nullable|string|max:120',
-            'email'     => 'sometimes|nullable|email|max:120',
+            'email'     => ['sometimes', 'nullable', 'email', 'max:120', new AllowedEmailDomain()],
             'role'      => ['sometimes', Rule::in(AppConstants::ROLES)],
             'can_create_payment_links' => 'sometimes|boolean',
         ]);

@@ -5,8 +5,10 @@ import { ColumnPicker } from '../grid'
 export default function QuoteFilters({
   search, setSearch, status, setStatus, mine, setMine, rushOnly, setRushOnly,
   sourceF, setSourceF, statuses, sources, admin, columns,
+  company, setCompany, dateFrom, setDateFrom, dateTo, setDateTo,
   onExportCsv, onCopyRows, onManageStatuses,
 }) {
+  const dated = dateFrom || dateTo
   return (
     <div className="toolbar">
       <input className="grow" placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -27,6 +29,21 @@ export default function QuoteFilters({
         <input type="checkbox" className="w-auto" checked={rushOnly} onChange={(e) => setRushOnly(e.target.checked)} />
         Rush only
       </label>
+      {/* Company + date-range filters. Company is separate from Search on purpose: a rep can
+          pin one customer AND still search within that customer's quotes. */}
+      <input className="w-[150px]" placeholder="Company…" value={company}
+        onChange={(e) => setCompany(e.target.value)} title="Show only this company's quotes" />
+      <label className="flex items-center gap-1 whitespace-nowrap text-xs text-dim" title="Quotes created on or after this date">
+        From
+        <input type="date" className="w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+      </label>
+      <label className="flex items-center gap-1 whitespace-nowrap text-xs text-dim" title="Quotes created on or before this date (the whole day is included)">
+        To
+        <input type="date" className="w-auto" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+      </label>
+      {dated && (
+        <button className="ghost sm" title="Clear the date range" onClick={() => { setDateFrom(''); setDateTo('') }}>✕ Dates</button>
+      )}
       <button className="ghost sm" title="Download the current view (or just the ticked rows) as a spreadsheet file" onClick={onExportCsv}>⬇ CSV</button>
       <button className="ghost sm" title="Copy the current view (or just the ticked rows) — paste into Excel/Google Sheets" onClick={onCopyRows}>⧉ Copy</button>
       {admin && <button className="ghost sm" title="Add, rename, reorder or remove the pickable quote statuses" onClick={onManageStatuses}>⚙ Statuses</button>}

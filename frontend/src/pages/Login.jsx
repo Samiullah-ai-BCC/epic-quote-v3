@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { login, selectUser } from '../store/authSlice'
+import { login, twoFactorChallenge, selectUser } from '../store/authSlice'
 import { EASE } from '../components/ui/motion'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -39,10 +39,17 @@ export default function Login() {
   // already signed in → straight to the dashboard (no marketing in-between)
   useEffect(() => { if (user) navigate('/dashboard', { replace: true }) }, [user, navigate])
 
+  // Set once the password is accepted but a second factor is still owed. Holding the challenge
+  // in component state (never localStorage) means an abandoned half-login dies with the tab.
+  const [challenge, setChallenge] = useState('')
+  const [code, setCode] = useState('')
+  const [verifying, setVerifying] = useState(false)
+
   const onSubmit = async ({ username, password }) => {
     setError(''); setInfo('')
     try {
-      await dispatch(login({ username, password })).unwrap()
+      const res = await dispatch(login({ username, password })).unwrap()
+      if (res?.twoFactorRequired) { setChallenge(res.challenge); return }   // ask for the code
       navigate('/dashboard')
     } catch (err) {
       if (err.response?.status === 429) {
@@ -54,6 +61,23 @@ export default function Login() {
       } else {
         setError(err.response?.data?.errors?.username?.[0] || err.response?.data?.message || 'Login failed.')
       }
+    }
+  }
+
+  const submitCode = async (e) => {
+    e.preventDefault()
+    setError(''); setVerifying(true)
+    try {
+      await dispatch(twoFactorChallenge({ challenge, code: code.trim() })).unwrap()
+      navigate('/dashboard')
+    } catch (err) {
+      const msg = err.response?.data?.message || 'That code is not valid.'
+      setError(msg)
+      // An expired/void challenge cannot be retried — send them back to the password step
+      // rather than leaving them typing codes into a challenge the server has already refused.
+      if (/no longer valid|expired/i.test(msg)) { setChallenge(''); setCode('') }
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -75,6 +99,39 @@ export default function Login() {
             <img src="/quote-logo-t.png" alt="Epic Craftings" className="h-[78px] block mb-4" />
             <div className="text-[13px] text-[#7f93b5] mb-6">Sign in to continue</div>
 
+            {challenge ? (
+              /* Second factor. Replaces the credential form entirely — leaving the password
+                 fields on screen invites re-submitting them and losing the challenge. */
+              <form onSubmit={submitCode}>
+                <Label className="text-xs font-semibold text-side-dim mb-1.5 block">Authentication code</Label>
+                <Input
+                  value={code} onChange={(e) => setCode(e.target.value)}
+                  inputMode="numeric" autoFocus autoComplete="one-time-code"
+                  placeholder="6-digit code"
+                  className="h-[46px] mb-2 tracking-[0.3em] text-center bg-[#0a1220] border-[#25364f] text-side-ink placeholder:text-[#52688c] placeholder:tracking-normal focus-visible:border-gold focus-visible:ring-gold/15"
+                />
+                <div className="text-[12px] text-side-dim mb-4">
+                  Open your authenticator app and enter the current code. You can also use one of your recovery codes.
+                </div>
+
+                {error && (
+                  <motion.div
+                    className="text-[13px] text-red-300 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2 mb-3.5"
+                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                    {error}
+                  </motion.div>
+                )}
+
+                <Button type="submit" disabled={verifying || !code.trim()}
+                  className="w-full h-11 bg-gold text-[#1a1305] font-bold text-sm hover:bg-gold-h shadow-[0_6px_20px_rgba(249,166,0,.25)]">
+                  {verifying ? 'Verifying…' : 'Verify'}
+                </Button>
+                <button type="button" onClick={() => { setChallenge(''); setCode(''); setError('') }}
+                  className="w-full mt-3 text-[12.5px] text-side-dim hover:text-side-ink bg-transparent border-0">
+                  ← Back to sign in
+                </button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit(onSubmit)}>
               <Label className="text-xs font-semibold text-side-dim mb-1.5 block">Email or username</Label>
               <Input
@@ -120,6 +177,7 @@ export default function Login() {
                 {isSubmitting ? 'Signing in…' : 'Log in'}
               </Button>
             </form>
+            )}
 
             <div className="flex items-center gap-3 mt-[22px] mb-3.5">
               <span className="flex-1 h-px bg-[#1f2e47]" />

@@ -7,6 +7,7 @@ import Generator from './pages/Generator'
 import Users from './pages/Users'
 import Team from './pages/Team'
 import PaymentLinks from './pages/PaymentLinks'
+import Account from './pages/Account'
 import Reports from './pages/Reports'
 import Activity from './pages/Activity'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -36,6 +37,7 @@ export default function App() {
 
         <Route path="/team" element={<ProtectedRoute requireAdmin><Team /></ProtectedRoute>} />
         <Route path="/payment-links" element={<PaymentLinks />} />
+        <Route path="/account" element={<Account />} />
         <Route path="/users" element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
         <Route path="/activity" element={<ProtectedRoute requireAdmin><Activity /></ProtectedRoute>} />

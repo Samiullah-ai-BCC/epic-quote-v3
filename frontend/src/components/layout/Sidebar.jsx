@@ -67,6 +67,8 @@ export default function Sidebar() {
       {admin && <NavItem to="/reports" icon={IcReports}>Sales Reports</NavItem>}
       {admin && <NavItem to="/activity" icon={IcActivity}>Activity Log</NavItem>}
 
+      <NavItem to="/account" icon={IcUsers}>My Account</NavItem>
+
       <div className="flex-1 max-[900px]:hidden" />
       <div className="border-t border-side-line px-2.5 pt-3 pb-1 max-[900px]:ml-auto max-[900px]:flex max-[900px]:items-center max-[900px]:gap-2 max-[900px]:border-t-0 max-[900px]:p-0 max-[900px]:pl-2">
         <div className="flex items-center gap-2.5">

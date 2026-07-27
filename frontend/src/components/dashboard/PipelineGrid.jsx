@@ -18,7 +18,7 @@ export default function PipelineGrid({ statuses, cards, total, status, setStatus
           const on = status === s
           return (
             <Button key={s} variant="ghost"
-              className={cn('pipe-tile h-auto flex-col whitespace-normal', on && 'on', c === 0 && 'zero')}
+              className={cn('pipe-tile h-auto flex-col whitespace-normal', 'seg-' + (COLOR[s] || 'gray'), on && 'on', c === 0 && 'zero')}
               onClick={() => setStatus(on ? '' : s)} title={s}>
               <span className={'pt-ico seg-' + (COLOR[s] || 'gray')}><Icon size={15} /></span>
               <span className="pt-num">{c}</span>

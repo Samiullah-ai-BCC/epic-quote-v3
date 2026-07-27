@@ -9,6 +9,6 @@ export const store = configureStore({
 
 // Mirror auth into localStorage under the same "auth" key the app has always used.
 store.subscribe(() => {
-  const { user, token } = store.getState().auth
-  localStorage.setItem('auth', JSON.stringify({ state: { user, token } }))
+  const { user, token, impersonator } = store.getState().auth
+  localStorage.setItem('auth', JSON.stringify({ state: { user, token, impersonator } }))
 })
