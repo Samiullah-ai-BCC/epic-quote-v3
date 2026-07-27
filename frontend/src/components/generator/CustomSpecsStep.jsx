@@ -2,12 +2,13 @@
 // picker prefills the spec text; every field is controlled by Generator()'s hooks. The
 // spec-sync helpers (setCustomDim / setCustomApplication / syncSpecFromFields) are passed
 // in verbatim — this component owns no state.
+import { useEffect, useRef } from 'react'
 import { T, SIGN_GROUP_ORDER, signGroupOf } from '../../generator/catalog'
 import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, isSupersededSideView, itemDescriptionFor } from '../../generator/faCatalog'
 import { buildSpecLines } from '../../generator/proposal'
 import { parseDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
-import { syncSpecFromFields, extractSpecialRequirements } from '../../generator/specSync'
+import { syncSpecFromFields, splitSpecialRequirements, mergeSpecial } from '../../generator/specSync'
 import { saveCatalogItem } from '../../api/catalog'
 import { MAX_PRICE } from '../../generator/parts'
 import MoneyInput from '../MoneyInput'
@@ -17,7 +18,7 @@ export default function CustomSpecsStep({
   typePicking, setTypePicking, typeGroup, setTypeGroup,
   signLib, setSignLib, sideViews, setSideViews, client,
   newTypeName, setNewTypeName, newTypeSpec, setNewTypeSpec,
-  customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial,
+  customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial, onSpecialLifted,
   saveNext, saving,
 }) {
   // FA sign types (family/mounting-driven) prefill from a resolved leaf's spec — the rep
@@ -25,6 +26,7 @@ export default function CustomSpecsStep({
   // FIRST: several FA sign types share their exact name with the legacy T[] entry they
   // supersede (kept only so an old saved quote still resolves) — the picker only ever offers
   // the CURRENT one, so a name match must resolve to that, not the hidden legacy entry.
+  const specRef = useRef(null)
   const cat = FA_SIGN_GROUPS.find((g) => g.n === customTypeSel) || T.find((t) => t.n === customTypeSel)
   const trimOpts = cat?.fa && cat.hasTrimCap ? faTrimCapOptions(cat) : []
   const thickOpts = cat?.fa && cat.hasThickness ? faThicknessOptions(cat) : []
@@ -74,17 +76,29 @@ export default function CustomSpecsStep({
     // own words: only when the box is empty or still holds exactly what the PREVIOUS template
     // put there. Same rule the item description uses. The bullet stays in the spec text as well,
     // because that is where it prints today and nobody asked for it to stop printing.
-    syncSpecialFromSpec(specText)
     setCustomSpec({ ...customSpec, fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap, specText, itemDesc })
   }
 
-  const syncSpecialFromSpec = (nextSpecText) => {
-    const nextAuto = extractSpecialRequirements(nextSpecText)
-    if (!nextAuto) return
-    const prevAuto = extractSpecialRequirements(customSpec?.specText)
-    const cur = (special || '').trim()
-    if (cur === '' || cur === prevAuto.trim()) setSpecial(nextAuto)
-  }
+  // MOVE the template's trailing bullet out of the spec and into Special Requirements.
+  // Runs from a single effect below rather than only when the sign type / mounting changes —
+  // an already-open quote never changes either, which is why the line just sat there.
+  useEffect(() => {
+    const text = customSpec?.specText || ''
+    if (!text) return
+    // Never re-flow the box the rep is typing in: cutting a line under a live caret would
+    // move it mid-keystroke. The cut happens as soon as they click away.
+    if (specRef.current && document.activeElement === specRef.current) return
+    const { spec, special: lifted } = splitSpecialRequirements(text)
+    // Scaffolding tokens must never reach a customer document. They were already suppressed for
+    // newly built specs and stripped on a dimension sync, but a quote SAVED before that still
+    // carries them and nothing cleared it on open — which is why [ASK REP] was still on screen.
+    // Every bracketed token, not just the two that were reported — [APPLICATION] is the same
+    // defect wearing a different name, and leaving it guarantees the identical bug report later.
+    const cleaned = spec.replace(/\[[A-Z][A-Z ]*\]["”]?/g, '').replace(/[ 	]+$/gm, '')
+    const nextSpecial = mergeSpecial(special, lifted)
+    if (nextSpecial !== (special || '')) (onSpecialLifted || setSpecial)(nextSpecial)
+    if (cleaned !== text) setCustomSpec({ ...customSpec, specText: cleaned })
+  }, [customSpec?.specText, special]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="step">
@@ -124,7 +138,6 @@ export default function CustomSpecsStep({
               const sv = leafKey || pickSideView(nextCat.n)?.selected
               if (sv) setSideViews([sv])
             }
-            syncSpecialFromSpec(specText)
             setCustomSpec({
               ...customSpec,
               itemDesc: itemDescFor(nextCat?.desc || v, mounting),
@@ -290,7 +303,7 @@ export default function CustomSpecsStep({
         </select>
       </div>
       <div className="step-section">4. Specification text</div>
-      <div className="field"><label>Specification Text</label><textarea rows={5} value={customSpec?.specText || ''} onChange={(e) => setCustomSpec({ ...customSpec, specText: e.target.value })} /></div>
+      <div className="field"><label>Specification Text</label><textarea ref={specRef} rows={5} value={customSpec?.specText || ''} onChange={(e) => setCustomSpec({ ...customSpec, specText: e.target.value })} /></div>
       <div className="step-section">5. Special requirements</div>
       <div className="field">
         <label>Special requirements (anything unusual about this job)</label>

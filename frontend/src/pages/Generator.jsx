@@ -94,6 +94,16 @@ export default function Generator() {
     setSideViews, setPaymentLink, setProposalNotes, setAutoAi, setLogoUrl,
   })
 
+  // A requirement LIFTED out of the spec text must reach the database immediately. The spec text
+  // autosaves, so cutting the line there while special_requirements waited for the rep to press
+  // Next left a window in which the text existed in NEITHER place — reopening the quote would
+  // show a requirement that had silently vanished. Persist it the moment it is lifted.
+  const persistSpecial = async (value) => {
+    setSpecial(value)
+    if (!quoteId) return
+    try { await updateQuote(quoteId, { special_requirements: value }) } catch { /* retried on Next */ }
+  }
+
   const flow = mode ? FLOWS[mode] : []
   const flowIndex = flow.indexOf(step)
 
@@ -671,6 +681,7 @@ export default function Generator() {
             setNewTypeName={setNewTypeName} newTypeSpec={newTypeSpec} setNewTypeSpec={setNewTypeSpec}
             customDimsStatus={customDimsStatus} setCustomDim={setCustomDim}
             setCustomApplication={setCustomApplication} special={special} setSpecial={setSpecial}
+            onSpecialLifted={persistSpecial}
             saveNext={saveNext} saving={saving} />
         )}
 

@@ -75,24 +75,49 @@ export const computeApplicationSpec = (app, cs) => {
   return { ...cs, application: app, specText }
 }
 
-// The catalog's spec templates end with the job's real-world caveat as a bullet, e.g.
-//   "•  POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+// The catalog's spec templates end with the job's real-world caveat as a bulleted last line:
+//   "*  POWER SUPPLY TO BE INSIDE OF CABINET WITH ON/OFF SWITCH INSTALLED"
 // That IS the special requirement, and the rep was retyping it into the Special Requirements
-// box by hand. Lift the TRAILING run of bullet lines (blank lines skipped).
+// box by hand. This SPLITS it out: the caller moves it into the field and keeps the remainder
+// as the spec text.
 //
-// Only the trailing run: the colour block in the middle ("  • FACE COLOR: …") is bulleted too,
-// but it is followed by FINISH/APPLICATION lines, so walking up from the bottom and stopping at
-// the first non-bullet line can never reach it. Matching bullets anywhere would have dragged the
-// whole colour spec into the field.
-export const extractSpecialRequirements = (specText) => {
+// The sheet uses BOTH "*" and "•" as its bullet, mixed across sign types (and "•" often carries
+// invisible word-joiner padding from the spreadsheet cell). Matching only "•" silently skipped
+// the majority of the templates — which is why the cabinet / backboard / raceway notes never
+// moved across.
+//
+// Only the TRAILING run is taken: the colour block in the middle ("  • FACE COLOR: …") is
+// bulleted too, but it is followed by FINISH/APPLICATION lines, so walking up from the bottom
+// and stopping at the first non-bullet line can never reach it.
+const BULLET_LINE = /^\s*[•·▪*]+[\s​⁠ ]*/
+
+export const splitSpecialRequirements = (specText) => {
   const lines = String(specText || '').split('\n')
-  const out = []
+  let cut = lines.length                       // index where the trailing bullet run begins
+  const found = []
   for (let i = lines.length - 1; i >= 0; i--) {
     const raw = lines[i]
-    if (!raw.trim()) { if (out.length) break; continue }   // trailing blanks ok; a blank INSIDE ends the run
-    if (!/^\s*[•·▪]/.test(raw)) break
-    // strip the bullet and the word-joiner/nbsp padding the sheet's cells carry
-    out.unshift(raw.replace(/^\s*[•·▪][\s​⁠ ]*/, '').trim())
+    if (!raw.trim()) { if (found.length) break; cut = i; continue }   // skip trailing blanks
+    if (!BULLET_LINE.test(raw)) break
+    found.unshift(raw.replace(BULLET_LINE, '').trim())
+    cut = i
   }
-  return out.filter(Boolean).join('\n')
+  return {
+    special: found.filter(Boolean).join('\n'),
+    spec: lines.slice(0, cut).join('\n').replace(/\s+$/, ''),
+  }
 }
+
+// Merge the lifted requirement into whatever the rep has already written, without ever losing
+// their words and without duplicating on a repeat run.
+export const mergeSpecial = (current, lifted) => {
+  const cur = String(current || '').trim()
+  const add = String(lifted || '').trim()
+  if (!add) return cur
+  if (!cur) return add
+  const has = cur.split('\n').some((l) => l.trim().toUpperCase() === add.toUpperCase())
+  return has ? cur : cur + '\n' + add
+}
+
+// Kept as a thin read-only view for callers that only want the value.
+export const extractSpecialRequirements = (specText) => splitSpecialRequirements(specText).special
