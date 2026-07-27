@@ -74,3 +74,25 @@ export const computeApplicationSpec = (app, cs) => {
     : (specText.trim() ? specText.replace(/\s*$/, '') + `\nAPPLICATION: ${app}` : specText)
   return { ...cs, application: app, specText }
 }
+
+// The catalog's spec templates end with the job's real-world caveat as a bullet, e.g.
+//   "•  POWER SUPPLY TO BE INSIDE RACEWAY, WITH ON/OFF SWITCH INSTALLED"
+// That IS the special requirement, and the rep was retyping it into the Special Requirements
+// box by hand. Lift the TRAILING run of bullet lines (blank lines skipped).
+//
+// Only the trailing run: the colour block in the middle ("  • FACE COLOR: …") is bulleted too,
+// but it is followed by FINISH/APPLICATION lines, so walking up from the bottom and stopping at
+// the first non-bullet line can never reach it. Matching bullets anywhere would have dragged the
+// whole colour spec into the field.
+export const extractSpecialRequirements = (specText) => {
+  const lines = String(specText || '').split('\n')
+  const out = []
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const raw = lines[i]
+    if (!raw.trim()) { if (out.length) break; continue }   // trailing blanks ok; a blank INSIDE ends the run
+    if (!/^\s*[•·▪]/.test(raw)) break
+    // strip the bullet and the word-joiner/nbsp padding the sheet's cells carry
+    out.unshift(raw.replace(/^\s*[•·▪][\s​⁠ ]*/, '').trim())
+  }
+  return out.filter(Boolean).join('\n')
+}

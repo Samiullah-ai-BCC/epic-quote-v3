@@ -186,14 +186,18 @@ label { color: var(--text-dim); font-size: 11px; font-weight: 600; display: bloc
 
 /* fill the width so the vertical scrollbar always sits at the viewport's right edge
    (a max-width here left the scrollbar floating with empty space beyond it on wide screens) */
-.main { flex: 1; padding: 26px 34px; overflow: auto; min-height: 0; }
+/* min-width:0 — without it this flex item refuses to shrink below a wide table's
+   intrinsic width and the grid's own horizontal scrollbar never appears (see SYSTEM_MAP). */
+.main { flex: 1; padding: 26px 34px; overflow: auto; min-height: 0; min-width: 0; }
 /* A page can opt into "fill the content area, only my grid scrolls" by using .fill-page
    as its root — it fills .main's height and the grid-wrap inside flexes to the leftover.
    (.main stays a normal block scroller so ordinary pages aren't turned into flex items
    that shrink — that squashed the reports chart.) */
-.fill-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-.fill-page .grid-wrap { flex: 1; min-height: 0; }
-.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; }
+.fill-page { height: 100%; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.fill-page .grid-wrap { flex: 1; min-height: 0; min-width: 0; }
+/* flex-wrap so the right-hand action (e.g. "+ New quote") drops to a second line on a narrow
+   window instead of being pushed off the edge — it must never need zooming out to reach. */
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 16px; flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; letter-spacing: -0.02em; }
 .page-head .sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
 

@@ -3,11 +3,11 @@
 // spec-sync helpers (setCustomDim / setCustomApplication / syncSpecFromFields) are passed
 // in verbatim — this component owns no state.
 import { T, SIGN_GROUP_ORDER, signGroupOf } from '../../generator/catalog'
-import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, isSupersededSideView } from '../../generator/faCatalog'
+import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, isSupersededSideView, itemDescriptionFor } from '../../generator/faCatalog'
 import { buildSpecLines } from '../../generator/proposal'
 import { parseDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
-import { syncSpecFromFields } from '../../generator/specSync'
+import { syncSpecFromFields, extractSpecialRequirements } from '../../generator/specSync'
 import { saveCatalogItem } from '../../api/catalog'
 import { MAX_PRICE } from '../../generator/parts'
 import MoneyInput from '../MoneyInput'
@@ -33,8 +33,9 @@ export default function CustomSpecsStep({
   // Item Description format: "{Sign Type} WITH {Mounting} FOR {Company}" — the mounting is part
   // of what the customer is buying, so it belongs in the line-item text. Types without a
   // mounting (non-FA / free-typed) fall back to "{Sign Type} FOR {Company}".
-  const itemDescFor = (base, mounting) =>
-    `${base}${mounting ? ` WITH ${String(mounting).toUpperCase()}` : ''} FOR ${client.company_name || 'CUSTOMER'}`
+  // Delegates to the single definition in faCatalog so the proposal, this step and any future
+  // caller cannot drift apart. See SYSTEM_MAP -> ITEM DESCRIPTION.
+  const itemDescFor = (base, mounting) => itemDescriptionFor(base, mounting, client.company_name)
 
   // Rebuild the spec text for the CURRENT type + the given mounting/thickness (auto-picks the
   // first option of each when not yet chosen — #7 "thickness/mounting not being asked/picked").
@@ -69,7 +70,20 @@ export default function CustomSpecsStep({
     const itemDesc = (!customSpec?.itemDesc || customSpec.itemDesc === autoBefore)
       ? itemDescFor(cat?.desc || customTypeSel, mounting)
       : customSpec.itemDesc
+    // Lift the template's trailing bullet into Special Requirements — but NEVER over the rep's
+    // own words: only when the box is empty or still holds exactly what the PREVIOUS template
+    // put there. Same rule the item description uses. The bullet stays in the spec text as well,
+    // because that is where it prints today and nobody asked for it to stop printing.
+    syncSpecialFromSpec(specText)
     setCustomSpec({ ...customSpec, fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap, specText, itemDesc })
+  }
+
+  const syncSpecialFromSpec = (nextSpecText) => {
+    const nextAuto = extractSpecialRequirements(nextSpecText)
+    if (!nextAuto) return
+    const prevAuto = extractSpecialRequirements(customSpec?.specText)
+    const cur = (special || '').trim()
+    if (cur === '' || cur === prevAuto.trim()) setSpecial(nextAuto)
   }
 
   return (
@@ -110,6 +124,7 @@ export default function CustomSpecsStep({
               const sv = leafKey || pickSideView(nextCat.n)?.selected
               if (sv) setSideViews([sv])
             }
+            syncSpecialFromSpec(specText)
             setCustomSpec({
               ...customSpec,
               itemDesc: itemDescFor(nextCat?.desc || v, mounting),

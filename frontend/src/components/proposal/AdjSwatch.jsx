@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import { swatchText } from './util'
 
 // Canva-style draggable color swatch: a filled block + name that PRINTS, plus a picker popover
@@ -40,11 +41,63 @@ export default function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick,
   // RGB fills the swatch like a colour wheel; the label is forced to "RGB CHANGING COLOR".
   const bg = isRGB ? 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)' : (has ? sw.color : '#e5e5e5')
   const label = isRGB ? 'RGB CHANGING COLOR' : (sw.name || '')
+
+  // AUTO-FIT THE LABEL. The chip is a fixed box but its text is free-form ("NAVY BLUE",
+  // "RGB CHANGING COLOR"), and at a fixed 11px anything long was simply clipped by the chip's
+  // overflow:hidden — the rep saw a half-written colour on a document about to be sent.
+  // Measure the text at the base size and scale the font down only as far as needed, to a floor
+  // that stays readable in print; short labels are untouched and still render at 11px.
+  const BASE_FS = 11, MIN_FS = 6
+  const boxRef = useRef(null)
+  const textRef = useRef(null)
+  const [fit, setFit] = useState({ fs: BASE_FS, wrap: false })
+  useLayoutEffect(() => {
+    const box = boxRef.current, el = textRef.current
+    if (!box || !el) return
+    const availW = box.clientWidth - 8, availH = box.clientHeight
+    if (availW <= 0 || availH <= 0) return
+
+    const measure = (fs, wrap) => {
+      el.style.fontSize = fs + 'px'
+      el.style.whiteSpace = wrap ? 'normal' : 'nowrap'
+      return { w: el.scrollWidth, h: el.scrollHeight }
+    }
+
+    // 1. TEXT THAT ALREADY FITS IS LEFT COMPLETELY ALONE — same single line at the same 11px it
+    //    has always rendered at. Auto-fit must not quietly restyle every short label ("BLACK")
+    //    while fixing the long ones.
+    let best = null
+    if (measure(BASE_FS, false).w <= availW) {
+      best = { fs: BASE_FS, wrap: false }
+    } else {
+      // 2. Largest single-line size that fits the width.
+      for (let fs = BASE_FS - 0.5; fs >= MIN_FS && !best; fs -= 0.5) {
+        if (measure(fs, false).w <= availW) best = { fs, wrap: false }
+      }
+      // 3. Still too wide even at the legible floor -> wrap, and fit the HEIGHT too, or a name
+      //    that fits across still runs out the bottom of a 20px chip.
+      if (!best) {
+        for (let fs = BASE_FS; fs >= MIN_FS && !best; fs -= 0.5) {
+          const m = measure(fs, true)
+          if (m.w <= availW && m.h <= availH) best = { fs, wrap: true }
+        }
+      }
+      // 4. Genuinely impossible in this box (a very long name in a small chip): show the most
+      //    we can at the floor. The chip is resizable — that is the rep's lever, not a smaller font.
+      if (!best) best = { fs: MIN_FS, wrap: true }
+    }
+    el.style.fontSize = ''
+    el.style.whiteSpace = ''
+    setFit(best)
+    // re-run whenever the text OR the chip's box changes — resizing the chip must refit too
+  }, [label, sw.w, sw.h])
+  const fs = fit.fs
+
   return (
     <div data-rk={rk} onMouseDown={startDrag}
       style={{ position: 'absolute', left: sw.x, top: sw.y, width: sw.w, height: sw.h, cursor: 'move' }}>
-      <div style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
-        {label}
+      <div ref={boxRef} style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
+        <span ref={textRef} style={{ display: 'inline-block', maxWidth: '100%', whiteSpace: fit.wrap ? 'normal' : 'nowrap', overflowWrap: 'anywhere', lineHeight: 1.1, textAlign: 'center' }}>{label}</span>
       </div>
       {selected && (
         <>

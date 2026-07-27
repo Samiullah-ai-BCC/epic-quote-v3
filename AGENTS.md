@@ -1,6 +1,6 @@
 # THE ENFORCED ENGINEERING SYSTEM (v2.0)
 ### The Humane Code Standard, upgraded from prose to machinery
-### Laravel + React | Claude Code / any coding agent | Huge codebase, small redundant features
+### Laravel + React | Codex / any coding agent | Huge codebase, small redundant features
  
 ---
  
@@ -10,36 +10,6 @@
 > **The one-line upgrade (new):** a rule the AI can violate without a machine noticing is a
 > suggestion. Every rule that matters lives in a layer the AI cannot argue with.
  
----
-
-## PART -1 — THE TWO HARD CONSTRAINTS (added 2026-07-27, by the owner, non-negotiable)
-
-These outrank everything below. They exist because the recurring failure in this project is not
-bad code — it is **good code broken by the next change**.
-
-### C1. DO NOT POISON WORKING CODE
-Adding a feature must not remove, weaken, or "tidy" behaviour that already works. Working
-functionality is only ever removed when the owner explicitly asks for its removal.
-- If a change requires touching a working path, say so out loud BEFORE doing it, and state what
-  could break.
-- If a wrapper, class, attribute or guard looks pointless, assume it is load-bearing until
-  proven otherwise. `.fill-page`'s parent looked pointless; it carried the whole scroll chain.
-- "It builds" and "the new thing works" are not evidence the old thing still works. Verify the
-  OLD behaviour too, and say which old behaviours you checked.
-
-### C2. EVERY TASK IS A NODE IN A GRAPH, NEVER A STANDALONE JOB
-Before writing code, map the node: what feeds this thing, what reads it, and every way it can be
-reached. Then design for ALL of those paths, not the one in the screenshot.
-- Read the relevant entry in `SYSTEM_MAP.md` first; add or update the node in the same commit.
-- Enumerate the triggers, not the example. "Chips must follow the text" means on line-item add,
-  discount add, typing, block removal, undo, load, and zoom — not just the one that was reported.
-- Prefer a rule that is true for every case over a patch that is true for the reported case.
-  A fix that handles one trigger will be reported again next week as a different trigger.
-- State the ripple in the commit: what else reads this, and how you verified each.
-
-**The test for both:** if a change makes something work while making something else worse, it is
-not done — regardless of how well the requested part works.
-
 ---
  
 ## PART 0 — THE ARCHITECTURE (read this first)
@@ -51,7 +21,7 @@ your instructions.
  
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ LAYER 5 — PROSE LAW (CLAUDE.md, ~150 lines)                         │
+│ LAYER 5 — PROSE LAW (AGENTS.md, ~150 lines)                         │
 │   Judgment calls only. Style, taste, philosophy. Weakest layer.     │
 ├─────────────────────────────────────────────────────────────────────┤
 │ LAYER 4 — INDEPENDENT VERIFICATION (fresh-context reviewer agents)  │
@@ -98,14 +68,14 @@ These are the rules the AI **cannot** break. Not "should not." Cannot.
  
 ```
 your-repo/
-├── CLAUDE.md                          # Layer 5: the trimmed prose law (Part 5)
+├── AGENTS.md                          # Layer 5: the trimmed prose law (Part 5)
 ├── SYSTEM_MAP.md                      # Layer 2: feature → surfaces → dependents
 ├── FAILED_APPROACHES.md               # Layer 4: dead ends, so agents don't retry them
 ├── docs/
 │   ├── DECISIONS.md                   # ADR-lite (you already have this)
 │   └── specs/                         # Layer 3: one spec file per feature
 │       └── 2026-07-quote-pdf-export.md
-├── .claude/
+├── .Codex/
 │   ├── settings.json                  # hook wiring (1.2)
 │   ├── hooks/
 │   │   ├── pre_tool_guard.sh          # blocks destructive/out-of-bounds actions (1.3)
@@ -128,7 +98,7 @@ your-repo/
     └── check_magic_strings.sh         # stringly-coupling detector (2.3)
 ```
  
-### 1.2 `.claude/settings.json` — wiring the hooks
+### 1.2 `.Codex/settings.json` — wiring the hooks
  
 ```json
 {
@@ -147,7 +117,7 @@ your-repo/
       {
         "matcher": "Bash|Write|Edit",
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool_guard.sh" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.Codex/hooks/pre_tool_guard.sh" }
         ]
       }
     ],
@@ -155,14 +125,14 @@ your-repo/
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post_edit_ripple.sh" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.Codex/hooks/post_edit_ripple.sh" }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/stop_gate.sh" }
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.Codex/hooks/stop_gate.sh" }
         ]
       }
     ]
@@ -170,7 +140,7 @@ your-repo/
 }
 ```
  
-> Note: hook event names and payload shapes follow Claude Code's current hook system
+> Note: hook event names and payload shapes follow Codex's current hook system
 > (PreToolUse / PostToolUse / Stop, JSON on stdin). If you use another agent, map to its
 > equivalents (LangGraph node guards, Cursor hooks, etc.). Verify each jq path against a real
 > payload once — a wrong path makes jq return null and the gate silently does nothing.
@@ -684,7 +654,7 @@ Add to the agent's environment (this is the 0 → 0.90 upgrade):
   call site — including ones grep misses through variables and facades.
 - **TS/React:** `typescript-language-server` via the same MCP, or at minimum
   `npx tsc --noEmit` in the Stop gate so renames that orphan a consumer fail to compile.
-- **Law (goes in CLAUDE.md, Part 5):** *before editing any exported symbol, run
+- **Law (goes in AGENTS.md, Part 5):** *before editing any exported symbol, run
   find-references on it; grep alone is only acceptable for string constants that live in
   registries (which is why the registries exist).*
 ---
@@ -814,7 +784,7 @@ changes. Data changes ship as idempotent, dry-runnable artisan commands.
  
 The implementer never grades itself. Same model, fresh context = genuinely new eyes.
  
-### 4.1 `.claude/agents/spec-reviewer.md`
+### 4.1 `.Codex/agents/spec-reviewer.md`
  
 ```markdown
 ---
@@ -847,7 +817,7 @@ preferences. Do not invent findings to look useful — "no correctness gaps foun
 valid and welcome answer.
 ```
  
-### 4.2 `.claude/agents/money-adversary.md`
+### 4.2 `.Codex/agents/money-adversary.md`
  
 ```markdown
 ---
@@ -887,14 +857,14 @@ unicode company names and cropped/zoomed/1×1 artwork where rendering is involve
  
 ---
  
-## PART 5 — LAYER 5: THE TRIMMED CLAUDE.md (the new prose law, complete)
+## PART 5 — LAYER 5: THE TRIMMED AGENTS.md (the new prose law, complete)
  
 Everything deterministic has been MOVED DOWN into layers 1–4. What remains is judgment.
 This is the entire file — ~140 lines, honoring the ≤200-line context budget.
  
 ```markdown
-# CLAUDE.md — The Humane Code Standard v2 (prose layer)
-# Machines enforce the rest: hooks (.claude/hooks), CI (.github/workflows/ci.yml),
+# AGENTS.md — The Humane Code Standard v2 (prose layer)
+# Machines enforce the rest: hooks (.Codex/hooks), CI (.github/workflows/ci.yml),
 # registries (lib/registry, app/Support/Registry), SYSTEM_MAP.md, and reviewer agents.
 # If you are tempted to violate a rule here, say so out loud and ask — never silently.
  
@@ -972,7 +942,7 @@ This is the entire file — ~140 lines, honoring the ≤200-line context budget.
  
 ### 5.1 Path-scoped rules (loaded only when relevant — context stays lean)
  
-`.claude/rules/money.md` (auto-applies to payment/billing paths):
+`.Codex/rules/money.md` (auto-applies to payment/billing paths):
  
 ```markdown
 paths: ["app/Domain/Payments/**", "app/Domain/Quotes/PriceCalculator.php"]
@@ -984,7 +954,7 @@ paths: ["app/Domain/Payments/**", "app/Domain/Quotes/PriceCalculator.php"]
 - Every mutation here triggers the money-adversary subagent before the GOLDEN RULE report.
 ```
  
-`.claude/rules/frontend.md`:
+`.Codex/rules/frontend.md`:
  
 ```markdown
 paths: ["resources/js/**"]
@@ -1024,7 +994,7 @@ is **no error of the same class twice**. That is the ratchet:
 | Coupling was invisible to search         | registry migration + lint rule (Layer 2)|
 | Intent misunderstood                     | spec-template field addition (Layer 3)  |
 | Reviewer missed it                       | reviewer-agent checklist item (Layer 4) |
-| Pure judgment failure                    | CLAUDE.md line (Layer 5 — last resort)  |
+| Pure judgment failure                    | AGENTS.md line (Layer 5 — last resort)  |
  
 # LOG (append; one line each; the story lives in the linked issue/commit)
 2026-07-14 | init | system installed | baseline
@@ -1035,7 +1005,7 @@ Two operating rules make the ratchet real:
 1. **The fix and the ratchet ship in the same PR.** A fix without its ratchet is the old
    world: the same class of bug remains possible tomorrow.
 2. **Ratchets prefer lower layers.** If a failure *could* have been caught by a hook or a
-   test, adding a CLAUDE.md sentence instead is forbidden — prose is the last resort, not
+   test, adding a AGENTS.md sentence instead is forbidden — prose is the last resort, not
    the first, because prose is the layer that decays.
 Monthly 15-minute audit: read the log; any class appearing twice means its ratchet went to
 too high a layer — push it down one.
@@ -1078,8 +1048,8 @@ papers). Each finding names the mechanism it justifies.
    hard mode; unspecified prompting fails hardest exactly here. → sizing rule (3.1): the
    bigger/riskier the touch, the more protocol.
 9. **Context is the bottleneck**: performance degrades as the window fills; ≤200-line
-   CLAUDE.md with path-scoped rules and on-demand skills is the emergent standard.
-   → Part 5 trim + .claude/rules split.
+   AGENTS.md with path-scoped rules and on-demand skills is the emergent standard.
+   → Part 5 trim + .Codex/rules split.
 10. **Failed-approach retry loops** are a named failure mode; a dead-ends log read at
     session start prevents them. → FAILED_APPROACHES.md (4.3).
 11. **Placeholder-implementation failures** (UI wired to a fake key/hardcoded fallback,
@@ -1093,11 +1063,11 @@ papers). Each finding names the mechanism it justifies.
 ## PART 8 — ROLLOUT (ordered by payoff per hour)
  
 **Day 1 (≈2–3 hours) — stop the bleeding**
-1. Commit this file. Create `.claude/settings.json`, the three hooks (1.2–1.5), and
-   `chmod +x .claude/hooks/*.sh scripts/*.sh`. Test each hook against a real payload once.
+1. Commit this file. Create `.Codex/settings.json`, the three hooks (1.2–1.5), and
+   `chmod +x .Codex/hooks/*.sh scripts/*.sh`. Test each hook against a real payload once.
 2. Write SYSTEM_MAP.md with ONLY your top 3 shared values (quote.price, generated_data,
    + one more). Do not attempt completeness — the map grows by law (new feature = new entry).
-3. Trim CLAUDE.md to the Part 5 version. Delete everything the machines now own.
+3. Trim AGENTS.md to the Part 5 version. Delete everything the machines now own.
 **Week 1 — make "done" mean something**
 4. CI workflow (1.6) + `.env.ci` + first Playwright smoke file with the SMOKE 1 chain for
    quote.price. Seed data for it. This single test is your executable ripple map.
@@ -1132,7 +1102,7 @@ cat >> /mnt/user-data/outputs/ENFORCED_ENGINEERING_SYSTEM.md << 'LOOPEOF'
 
 # ═══════════════════════════════════════════════════════════════════
 # v2.1 EXTENSION — THE LOOP LAYER (autonomous agents & loop engineering)
-# Source: Anthropic "Code with Claude 2026" 5-session series.
+# Source: Anthropic "Code with Codex 2026" 5-session series.
 # What follows adds the TEMPORAL dimension to the static 5-layer system:
 # the system now patrols itself, curates its own memory, measures its own
 # configuration, and earns autonomy by track record.
@@ -1152,7 +1122,7 @@ GET BETTER        ratchet protocol (Part 6)              →   PART 11: eval sui
 TRUST             binary (human approves everything)     →   PART 12: the autonomy ladder
 ```
 
-Subagent doctrine, now explicit (Session 5 law, added to CLAUDE.md § working loop):
+Subagent doctrine, now explicit (Session 5 law, added to AGENTS.md § working loop):
 **a subagent exists for exactly two reasons — many hands (parallelizable sweep) or
 fresh eyes (independent judgment). spec-reviewer and money-adversary are fresh-eyes.
 Any proposed third subagent must name which reason it is, or it's a hand-off that
@@ -1185,7 +1155,7 @@ WHY          catches drift the per-commit gates missed (e.g., force-pushed or ho
 ### 9.2 ROUTINE: pr-critiquer (maker-checker robots)
 ```
 TRIGGER      ⚡ GitHub event: pull_request opened OR synchronize
-CONTEXT      the PR diff + linked spec file + SYSTEM_MAP.md + .claude/agents/spec-reviewer.md
+CONTEXT      the PR diff + linked spec file + SYSTEM_MAP.md + .Codex/agents/spec-reviewer.md
 PROMPT       "You are the critiquer half of a maker-checker pair. Run the spec-reviewer
               checklist (contract, vertical slice, opposite-logic, dropped guards, ripple,
               scope) against this PR. Leave findings as PR review comments with file:line.
@@ -1234,7 +1204,7 @@ WHY          the universal-"Sarah" problem: doc drift is a process failure, not 
 AUTH   Create a permanent agent identity: smoke-agent@yourdomain, seeded in every
        environment (local, CI, prod-sandbox), lowest-privilege role that can still
        drive the flows. Credentials live in the Vault / CI secrets — NEVER in
-       CLAUDE.md, specs, or memory files (the brain never holds secrets).
+       AGENTS.md, specs, or memory files (the brain never holds secrets).
 STATE  scripts/seed_agent_fixtures.php — an idempotent artisan command that
        (re)creates the canonical test entities: quote #1 (plain), #2 (has active
        payment link), #3 (has versions v1/v2), one 6-figure quote, one
@@ -1244,7 +1214,7 @@ STATE  scripts/seed_agent_fixtures.php — an idempotent artisan command that
 ```
 
 ### 9.6 THE VERIFICATION SKILL (self-updating — packages the CHECK ITSELF loop)
-`.claude/skills/verify-app/SKILL.md`:
+`.Codex/skills/verify-app/SKILL.md`:
 ```markdown
 ---
 name: verify-app
@@ -1315,7 +1285,7 @@ STEERABILITY A2 forever — memory rewrites always get human review, because a w
              "curated" map poisons every future ripple check.
 ```
 
-### 10.2 The session-start line changes accordingly (CLAUDE.md § Session start):
+### 10.2 The session-start line changes accordingly (AGENTS.md § Session start):
 ```
 1. Read docs/curated/INDEX.md first; jump to relevant SYSTEM_MAP / dead-end pages
    via slugs. Wide-grep only when the index has no entry (then: that's an index gap —
@@ -1327,7 +1297,7 @@ STEERABILITY A2 forever — memory rewrites always get human review, because a w
 ## PART 11 — THE META-SCORECARD (evals for the enforcement system itself)
 
 The gap this closes: v2.0 measures the APP (tests, smoke) but nothing measures the
-SYSTEM — when you trim CLAUDE.md, add a rule, or restructure skills, you currently
+SYSTEM — when you trim AGENTS.md, add a rule, or restructure skills, you currently
 find out whether it helped by vibes. Session 5's Stock Pilot went 62%→92% purely by
 measured removals. Same method, pointed at your repo's agent configuration.
 
@@ -1369,7 +1339,7 @@ tests green, tokens/turns) + LLM-judge on report honesty. Score = /12.
 ### 11.2 The hill-climbing law
 ```
 - BASELINE once: run the exam 3× (variance is real), record median in evals/LOG.md.
-- Any change to CLAUDE.md, .claude/rules/*, skills, or hooks that affects agent
+- Any change to AGENTS.md, .Codex/rules/*, skills, or hooks that affects agent
   behavior = re-run the exam. No scorecard, no changes.
 - One change at a time. Score up → keep. Flat/down → revert, note in FAILED_APPROACHES.
 - Expect removals to win as models improve (the industry is collapsing scaffolding;

@@ -166,3 +166,30 @@ export const FA_SIDEVIEW_KEYS = new Set(
 )
 export const isSupersededSideView = (k) =>
   typeof k === 'string' && k !== '' && !/^(https?:|\/storage)/i.test(k) && !FA_SIDEVIEW_KEYS.has(k)
+
+// ── ITEM DESCRIPTION ──────────────────────────────────────────────────────────────────────
+// The customer-facing wording for a mounting. Internal catalog keys carry the ENGINEERING size
+// ("Flat Aluminum Backer (2.5 mm)", "Raceway Mount (2\")") — those millimetres are a spec-sheet
+// detail and have no business in the line the customer reads, which was coming out as
+// `… WITH FLAT ALUMINUM BACKER (2.5 MM) FOR …`.
+//
+// A RULE, not a table of the six cases that were reported: strip any parenthetical qualifier,
+// then apply the two deliberate overrides. Any mounting the sheet adds later is handled without
+// another code change — including the three that were never on the list
+// (Flush Mount (Screws), Flush Mount (VHB), Ceiling Hung, Stud Mount).
+const MOUNTING_PHRASE = {
+  'Flush Mount': '',        // a flush mount is the default expectation — naming it adds nothing
+  'Raceway Mount': 'Raceway',
+}
+export function mountingPhrase(mounting) {
+  const base = String(mounting || '').replace(/\s*\([^)]*\)/g, '').trim()   // drop "(2.5 mm)", "(VHB)"…
+  if (!base) return ''
+  return Object.prototype.hasOwnProperty.call(MOUNTING_PHRASE, base) ? MOUNTING_PHRASE[base] : base
+}
+
+// "{SIGN TYPE} WITH {PHRASE} FOR {COMPANY}", or "{SIGN TYPE} FOR {COMPANY}" when the mounting
+// contributes nothing. One definition, so every screen that shows a line item agrees.
+export function itemDescriptionFor(signType, mounting, company) {
+  const phrase = mountingPhrase(mounting)
+  return `${signType}${phrase ? ` WITH ${phrase.toUpperCase()}` : ''} FOR ${company || 'CUSTOMER'}`
+}

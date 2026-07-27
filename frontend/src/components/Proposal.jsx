@@ -1005,12 +1005,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const syncChipsRef = useRef(syncChips); syncChipsRef.current = syncChips
   useEffect(() => {
     const page = pageRef.current; if (!page) return
-    let raf = 0
-    const kick = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => syncChipsRef.current()) }
+    let raf = 0, timer = 0
+    // rAF coalesces a burst of mutations into one sync — but a BACKGROUND TAB never runs rAF
+    // callbacks, so on its own it stalls the chips until the tab is looked at again (and then
+    // only if something else mutates). The timeout is the floor that keeps the sync honest when
+    // the page is hidden; whichever fires first wins and cancels the other.
+    const run = () => { cancelAnimationFrame(raf); clearTimeout(timer); syncChipsRef.current() }
+    const kick = () => {
+      cancelAnimationFrame(raf); clearTimeout(timer)
+      raf = requestAnimationFrame(run)
+      timer = setTimeout(run, 120)
+    }
     const mo = new MutationObserver(kick)
     mo.observe(page, { subtree: true, childList: true, characterData: true })
+    // re-sync when the tab comes back, in case mutations landed while it was hidden
+    document.addEventListener('visibilitychange', kick)
     kick()
-    return () => { mo.disconnect(); cancelAnimationFrame(raf) }
+    return () => { mo.disconnect(); document.removeEventListener('visibilitychange', kick); cancelAnimationFrame(raf); clearTimeout(timer) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { syncChipsRef.current() }, [specHTML, scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
