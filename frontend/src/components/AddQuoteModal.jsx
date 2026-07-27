@@ -54,6 +54,11 @@ export default function AddQuoteModal({ onClose }) {
   const [companyHits, setCompanyHits] = useState([])
   const [exactHit, setExactHit] = useState(null)   // the matched company (with .contacts) for the picker
   const autoFilled = useRef({ address: '', client_name: '', contact: '', email: '' })
+  // WHICH company the currently-shown details belong to. "Never overwrite a hand-edit" is the
+  // right rule inside one company — but an address the rep corrected for Signarama Ankeny is
+  // simply wrong once they switch to Signarama Redmond, and refusing to replace it left the
+  // previous customer's address sitting on the new quote. Identity, not just edited-ness.
+  const autoCompany = useRef(null)
   // apply a saved contact into any field the user hasn't manually changed
   const applyAuto = (patch) => {
     // Snapshot the previous auto-values BEFORE mutating the ref — comparing a field against the
@@ -87,7 +92,22 @@ export default function AddQuoteModal({ onClose }) {
         // contact details are never auto-applied — the rep picks the exact contact from the
         // dropdown below (the data still carries duplicates/mislabeled rows; auto-applying the
         // first one kept picking wrong people).
-        applyAuto({ address: hit.address || '' })
+        const hitId = norm(hit.name)
+        if (autoCompany.current !== null && autoCompany.current !== hitId) {
+          // A DIFFERENT company: everything on screen describes the previous one. Its address is
+          // replaced outright — hand-corrected or not, that correction was about the old company.
+          // Contact details are only cleared if THIS app auto-filled them; anything the rep typed
+          // themselves is theirs and survives.
+          setValue('address', hit.address || '')
+          autoFilled.current = { ...autoFilled.current, address: hit.address || '' }
+          for (const k of ['client_name', 'contact', 'email']) {
+            const cur = getValues(k)
+            if (cur && cur === autoFilled.current[k]) { setValue(k, ''); autoFilled.current[k] = '' }
+          }
+        } else {
+          applyAuto({ address: hit.address || '' })
+        }
+        autoCompany.current = hitId
         // pre-pick the rep who handled this company's latest quote (#5) — only when untouched
         if (hit.last_sales_rep && !getValues('sales_rep')) setValue('sales_rep', hit.last_sales_rep)
       }
