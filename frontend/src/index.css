@@ -656,9 +656,14 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 /* Cells clip rather than force a column wider than the rep dragged it. */
 .grid-wrap table.resizable-grid th,
 .grid-wrap table.resizable-grid td { overflow: hidden; text-overflow: ellipsis; }
-/* the inline editors must not push their column open either */
-.grid-wrap table.resizable-grid td input,
-.grid-wrap table.resizable-grid td select { max-width: 100%; }
+/* THE EDITORS MUST FILL THE COLUMN, WHATEVER ITS WIDTH.
+   EditCell renders `<input style={{width:140}}>` — an INLINE width, which beats any stylesheet
+   rule, so widening a column revealed no more text: the cell grew and the input inside it stayed
+   a fixed 140px box, clipping "Signarama Hartsdale" exactly as before the drag. `!important` is
+   what overrides that inline value, and the rule is scoped to this grid so EditCell's other
+   callers (the proposal's line-item cells) keep their own sizing. */
+.grid-wrap table.resizable-grid td input:not([type=checkbox]),
+.grid-wrap table.resizable-grid td select { width: 100% !important; max-width: 100%; min-width: 0; }
 .grid-wrap table.resizable-grid th { position: relative; }
 
 /* The grab strip. Sits inside the header's right edge, full height, invisible until hovered
