@@ -43,3 +43,7 @@ auditor/*
 /assets/*.pdf
 /assets/*.png
 .gstack/
+
+# local agent configs — may contain API keys, never commit
+.codex/
+.claude/settings.local.json
