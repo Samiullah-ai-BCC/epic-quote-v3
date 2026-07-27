@@ -59,18 +59,25 @@ Consumers: `CustomSpecsStep.applyFaConfig` (regenerates on mounting change, but 
 a rep's hand-edit), `Proposal.jsx` `itemDesc` block, `AllQuotes` JOB column.
 
 ## SIDE VIEW (construction diagram) — SOURCE OF TRUTH: the resolved catalog LEAF
-The diagram is a property of the exact leaf — sign type x trim cap x thickness x mounting — so
-ANY of those changing must re-derive it. Both change paths share ONE rule
-(`autoSideViewFor` + `sideViewReplaceable` in `CustomSpecsStep.jsx`); they drifted once, and the
-sign-type path only ever set a diagram when there was none, leaving the previous type's drawing
-on the proposal.
-Replace ONLY when the current diagram was chosen by the app:
-- nothing chosen yet, OR it is the key auto-derived for the PREVIOUS config, OR it is one of the
-  27 superseded pre-recalibration keys.
-NEVER replace a rep's own choice: an uploaded `/storage` or `https:` image, several diagrams
-picked together, an explicit `__none__` (they removed it), or any other current-catalog key.
-`__none__` is NOT "superseded" — treating it as such silently brought back a diagram the rep had
-deleted.
+The diagram is a property of the exact leaf — sign type x trim cap x thickness x mounting — so ANY
+of those changing must re-derive it. Both change paths (sign type, mounting) share ONE rule,
+`sideViewReplaceable()` in `CustomSpecsStep.jsx`.
+
+A CATALOG diagram always belongs to the leaf that was selected when it was assigned, so once the
+leaf changes it describes a different product and is replaced. Only non-catalog choices survive:
+an uploaded `/storage` or `https:` image, an explicit `__none__`, or several diagrams picked
+together.
+
+**Do NOT reintroduce a "does it match the PREVIOUS config?" test.** That was tried and it fails
+whenever the stored type and stored diagram drift apart (a quote re-typed in an earlier session):
+the app then reads its own stale auto-pick as a deliberate human choice and refuses to update it.
+The rule must not depend on knowing the previous selection.
+
+**`customTypeSel` MUST be restored when a part loads** (`resolveSignTypeName`). It is not saved by
+the wizard directly — new quotes store `customSpec.signType`, older ones are recovered from the
+spec's own `SIGN TYPE:` line by longest-name match. `loadPartIntoHooks` used to blank it on every
+load, which hid the mounting/trim-cap dropdowns on every reopened quote and was the reason the
+diagram appeared frozen.
 
 ## EXPORT (PNG / PDF) — SOURCE OF TRUTH: `Proposal.jsx` `render()` via **html-to-image**
 Uses the browser's own layout engine (SVG `foreignObject`), so screen == export by construction.

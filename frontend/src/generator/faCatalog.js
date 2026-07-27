@@ -193,3 +193,30 @@ export function itemDescriptionFor(signType, mounting, company) {
   const phrase = mountingPhrase(mounting)
   return `${signType}${phrase ? ` WITH ${phrase.toUpperCase()}` : ''} FOR ${company || 'CUSTOMER'}`
 }
+
+// Resolve which SIGN TYPE a saved quote is on.
+//
+// `customTypeSel` (the wizard's picked type) was never persisted, so reopening a quote left it
+// blank even though the spec plainly said "SIGN TYPE: FLAT BLADE SIGN". Everything derived from
+// it then broke silently: no mounting/trim-cap dropdowns, and — because the code could no longer
+// work out which diagram it had auto-chosen last time — a sign-type change refused to update the
+// side view, treating the app's own pick as if the rep had chosen it by hand.
+//
+// New quotes store the name on customSpec.signType. For quotes saved before that, fall back to
+// the spec's own SIGN TYPE line: match the LONGEST catalog name the line starts with, because the
+// line usually carries the mounting too ("FACE LIT CHANNEL LETTERS WITH RACEWAY").
+export function resolveSignTypeName(customSpec, legacyTypes = []) {
+  const names = [...FA_SIGN_GROUPS.map((g) => g.n), ...legacyTypes.map((t) => t.n)].filter(Boolean)
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toUpperCase()
+
+  const saved = norm(customSpec?.signType)
+  if (saved) {
+    const exact = names.find((n) => norm(n) === saved)
+    if (exact) return exact
+  }
+  const line = norm(String(customSpec?.specText || '').match(/^\s*SIGN TYPE\s*:\s*(.+)$/im)?.[1] || '')
+  if (!line) return ''
+  // longest-first so "FACE AND HALO LIT CHANNEL LETTERS" wins over "HALO LIT CHANNEL LETTERS"
+  const byLength = [...names].sort((a, b) => norm(b).length - norm(a).length)
+  return byLength.find((n) => line === norm(n) || line.startsWith(norm(n) + ' ')) || ''
+}

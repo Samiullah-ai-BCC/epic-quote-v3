@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { getQuote, putGenerated } from '../../../api/quotes'
 import { getLogo } from '../../../api/meta'
 import { legacyPartFromGd, resolveTplByName } from '../../../generator/parts'
+import { resolveSignTypeName } from '../../../generator/faCatalog'
+import { T } from '../../../generator/catalog'
 
 // Loads the quote once on mount and hydrates every piece of wizard state from it: the quote
 // record itself, the multi-page `parts` model, and the FIRST part's fields into the wizard's
@@ -15,7 +17,7 @@ import { legacyPartFromGd, resolveTplByName } from '../../../generator/parts'
 // would drop one.
 export function useQuoteData(quoteId, searchParams, wizardSetters) {
   const {
-    setTemplate, setAnswers, setAiResult, setCustomSpec, setArtworkPath, setSignBox,
+    setTemplate, setAnswers, setAiResult, setCustomSpec, setCustomTypeSel, setArtworkPath, setSignBox,
     setSideViews, setPaymentLink, setProposalNotes, setAutoAi, setLogoUrl,
   } = wizardSetters
 
@@ -75,6 +77,11 @@ export function useQuoteData(quoteId, searchParams, wizardSetters) {
         setAnswers(firstPart.answers || {})
         setAiResult(firstPart.ai || null)
         setCustomSpec(firstPart.custom_spec || null)
+        // Restore the SIGN TYPE the quote is on. It was never persisted, so reopening a quote left
+        // the picker blank: no mounting / trim-cap dropdowns, and the side view could not be
+        // re-derived on a type change because the app no longer knew which diagram it had itself
+        // chosen last time — it read its own pick as the rep's and refused to touch it.
+        setCustomTypeSel?.(resolveSignTypeName(firstPart.custom_spec, T))
         if (firstPart.artwork_path) setArtworkPath(firstPart.artwork_path)
         if (firstPart.sign_box) setSignBox(firstPart.sign_box)
         // #10: if no artwork chosen yet but the customer uploaded an image of the sign, use it

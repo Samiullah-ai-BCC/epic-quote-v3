@@ -8,6 +8,8 @@ import { selectUser, selectIsAdmin } from '../store/authSlice'
 import { autoAnswerFromAI, parseDims, composeDims } from '../generator/questions'
 import { listCatalog, saveCatalogItem } from '../api/catalog'
 import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
+import { resolveSignTypeName } from '../generator/faCatalog'
+import { T } from '../generator/catalog'
 import { rasterizePdf } from '../generator/pdfRaster'
 import { fileUrl } from '../api/client'
 import { MAX_PRICE, FLOWS, PART_KEYS, makeCustomTpl, legacyPartFromGd, matchSignType, resolveTplByName, itemSigned } from '../generator/parts'
@@ -90,7 +92,7 @@ export default function Generator() {
     mode, step, setStep, loading, loadError,
     client, setClient, special, setSpecial,
   } = useQuoteData(quoteId, searchParams, {
-    setTemplate, setAnswers, setAiResult, setCustomSpec, setArtworkPath, setSignBox,
+    setTemplate, setAnswers, setAiResult, setCustomSpec, setCustomTypeSel, setArtworkPath, setSignBox,
     setSideViews, setPaymentLink, setProposalNotes, setAutoAi, setLogoUrl,
   })
 
@@ -251,11 +253,20 @@ export default function Generator() {
     setAnswers(part.answers || {})
     setAiResult(part.ai || null)
     setCustomSpec(part.custom_spec || null)
+    // Restore the sign type alongside the spec. Without it `cat` stays undefined on a reopened
+    // quote: the mounting / trim-cap dropdowns vanish, and the side view cannot be re-derived
+    // because the app no longer knows which diagram it had chosen itself.
+    setCustomTypeSel(resolveSignTypeName(part.custom_spec, T))
     setArtworkPath(part.artwork_path || null)
     setSignBox(part.sign_box || null)
     setSideViews(part.side_views || [])
     setProposalNotes(part.proposal_notes || '')
-    setCustomTypeSel(''); setTypePicking(false); setTypeGroup(null)
+    // Close the picker UI, but do NOT clear the selection — this line used to blank
+    // customTypeSel on every part load, which is why reopening a quote showed
+    // "— pick a sign type —" with its mounting/trim-cap dropdowns gone, and why a later
+    // sign-type change could not re-derive the side view: with no previous type, the app
+    // could not tell its own auto-chosen diagram from one the rep had picked, so it kept it.
+    setTypePicking(false); setTypeGroup(null)
   }
 
   // "+ Add page": save the current part, append a fresh blank part, and re-enter the wizard at the

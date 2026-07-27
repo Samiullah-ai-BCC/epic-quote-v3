@@ -4,7 +4,7 @@
 // in verbatim — this component owns no state.
 import { useEffect, useRef } from 'react'
 import { T, SIGN_GROUP_ORDER, signGroupOf } from '../../generator/catalog'
-import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, isSupersededSideView, itemDescriptionFor } from '../../generator/faCatalog'
+import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, itemDescriptionFor } from '../../generator/faCatalog'
 import { buildSpecLines } from '../../generator/proposal'
 import { parseDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
@@ -48,15 +48,30 @@ export default function CustomSpecsStep({
     if (!c) return ''
     return c.fa ? (faLeafExtras(c, answers).sideview || '') : (pickSideView(c.n)?.selected || '')
   }
-  // Replaceable only when the current diagram was chosen BY THE APP. A rep's own pick stands:
-  // an uploaded image, several diagrams picked together, an explicit "no side view", or any key
-  // still in the catalog that is not simply the previous auto-derived one.
-  const sideViewReplaceable = (prevAutoKey) => {
+  // MAY WE REPLACE THE DIAGRAM ON SCREEN? The diagram is a property of the resolved LEAF, so a
+  // CATALOG diagram always belongs to whatever leaf was selected when it was assigned — once the
+  // sign type, trim cap, thickness or mounting changes, it describes a different product and must
+  // be re-derived. That is the domain rule, and it needs no knowledge of the previous selection.
+  //
+  // The earlier version asked "does this match what I derived for the PREVIOUS config?", which
+  // only works while the stored type and the stored diagram agree. They drift — a quote saved with
+  // one type and later re-typed keeps the old key — and then the app read its own stale auto-pick
+  // as a deliberate human choice and refused to touch it. That is exactly the reported bug.
+  //
+  // Only things that are NOT catalog-derived survive a change:
+  //   • an uploaded image (/storage or https) — the rep's own artwork, not a leaf property
+  //   • an explicit '__none__' — they removed the side view on purpose
+  //   • several diagrams picked together — a deliberate composition
+  // TRADE-OFF, stated: a rep who hand-picks a DIFFERENT catalog diagram for the same leaf will
+  // see it re-derived when they next change the type or mounting. That is the intended behaviour
+  // here ("the side view must follow the sign type"); uploading the drawing is the way to pin one.
+  const sideViewReplaceable = () => {
     if (sideViews.length === 0) return true
-    if (sideViews.length > 1) return false                 // a deliberate multi-pick
+    if (sideViews.length > 1) return false
     const only = sideViews[0]
-    if (only === '__none__') return false                  // the rep removed it on purpose
-    return only === prevAutoKey || isSupersededSideView(only)
+    if (only === '__none__') return false
+    if (/^(https?:|\/storage)/i.test(String(only))) return false
+    return true
   }
 
   // Rebuild the spec text for the CURRENT type + the given mounting/thickness (auto-picks the
@@ -78,9 +93,8 @@ export default function CustomSpecsStep({
     // A SUPERSEDED key counts as "not hand-picked": quotes made before the catalog was
     // recalibrated carry one of the 27 old keys, which the app chose from the sign-type NAME
     // alone — nobody decided it, so keeping it only shows the rep an outdated drawing.
-    const prevKey = autoSideViewFor(cat, { fa_mounting: customSpec?.fa_mounting, fa_thickness: customSpec?.fa_thickness, fa_trimcap: customSpec?.fa_trimcap })
     const nextKey = autoSideViewFor(cat, answers)
-    if (nextKey && sideViewReplaceable(prevKey)) setSideViews([nextKey])
+    if (nextKey && sideViewReplaceable()) setSideViews([nextKey])
     // Keep the Item Description's mounting in step with the dropdown — but NEVER overwrite a
     // description the rep hand-edited: only regenerate when the current text still exactly
     // matches what the auto-format produced for the previous mounting.
@@ -169,12 +183,14 @@ export default function CustomSpecsStep({
             // `prevAuto` is what the app derived for the type being replaced; if that is what is
             // on screen, it was never the rep's choice and may be updated.
             if (nextCat) {
-              const prevAuto = autoSideViewFor(cat, { fa_mounting: customSpec?.fa_mounting, fa_thickness: customSpec?.fa_thickness, fa_trimcap: customSpec?.fa_trimcap })
               const sv = autoSideViewFor(nextCat, { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap })
-              if (sv && sideViewReplaceable(prevAuto)) setSideViews([sv])
+              if (sv && sideViewReplaceable()) setSideViews([sv])
             }
             setCustomSpec({
               ...customSpec,
+              // PERSIST THE PICKED TYPE. `customTypeSel` is component state and was never saved,
+              // so reopening a quote lost it — see resolveSignTypeName().
+              signType: v,
               itemDesc: itemDescFor(nextCat?.desc || v, mounting),
               specText,
               application: customSpec?.application || 'EXTERIOR',
