@@ -18,7 +18,7 @@ export default function CustomSpecsStep({
   typePicking, setTypePicking, typeGroup, setTypeGroup,
   signLib, setSignLib, sideViews, setSideViews, client,
   newTypeName, setNewTypeName, newTypeSpec, setNewTypeSpec,
-  customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial, onSpecialLifted,
+  customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial, onSpecialLifted, ready,
   saveNext, saving,
 }) {
   // FA sign types (family/mounting-driven) prefill from a resolved leaf's spec — the rep
@@ -82,23 +82,41 @@ export default function CustomSpecsStep({
   // MOVE the template's trailing bullet out of the spec and into Special Requirements.
   // Runs from a single effect below rather than only when the sign type / mounting changes —
   // an already-open quote never changes either, which is why the line just sat there.
+  const liftingRef = useRef(false)
   useEffect(() => {
+    // WAIT FOR THE QUOTE TO FINISH LOADING. Spec text and the saved special_requirements arrive
+    // from separate parts of the load; lifting before both are in raced the server's value.
+    if (ready === false || liftingRef.current) return
     const text = customSpec?.specText || ''
     if (!text) return
-    // Never re-flow the box the rep is typing in: cutting a line under a live caret would
-    // move it mid-keystroke. The cut happens as soon as they click away.
+    // Never re-flow the box the rep is typing in: cutting a line under a live caret would move
+    // it mid-keystroke. The cut happens as soon as they click away.
     if (specRef.current && document.activeElement === specRef.current) return
+
     const { spec, special: lifted } = splitSpecialRequirements(text)
-    // Scaffolding tokens must never reach a customer document. They were already suppressed for
-    // newly built specs and stripped on a dimension sync, but a quote SAVED before that still
-    // carries them and nothing cleared it on open — which is why [ASK REP] was still on screen.
-    // Every bracketed token, not just the two that were reported — [APPLICATION] is the same
-    // defect wearing a different name, and leaving it guarantees the identical bug report later.
+    // Scaffolding tokens must never reach a customer document. Newly built specs already
+    // suppress them, but a quote SAVED earlier still carries them and nothing cleared it on
+    // open. Strip EVERY bracketed token, not just the reported two — [APPLICATION] is the
+    // same defect wearing a different name.
     const cleaned = spec.replace(/\[[A-Z][A-Z ]*\]["”]?/g, '').replace(/[ 	]+$/gm, '')
+    if (!lifted && cleaned === text) return
+
+    // ORDER MATTERS, AND IT IS THE WHOLE POINT. The spec text autosaves on change, so cutting
+    // the line and only THEN saving the requirement left a window where the text lived in
+    // neither place — reopening the quote showed a requirement that had silently vanished.
+    // Persist the requirement FIRST, await it, and cut only once it is safely stored.
+    liftingRef.current = true
+    const cut = () => { if (cleaned !== text) setCustomSpec({ ...customSpec, specText: cleaned }); liftingRef.current = false }
     const nextSpecial = mergeSpecial(special, lifted)
-    if (nextSpecial !== (special || '')) (onSpecialLifted || setSpecial)(nextSpecial)
-    if (cleaned !== text) setCustomSpec({ ...customSpec, specText: cleaned })
-  }, [customSpec?.specText, special]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (lifted && nextSpecial !== (special || '') && onSpecialLifted) {
+      Promise.resolve(onSpecialLifted(nextSpecial))
+        .then(cut)
+        .catch(() => { liftingRef.current = false })   // save failed -> leave the spec intact
+    } else {
+      if (lifted && nextSpecial !== (special || '')) setSpecial(nextSpecial)
+      cut()
+    }
+  }, [ready, customSpec?.specText, special]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="step">

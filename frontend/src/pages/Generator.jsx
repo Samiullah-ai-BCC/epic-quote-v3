@@ -101,7 +101,8 @@ export default function Generator() {
   const persistSpecial = async (value) => {
     setSpecial(value)
     if (!quoteId) return
-    try { await updateQuote(quoteId, { special_requirements: value }) } catch { /* retried on Next */ }
+    // Deliberately NOT swallowed: the caller cuts the line out of the spec only if this resolves.
+    await updateQuote(quoteId, { special_requirements: value })
   }
 
   const flow = mode ? FLOWS[mode] : []
@@ -681,7 +682,7 @@ export default function Generator() {
             setNewTypeName={setNewTypeName} newTypeSpec={newTypeSpec} setNewTypeSpec={setNewTypeSpec}
             customDimsStatus={customDimsStatus} setCustomDim={setCustomDim}
             setCustomApplication={setCustomApplication} special={special} setSpecial={setSpecial}
-            onSpecialLifted={persistSpecial}
+            onSpecialLifted={persistSpecial} ready={!loading}
             saveNext={saveNext} saving={saving} />
         )}
 
