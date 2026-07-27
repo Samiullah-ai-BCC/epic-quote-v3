@@ -508,6 +508,12 @@ export default function Generator() {
     if (template?.n === nextTemplate.n) { goto('specs'); return }
     setTemplate(nextTemplate)
     setAnswers(aiResult ? autoAnswerFromAI(nextTemplate, aiResult) : {})
+    // A different sign type also invalidates the SIDE VIEW that was picked for the old type —
+    // re-derive the new type's default construction diagram so the preview matches (bug: the
+    // side view kept showing the previous type after switching). Clears it if the new type has
+    // no deterministic match; the rep can still override, and QA/AI can refine it afterward.
+    const nextPick = pickSideView(nextTemplate.n)
+    setSideViews(nextPick.selected ? [nextPick.selected] : [])
     // a different sign type makes any saved spec text wrong — drop it so the proposal
     // rebuilds the SPECIFICATIONS block for the new type (other proposal edits are kept)
     setGeneratedData((prevGeneratedData) => {

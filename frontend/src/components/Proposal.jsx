@@ -527,7 +527,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   useEffect(() => {
     const fit = () => {
       if (!wrapRef.current || !pageRef.current) return
-      const s = Math.min(1, wrapRef.current.clientWidth / 816)
+      // Never scale to 0. A container measured while the page is hidden (background tab, a
+      // display:none ancestor) reports clientWidth 0, and scale(0) collapses the whole sheet —
+      // every geometry read then divides by zero and chips/arrows land on NaN coordinates.
+      const w = wrapRef.current.clientWidth
+      const s = w > 0 ? Math.min(1, w / 816) : (scaleRef.current || 1)
       setScale(s)
       setScaledH(PAGE_H * s)
     }
@@ -1570,7 +1574,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 // uniform chips (#6): resizing ANY swatch applies the same w/h to ALL of them,
                 // so the colour row always reads as one consistent set while editing.
                 const sizeChanged = n.w !== sw.w || n.h !== sw.h
-                if (!sizeChanged) return arr.map((x) => (x.id === sw.id ? clampToArea(n) : x))
+                // A HAND MOVE RE-BINDS THE CHIP. `tie` records which spec line the chip follows
+                // and its offset from it; dragging changed x/y but left the OLD tie in place, so
+                // the very next DOM mutation — including the click that deselects the chip —
+                // re-applied `tieLine.y + oldDy` and yanked the chip back to where it used to be,
+                // often clamped to the bottom of the specs box. Clearing the tie makes the next
+                // sync re-derive it from where the rep actually dropped the chip, so it stays put
+                // AND still tracks that text afterwards. `moved` marks it as the rep's choice.
+                if (!sizeChanged) return arr.map((x) => (x.id === sw.id ? clampToArea({ ...n, tie: null, moved: true }) : x))
                 // Re-flow every row left→right at the new size (bug: the old code left every OTHER
                 // chip's x untouched after a uniform resize, so growing a chip grew it straight INTO
                 // its stale-positioned neighbour, and shrinking-then-growing back overlapped them —
