@@ -61,7 +61,7 @@ Confirm the DB block matches your XAMPP if you changed anything.
 
 Known admin login (sets it explicitly, no guessing):
 ```bash
-php artisan db:seed --class=UserSeeder     # → username: test@123.com   password: 123456789!
+php artisan db:seed --class=UserSeeder     # → username: sami.ullah   password: 123456789! (or $SEED_ADMIN_PASSWORD)
 ```
 
 Run it:
@@ -98,7 +98,7 @@ No frontend `.env` is needed — Vite proxies `/api` and `/storage` to the backe
 |---|---|
 | `SQLSTATE[HY000] [2002]` connection refused | MySQL isn't started in XAMPP. |
 | `Unknown database 'epic-quote-estimator'` | Import step 3 didn't run, or DB name case mismatch — keep it lowercase. |
-| Login always "Invalid username or password" | Run `php artisan db:seed --class=UserSeeder`, use `test@123.com` / `123456789!`. |
+| Login always "Invalid username or password" | Run `php artisan db:seed --class=UserSeeder`, use `sami.ullah` / `123456789!` (or your `SEED_ADMIN_PASSWORD`). |
 | Frontend loads but every API call fails | Backend (`php artisan serve`) isn't running on `:8000`. |
 | `storage:link` fails on Windows | Run the terminal **as Administrator** (symlinks need it), or enable Developer Mode. |
 | Artwork images broken on old quotes | Expected — see §6; upload fresh or copy the storage files. |

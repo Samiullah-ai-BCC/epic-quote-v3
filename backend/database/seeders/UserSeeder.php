@@ -50,19 +50,21 @@ class UserSeeder extends Seeder
             );
         }
 
-        // Primary admin login — explicit credentials (renames the legacy 'admin' user if present,
-        // so there's no duplicate). Login is by USERNAME, so username IS the login id.
-        // SECURITY: this password is committed per request — rotate it after first login, or move
-        // it to the SEED_ADMIN_PASSWORD env for production.
-        $admin = User::where('username', 'admin')->first()
+        // Primary admin login. Renames any legacy placeholder row ('admin' / 'test@123.com') in
+        // place — keeping that user's id and their quotes — so the seed no longer resurrects the
+        // 'test@123.com' account on every deploy. Login is by USERNAME, so username IS the login id.
+        // SECURITY: the password comes from SEED_ADMIN_PASSWORD when set; the committed fallback is
+        // for local/dev only — set the env in production and rotate after first login.
+        $admin = User::where('username', 'sami.ullah')->first()
+            ?? User::where('username', 'admin')->first()
             ?? User::where('username', 'test@123.com')->first()
             ?? new User();
         $admin->forceFill([
-            'username'  => 'test@123.com',
-            'full_name' => 'Administrator',
+            'username'  => 'sami.ullah',
+            'full_name' => 'Sami Ullah',
             'role'      => User::ROLE_ADMIN,
-            'email'     => 'test@123.com',
-            'password'  => Hash::make('123456789!'),
+            'email'     => 'sami.ullah@bluecascade.org',
+            'password'  => Hash::make(env('SEED_ADMIN_PASSWORD', '123456789!')),
         ])->save();
 
         if ($generated) {

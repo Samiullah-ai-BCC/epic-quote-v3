@@ -39,6 +39,26 @@ export default function CustomSpecsStep({
   // caller cannot drift apart. See SYSTEM_MAP -> ITEM DESCRIPTION.
   const itemDescFor = (base, mounting) => itemDescriptionFor(base, mounting, client.company_name)
 
+  // ── SIDE VIEW: one rule, shared by every path that can change the diagram ──────────────
+  // The construction diagram is a property of the exact leaf (sign type × trim cap × thickness ×
+  // mounting), so ANY of those changing must re-derive it. Changing the MOUNTING already did;
+  // changing the SIGN TYPE only ever set a diagram when there was none, so switching type left
+  // the previous type's drawing on the proposal. Same rule, both paths — and any future path.
+  const autoSideViewFor = (c, answers) => {
+    if (!c) return ''
+    return c.fa ? (faLeafExtras(c, answers).sideview || '') : (pickSideView(c.n)?.selected || '')
+  }
+  // Replaceable only when the current diagram was chosen BY THE APP. A rep's own pick stands:
+  // an uploaded image, several diagrams picked together, an explicit "no side view", or any key
+  // still in the catalog that is not simply the previous auto-derived one.
+  const sideViewReplaceable = (prevAutoKey) => {
+    if (sideViews.length === 0) return true
+    if (sideViews.length > 1) return false                 // a deliberate multi-pick
+    const only = sideViews[0]
+    if (only === '__none__') return false                  // the rep removed it on purpose
+    return only === prevAutoKey || isSupersededSideView(only)
+  }
+
   // Rebuild the spec text for the CURRENT type + the given mounting/thickness (auto-picks the
   // first option of each when not yet chosen — #7 "thickness/mounting not being asked/picked").
   const applyFaConfig = (mounting, thickness, trimcap) => {
@@ -55,16 +75,12 @@ export default function CustomSpecsStep({
     // The construction diagram is a property of the exact leaf, not of the sign type: trim cap
     // and mounting each change what the side view must show. Follow the leaf unless the rep
     // has hand-picked something else (then their choice stands).
-    const prevKey = faLeafExtras(cat, { fa_mounting: customSpec?.fa_mounting, fa_thickness: customSpec?.fa_thickness, fa_trimcap: customSpec?.fa_trimcap }).sideview
-    const nextKey = faLeafExtras(cat, answers).sideview
-    // A SUPERSEDED key counts as "not hand-picked". Quotes made before the catalog was
-    // recalibrated carry one of the 27 old keys, which the app chose for them at the time from
-    // the sign-type NAME alone — nobody decided it, so keeping it only means the rep goes on
-    // seeing the old drawing for a leaf that now has its own. Genuine choices (an uploaded
-    // /storage image, or any key still in the catalog) are left exactly as they are.
-    const only = sideViews.length === 1 ? sideViews[0] : null
-    const replaceable = sideViews.length === 0 || only === prevKey || isSupersededSideView(only)
-    if (nextKey && replaceable) setSideViews([nextKey])
+    // A SUPERSEDED key counts as "not hand-picked": quotes made before the catalog was
+    // recalibrated carry one of the 27 old keys, which the app chose from the sign-type NAME
+    // alone — nobody decided it, so keeping it only shows the rep an outdated drawing.
+    const prevKey = autoSideViewFor(cat, { fa_mounting: customSpec?.fa_mounting, fa_thickness: customSpec?.fa_thickness, fa_trimcap: customSpec?.fa_trimcap })
+    const nextKey = autoSideViewFor(cat, answers)
+    if (nextKey && sideViewReplaceable(prevKey)) setSideViews([nextKey])
     // Keep the Item Description's mounting in step with the dropdown — but NEVER overwrite a
     // description the rep hand-edited: only regenerate when the current text still exactly
     // matches what the auto-format produced for the previous mounting.
@@ -148,13 +164,14 @@ export default function CustomSpecsStep({
               nextCat ? buildSpecLines(nextCat, { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap }, null).join('\n') : (stored?.data?.spec || `SIGN TYPE: ${v}`),
               customSpec
             )
-            // the sign type implies its construction side view — pick it automatically. An FA
-            // type resolves to its exact leaf's diagram; anything else falls back to the
-            // name-based prior (all a free-typed/legacy type can offer).
-            if (nextCat && sideViews.length === 0) {
-              const leafKey = nextCat.fa ? faLeafExtras(nextCat, { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap }).sideview : ''
-              const sv = leafKey || pickSideView(nextCat.n)?.selected
-              if (sv) setSideViews([sv])
+            // The sign type implies its construction diagram, so switching type must re-derive it
+            // — not merely fill it in when empty, which left the OLD type's drawing in place.
+            // `prevAuto` is what the app derived for the type being replaced; if that is what is
+            // on screen, it was never the rep's choice and may be updated.
+            if (nextCat) {
+              const prevAuto = autoSideViewFor(cat, { fa_mounting: customSpec?.fa_mounting, fa_thickness: customSpec?.fa_thickness, fa_trimcap: customSpec?.fa_trimcap })
+              const sv = autoSideViewFor(nextCat, { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap })
+              if (sv && sideViewReplaceable(prevAuto)) setSideViews([sv])
             }
             setCustomSpec({
               ...customSpec,

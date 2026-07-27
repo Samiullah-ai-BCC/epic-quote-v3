@@ -36,7 +36,7 @@ npm run dev
 It prints a link like `http://localhost:5173` — open that in your browser.
 
 ### 3. Log in
-- Username: `test@123.com`
+- Username: `sami.ullah`
 - Password: `123456789!`
 
 ---

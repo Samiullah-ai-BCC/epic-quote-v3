@@ -58,6 +58,20 @@ customer document.
 Consumers: `CustomSpecsStep.applyFaConfig` (regenerates on mounting change, but NEVER overwrites
 a rep's hand-edit), `Proposal.jsx` `itemDesc` block, `AllQuotes` JOB column.
 
+## SIDE VIEW (construction diagram) — SOURCE OF TRUTH: the resolved catalog LEAF
+The diagram is a property of the exact leaf — sign type x trim cap x thickness x mounting — so
+ANY of those changing must re-derive it. Both change paths share ONE rule
+(`autoSideViewFor` + `sideViewReplaceable` in `CustomSpecsStep.jsx`); they drifted once, and the
+sign-type path only ever set a diagram when there was none, leaving the previous type's drawing
+on the proposal.
+Replace ONLY when the current diagram was chosen by the app:
+- nothing chosen yet, OR it is the key auto-derived for the PREVIOUS config, OR it is one of the
+  27 superseded pre-recalibration keys.
+NEVER replace a rep's own choice: an uploaded `/storage` or `https:` image, several diagrams
+picked together, an explicit `__none__` (they removed it), or any other current-catalog key.
+`__none__` is NOT "superseded" — treating it as such silently brought back a diagram the rep had
+deleted.
+
 ## EXPORT (PNG / PDF) — SOURCE OF TRUTH: `Proposal.jsx` `render()` via **html-to-image**
 Uses the browser's own layout engine (SVG `foreignObject`), so screen == export by construction.
 - Do NOT go back to html2canvas: it re-implements text layout and sank glyphs by up to 9.5px.

@@ -20,7 +20,7 @@ Accounts are seeded on every deploy. Two privilege levels only:
 - **admin** — sees everything (all quotes, Users, Sales Reports, Activity Log).
 - **everyone else (sales_rep, manager)** — sees only their own quotes, no admin pages. Note: "manager" has NO extra power; it is treated the same as a rep.
 
-Guaranteed login (hardcoded in the seeder, resets every deploy): `test@123.com` / `123456789!`. This is a security issue, flagged in section 9.
+Guaranteed login (seeded): `sami.ullah` / `123456789!` (dev fallback; overridable via `SEED_ADMIN_PASSWORD`). The committed dev password is still a security concern — flagged in section 9.
 
 Seeded people: rod + ed (reps), sami (manager, no admin powers despite the "Awaiting Sir Sami Response" status existing), and admins alishan, faraz, musavir, khola, khansa, usmanaltaf. Their passwords come from environment variables; if unset, a random one is printed once at boot.
 
@@ -171,7 +171,7 @@ These are real, found in the code. The golden-rule "problems that still exist" l
 7. **Tags reuse the status list.** You can only tag a quote with words that are also statuses, which is confusing and limits tagging.
 8. **Sign-type list mismatch.** The proposal catalog has 41 sign types, but AI can only pick from 29. Some catalog types can't be auto-matched. (Memory said "41" — the AI side is 29.)
 9. **Quote line-items table exists but is unused** — every spec lives in the JSON bundle, so multi-sign quotes and clean reporting aren't really supported yet.
-10. **Hardcoded admin login** `test@123.com` / `123456789!` is committed and recreated on every deploy. Security risk.
+10. **Committed dev admin password** — the seeder's `SEED_ADMIN_PASSWORD` fallback (`123456789!` for `sami.ullah`) is committed. Set the env in production and rotate after first login.
 11. **No real password reset** — "Forgot password?" just tells you to ask an admin.
 12. **Artwork can silently fail to save.** If the upload errors, the browser still shows a local preview, but nothing is stored, so the artwork is missing on reopen.
 
