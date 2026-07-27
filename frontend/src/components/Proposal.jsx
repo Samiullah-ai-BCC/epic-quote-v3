@@ -901,10 +901,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // 2. measure every colour line: a label ENDING in COLOR followed by ':' ("COLOR SPECS:" has
     //    COLOR mid-label and is correctly skipped)
     const lines = []
+    const allLines = []   // every non-blank text line, for chips that bind to arbitrary text
     const walker = document.createTreeWalker(spec, NodeFilter.SHOW_TEXT)
     let n
     while ((n = walker.nextNode())) {
       const txt = n.textContent || ''
+      if (txt.trim()) {
+        const rr = document.createRange(); rr.selectNodeContents(n)
+        const rb = rr.getBoundingClientRect()
+        if (rb.height) allLines.push({ key: txt.trim().slice(0, 40), y: Math.round((rb.top - pageRect.top) / sc) })
+      }
       const m = /^\s*•?\s*([A-Z0-9&/. -]*COLOR)\s*:/i.exec(txt)
       if (!m) continue
       const label = m[1].trim().toUpperCase()
@@ -922,37 +928,64 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const faceLine = lines.find((l) => l.hasFace) || lines[0]
     const retLine = lines.find((l) => l !== faceLine && l.hasRet)
     setHideRet(!retLine)
-    // 3. build the anchor map: face + rettrim + one auto chip per remaining colour line,
-    //    all sharing one x column (the widest label) so the chips read as a neat stack.
-    const target = {}
-    if (faceLine) {
-      const X = Math.max(...lines.map((l) => l.x))
-      target.face = { x: X, y: faceLine.y }
-      if (retLine) target.rettrim = { x: X, y: retLine.y }
-      for (const l of lines) {
-        if (l === faceLine || l === retLine) continue
-        target['auto-' + l.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')] = { x: X, y: l.y }
-      }
-    }
+    const slug = (label) => 'auto-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    // One shared x column (the widest label) so the chips read as a neat stack.
+    const X = lines.length ? Math.max(...lines.map((l) => l.x)) : 0
+
     setSwatches((arr) => {
       let changed = false
       let next = arr
-      // hand-moved chips ride the box's movement (rule 2)
-      if (delta && next.some((s) => s.moved)) { next = next.map((s) => (s.moved ? { ...s, y: s.y + delta } : s)); changed = true }
-      // un-moved chips snap to their line (rule 1) — through the same clamp as every other move
+
+      // Every colour line gets an OWNER chip. The legacy `face`/`rettrim` chips own the face and
+      // return/trim lines when they exist; otherwise — an older quote whose saved swatches never
+      // included them — that line gets an auto chip like any other. Without this, a saved quote
+      // with no `face` chip left its FACE COLOUR line with no chip at all.
+      const has = (id) => next.some((s) => s.id === id)
+      const target = {}
+      for (const l of lines) {
+        const id = (l === faceLine && has('face')) ? 'face'
+          : (l === retLine && has('rettrim')) ? 'rettrim'
+          : slug(l.label)
+        target[id] = { x: X, y: l.y }
+      }
+
+      // ANCHORED chips snap to their line. EVERYTHING ELSE — a chip the rep dragged, and a chip
+      // added by hand that belongs to no line — rides the spec box's movement instead. The old
+      // rule only moved chips flagged `moved`, so a hand-added chip that had never been dragged
+      // matched neither branch and stayed frozen on the page while its text slid away: the
+      // "swatches are not moving with the text" report, reproduced as spec +27px / chip +0px.
+      // A chip with no colour line of its own — one the rep added by hand, or dragged off its
+      // line — BINDS to whatever spec text it is sitting beside, and keeps that exact
+      // relationship forever after. Tracking the spec box's top alone was not enough: typing
+      // INSIDE the box pushes the lines down without moving the box, so the box delta was 0
+      // while the text slid out from under the chip. `tie` is that binding: the line's text
+      // plus the chip's offset from it.
+      const lineY = (key) => allLines.find((l) => l.key === key)?.y
       next = next.map((s) => {
-        if (s.moved) return s
         const t = target[s.id]
-        if (!t) return s
-        const c = clampToArea({ ...s, x: t.x, y: t.y })
-        if (s.x !== c.x || s.y !== c.y) { changed = true; return c }
+        if (t && !s.moved) {                                   // owns a colour line -> snap to it
+          const c = clampToArea({ ...s, x: t.x, y: t.y })
+          return (c.x !== s.x || c.y !== s.y) ? (changed = true, c) : s
+        }
+        let tie = s.tie
+        if (!tie && allLines.length) {                          // first sight -> bind to nearest line
+          const near = allLines.reduce((a, b) => (Math.abs(b.y - s.y) < Math.abs(a.y - s.y) ? b : a))
+          tie = { key: near.key, dy: s.y - near.y }
+          changed = true
+        }
+        const ly = tie ? lineY(tie.key) : undefined
+        // the tied line still exists -> hold the offset; it is gone -> fall back to the box delta
+        const wantY = ly !== undefined ? ly + tie.dy : (delta ? s.y + delta : s.y)
+        const c = clampToArea({ ...s, y: wantY })
+        if (c.y !== s.y || c.x !== s.x || s.tie !== tie) { changed = true; return { ...c, tie } }
         return s
       })
+
       // create missing auto chips (colorless — keep:true renders them so the rep can fill them)
-      const have = new Set(next.map((s) => s.id))
+      const present = new Set(next.map((s) => s.id))
       const size = next[0] ? { w: next[0].w, h: next[0].h } : { w: SW_W, h: SW_H }
       for (const id of Object.keys(target)) {
-        if (id.startsWith('auto-') && !have.has(id)) {
+        if (id.startsWith('auto-') && !present.has(id)) {
           next = [...next, { id, name: '', color: '', keep: true, ...target[id], ...size }]
           changed = true
         }
@@ -961,6 +994,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       // anything the rep touched is theirs to delete, not ours
       const stale = (s) => s.id.startsWith('auto-') && !target[s.id] && !s.moved && !s.color && !s.name
       if (next.some(stale)) { next = next.filter((s) => !stale(s)); changed = true }
+      // KEEPING CHIPS GLUED TO THEIR TEXT IS NOT AN UNDOABLE ACT. Without this flag every
+      // automatic re-anchor pushed its own entry onto the undo stack, so pressing Ctrl+Z after
+      // adding a discount row un-synced the chips instead of removing the row — the user's
+      // action was buried one step deeper each time the layout moved.
+      if (changed) histRef.current.silent = true
       return changed ? next : arr
     })
   }

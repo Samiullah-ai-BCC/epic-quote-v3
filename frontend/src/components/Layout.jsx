@@ -7,14 +7,17 @@ export default function Layout() {
   return (
     <div className="flex h-screen overflow-hidden max-[900px]:flex-col">
       <Sidebar />
-      {/* The "viewing as" banner lives INSIDE the scrolling column and sticks to its top, so it
-          stays on screen on every page and at every scroll position while impersonating. */}
-      <main className="min-h-0 flex-1 overflow-auto max-[900px]:px-3.5 max-[900px]:py-4">
+      {/* The banner is a SIBLING above <main>, not a wrapper inside it. Nesting the page in an
+          extra padded div moved the scroll container's edge: a wide table (All Quotes) then
+          overflowed that inner div instead of <main>, so its horizontal scrollbar sat at the
+          bottom of the whole page and you had to scroll down to reach it. <main> keeps exactly
+          the geometry it always had, and the banner still stays put while the page scrolls. */}
+      <div className="flex min-h-0 flex-1 flex-col">
         <ImpersonationBanner />
-        <div className="px-[34px] py-[26px] max-[900px]:p-0">
+        <main className="min-h-0 flex-1 overflow-auto px-[34px] py-[26px] max-[900px]:px-3.5 max-[900px]:py-4">
           <Outlet />
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }
