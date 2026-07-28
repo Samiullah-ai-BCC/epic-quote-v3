@@ -226,7 +226,13 @@ export default function CustomSpecsStep({
                       </div>
                     )
                   })}
-                  {SIGN_GROUP_ORDER.map((g) => {
+                  {/* 'CHANNEL LETTERS' is hidden on THIS picker only: its one non-legacy entry is
+                      superseded by the FA families above (ILLUMINATED / NON ILLUMINATED FABRICATED
+                      CHANNEL LETTERS), so offering it here just duplicates them. Filtered locally
+                      rather than removed from SIGN_GROUP_ORDER, which the AI-mode SignTypeStep
+                      picker also reads — and `T` is untouched, so saved quotes on that legacy type
+                      still resolve by name. */}
+                  {SIGN_GROUP_ORDER.filter((g) => g !== 'CHANNEL LETTERS').map((g) => {
                     const c = T.filter((t) => signGroupOf(t.n) === g && !t.legacy).length
                     return c ? (
                       <div key={g} className="sign-opt" style={{ fontWeight: 700 }} onClick={() => setTypeGroup(g)}>
