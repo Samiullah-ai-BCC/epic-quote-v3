@@ -680,3 +680,28 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 .col-resize-handle:hover, .col-resize-handle:active { background: var(--gold); opacity: .55; }
 /* react-resizable ships its own absolutely-positioned handle art; ours replaces it wholesale */
 .grid-wrap table.resizable-grid .react-resizable { position: relative; }
+
+/* ---- Proposal blocks: real bullet/number lists -------------------------------------------
+   Tailwind's preflight sets `ol,ul,menu { list-style: none }` and zeroes every element's
+   padding. Inside the proposal's editable blocks that had two effects: bullets vanished, and
+   where a pasted list carried its own inline `list-style-type` the marker had no padding to sit
+   in, so it rendered hard against the block's left border — outside the 12px text gutter every
+   other line respects ("the bullets are way out of the box"). The team worked around the
+   missing bullets by typing • characters by hand.
+
+   Measured on the live sheet: with padding-left 0 the marker lands ~2.5px from the border;
+   with 1.4em it sits at ~17px, inside the gutter, and wrapped lines hang under the text.
+
+   Scoped to [data-key] — the editable blocks only — so the app's own menus and navigation keep
+   Tailwind's reset. Unlayered on purpose: it must outrank preflight, which lives in `base`.
+
+   Deliberately padding ONLY — this does NOT switch `list-style-type` back on. Blocks where the
+   team already typed • by hand would otherwise render the marker AND their character, i.e. a
+   double bullet on every line. Restoring real markers is a separate change that needs those
+   hand-typed bullets stripped from the saved content first. */
+[data-key] ul,
+[data-key] ol {
+  margin: 0;
+  padding-left: 1.4em;
+  list-style-position: outside;
+}

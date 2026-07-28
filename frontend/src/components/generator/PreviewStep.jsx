@@ -106,6 +106,7 @@ export default function PreviewStep({
                 linkTitle={multi ? linkTitle : null}
                 captureAll={multi ? captureAllPages : null}
                 capturePages={multi ? capturePagesExport : null}
+                pageLabels={multi ? parts.map((part, n) => `Page ${partLetter(n)} — ${tplForPart(part)?.n || 'Sign'}`) : null}
                 canCreatePaymentLinks={canCreatePaymentLinks}
                 onPaymentLinkCreated={(url) => savePaymentLink(url)}
                 artworkPath={p.artwork_path}

@@ -70,6 +70,16 @@ class User extends Authenticatable
         return $this->isAdmin() || (bool) $this->can_create_payment_links;
     }
 
+    // Approving a price — and locking/unlocking a quote behind that approval — is OVERSIGHT.
+    // The whole point of the lock is that the person who set the price is not the person who
+    // signs it off, so the rep who built the quote must not be able to approve their own work.
+    // Managers are included because that is who supervises the reps; the audit stamp
+    // (approved_by / approved_at) records which of them did it.
+    public function canApprovePrices(): bool
+    {
+        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_MANAGER], true);
+    }
+
     // Managers/account managers/viewers see the whole book of business;
     // quote makers and sales reps see their own quotes only.
     public function seesAllQuotes(): bool

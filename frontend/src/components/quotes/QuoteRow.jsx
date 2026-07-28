@@ -4,7 +4,7 @@ import EditCell from './EditCell'
 // One grid row. All mutations flow up through the handler props so the page
 // stays the single owner of the react-query mutations.
 export default function QuoteRow({
-  q, i, columns, statuses, reps, team, admin, readOnly, selected,
+  q, i, columns, statuses, reps, team, admin, readOnly, canApprove, selected,
   patch, pasteDown, updateStatus, updateTags,
   onToggleSel, onView, onEdit, onHistory, onDelete, onArt,
 }) {
@@ -47,12 +47,16 @@ export default function QuoteRow({
           <option value="Super Rush">Super Rush</option>
         </select>
       </td>}
+      {/* Approval is oversight: the server refuses both flags from anyone who is not a manager or
+          admin, so the boxes are shown but not operable to everyone else. They stay VISIBLE
+          (never hidden) because a rep still needs to read whether their quote is approved and
+          who signed it — only the ability to move them is withheld. */}
       {columns.has('approval') && <td className="whitespace-nowrap">
-        <label title={q.price_approved ? `Approved by ${q.approved_by}${q.approved_at ? ' on ' + new Date(q.approved_at).toLocaleDateString() : ''}` : 'Tick to approve the price (you + date are logged)'} className="cursor-pointer">
-          <input type="checkbox" disabled={readOnly} checked={!!q.price_approved} className="w-auto" onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
+        <label title={q.price_approved ? `Approved by ${q.approved_by}${q.approved_at ? ' on ' + new Date(q.approved_at).toLocaleDateString() : ''}` : (canApprove ? 'Tick to approve the price (you + date are logged)' : 'Only a manager or admin can approve a price')} className={canApprove ? 'cursor-pointer' : 'cursor-default'}>
+          <input type="checkbox" disabled={readOnly || !canApprove} checked={!!q.price_approved} className="w-auto" onChange={(e) => patch(q.quote_id, 'price_approved', e.target.checked)} /> ✓
         </label>{' '}
-        <label title={q.approval_locked ? 'LOCKED — PDF/PNG/payment link blocked until the price is approved. Click to unlock.' : 'Lock this quote until the price is approved'} className={'cursor-pointer' + (q.approval_locked ? '' : ' opacity-50')}>
-          <input type="checkbox" disabled={readOnly} checked={!!q.approval_locked} className="w-auto" onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
+        <label title={!canApprove ? 'Only a manager or admin can change the approval lock' : (q.approval_locked ? 'LOCKED — PDF/PNG/payment link blocked until the price is approved. Click to unlock.' : 'Lock this quote until the price is approved')} className={(canApprove ? 'cursor-pointer' : 'cursor-default') + (q.approval_locked ? '' : ' opacity-50')}>
+          <input type="checkbox" disabled={readOnly || !canApprove} checked={!!q.approval_locked} className="w-auto" onChange={(e) => patch(q.quote_id, 'approval_locked', e.target.checked)} /> 🔒
         </label>
       </td>}
       {columns.has('order') && <td className="text-center">

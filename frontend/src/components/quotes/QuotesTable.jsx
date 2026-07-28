@@ -33,7 +33,7 @@ const COLS = [
 ]
 
 export default function QuotesTable({
-  sort, columns, statuses, reps, team, admin, readOnly,
+  sort, columns, statuses, reps, team, admin, readOnly, canApprove,
   selected, allVisibleSelected, onToggleAll, onToggleSel,
   patch, pasteDown, updateStatus, updateTags,
   onView, onEdit, onHistory, onDelete, onArt, isEmpty,
@@ -82,7 +82,7 @@ export default function QuotesTable({
           {sort.sorted.map((q, i) => (
             <QuoteRow key={q.id} q={q} i={i}
               columns={columns} statuses={statuses} reps={reps} team={team}
-              admin={admin} readOnly={readOnly} selected={selected.has(q.quote_id)}
+              admin={admin} readOnly={readOnly} canApprove={canApprove} selected={selected.has(q.quote_id)}
               patch={patch} pasteDown={pasteDown} updateStatus={updateStatus} updateTags={updateTags}
               onToggleSel={onToggleSel} onView={onView} onEdit={onEdit}
               onHistory={onHistory} onDelete={onDelete} onArt={onArt} />

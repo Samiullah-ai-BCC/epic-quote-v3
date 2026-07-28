@@ -443,9 +443,19 @@ class QuoteController extends Controller
         }
 
         // Price approval: who approved and when are stamped server-side, never client-supplied.
+        //
+        // AUTHORIZATION. approved_by was always honest, but nothing stopped the rep who built the
+        // quote from PATCHing price_approved: true onto it and signing off their own price — the
+        // approval lock protects nothing if the locked party holds the key. Only an approver may
+        // move either flag. The check is on the CHANGE, not on the field being present, so the
+        // frontend can keep sending the whole quote object back on every save (it does) without a
+        // rep's ordinary edit turning into a 403.
         if (array_key_exists('price_approved', $data)) {
             $approved = (bool) $data['price_approved'];
             if ($approved !== (bool) $quote->price_approved) {
+                if (!$user->canApprovePrices()) {
+                    return response()->json(['error' => 'Only a manager or admin can approve a price.'], 403);
+                }
                 $quote->price_approved = $approved;
                 if ($approved) {
                     $quote->approved_by = $user->full_name;
@@ -464,6 +474,11 @@ class QuoteController extends Controller
         if (array_key_exists('approval_locked', $data)) {
             $locked = (bool) $data['approval_locked'];
             if ($locked !== (bool) $quote->approval_locked) {
+                // Same authority as approving: unlocking is how you escape the gate, so a rep who
+                // could clear the lock would not need to forge an approval at all.
+                if (!$user->canApprovePrices()) {
+                    return response()->json(['error' => 'Only a manager or admin can change the approval lock.'], 403);
+                }
                 $quote->approval_locked = $locked;
                 $changes[] = $locked ? 'Approval lock ON' : 'Approval lock OFF';
             }
@@ -1081,7 +1096,7 @@ class QuoteController extends Controller
         $this->assertAccess($request, $quote);
         $request->validate(['file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,avif,svg|max:25600']);
         $file = $request->file('file');
-        $ext = $file->getClientOriginalExtension();
+        $ext = $this->safeExtension($file);
         $filename = $quote->quote_id.'_'.time().'.'.$ext;
 
         // Cloudinary (permanent CDN URL, shared across instances). If it's configured we REQUIRE it to
@@ -1109,7 +1124,7 @@ class QuoteController extends Controller
         $this->assertAccess($request, $quote);
         $request->validate(['file' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp,avif,svg|max:25600']);
         $file = $request->file('file');
-        $ext = $file->getClientOriginalExtension();
+        $ext = $this->safeExtension($file);
         $filename = "crunched_{$quote->quote_id}_".time().".{$ext}";
         $stored = $this->storeUploadPermanently($file, 'artwork', $filename);
         if (!$stored) {
@@ -1127,10 +1142,41 @@ class QuoteController extends Controller
         return trim(preg_replace('/[^0-9()+\-.\s]/', '', (string) $v));
     }
 
+    // The only extensions an upload may be STORED under. Same list the `mimes:` rules accept,
+    // so nothing that validates can fail to find an extension here.
+    private const SAFE_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'];
+
+    // The extension the file's own CONTENT implies — never the one the client typed.
+    //
+    // `mimes:` already proves the BYTES are a pdf/image, but the stored NAME came from the
+    // client: sending genuine PNG bytes as "invoice.php" (or ".htaccess", or a double
+    // extension) validated fine and landed on disk under that name. Our /storage route reads
+    // files rather than executing them, so this was never RCE here — but the moment anything
+    // else is pointed at that directory it would be, and a name is not worth that bet.
+    // Falling back to the sanitized client extension keeps an odd-but-valid upload working
+    // instead of rejecting it; the allowlist is what makes either branch safe.
+    private function safeExtension(\Illuminate\Http\UploadedFile $file): string
+    {
+        $guessed = strtolower((string) $file->extension());          // from the MIME of the bytes
+        if (in_array($guessed, self::SAFE_EXTENSIONS, true)) {
+            return $guessed === 'jpeg' ? 'jpg' : $guessed;
+        }
+        $client = strtolower((string) $file->getClientOriginalExtension());
+        if (in_array($client, self::SAFE_EXTENSIONS, true)) {
+            return $client === 'jpeg' ? 'jpg' : $client;
+        }
+        return 'bin';                                                 // inert, and never executed
+    }
+
     private function safeFilename(\Illuminate\Http\UploadedFile $file): string
     {
         // strip directory components + unsafe chars (prevents path traversal / odd names)
-        return preg_replace('/[^A-Za-z0-9._-]/', '_', basename($file->getClientOriginalName()));
+        $name = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($file->getClientOriginalName()));
+        // ...then force the extension to the allowlisted one, so the rep still recognises their
+        // own filename but the suffix can only ever be a document/image type.
+        $stem = pathinfo($name, PATHINFO_FILENAME) ?: 'upload';
+
+        return $stem.'.'.$this->safeExtension($file);
     }
 
     private function assertAccess(Request $request, Quote $quote): void

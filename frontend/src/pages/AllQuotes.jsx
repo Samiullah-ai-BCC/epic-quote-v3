@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { EASE } from '../components/ui/motion'
 import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
 import { useSelector } from 'react-redux'
-import { selectIsAdmin, selectIsViewer } from '../store/authSlice'
+import { selectIsAdmin, selectIsViewer, selectCanApprove } from '../store/authSlice'
 import { useSortable, useColumns, downloadCsv, copyTsv } from '../components/grid'
 import AddQuoteModal from '../components/AddQuoteModal'
 import RevisionHistory from '../components/RevisionHistory'
@@ -21,6 +21,7 @@ export default function AllQuotes() {
   const qc = useQueryClient()
   const isAdmin = useSelector(selectIsAdmin)
   const isViewer = useSelector(selectIsViewer)
+  const canApprove = useSelector(selectCanApprove)
   const { data: constants } = useConstants()
   const update = useUpdateQuote()
   const updateStatus = useUpdateStatus()
@@ -167,7 +168,7 @@ export default function AllQuotes() {
       ) : (
         <QuotesTable
           sort={sort} columns={columns} statuses={statuses} reps={reps} team={team}
-          admin={admin} readOnly={readOnly}
+          admin={admin} readOnly={readOnly} canApprove={canApprove}
           selected={selected} allVisibleSelected={allVisibleSelected}
           onToggleAll={toggleAll} onToggleSel={toggleSel}
           patch={patch} pasteDown={pasteDown} updateStatus={updateStatus} updateTags={updateTags}

@@ -139,6 +139,28 @@ Headroom is measured from the **content's real bottom** (lowest in-flow child), 
 `scrollHeight` — the sheet is height-pinned with `overflow:hidden`, so its `scrollHeight`
 saturates at 1056 and can measure neither spare room nor overflow.
 
+## PRICE APPROVAL — SOURCE OF TRUTH: `User::canApprovePrices()` (admin + manager)
+`price_approved` and `approval_locked` are OVERSIGHT flags: the lock exists so that the person who
+set the price is not the person who signs it off. Both are therefore gated server-side in
+`QuoteController::update`, and `approved_by`/`approved_at` are stamped from the token, never sent.
+- **The gate is on the CHANGE, not on the key being present.** The grid PATCHes the whole quote back
+  on every save, so refusing any request that merely *contains* the field would 403 a rep for
+  editing a company name. Keep it that way.
+- Write surface: `QuoteRow.jsx` only (the two checkboxes). `selectCanApprove` in `authSlice`
+  mirrors the server rule so a rep is not shown a control that answers 403 — mirror, not the gate.
+- Read surfaces: `Proposal.jsx` `exportBlocked` (blocks PNG/PDF/payment link while locked and
+  unapproved), `PaymentLinkController` (same rule server-side), `DashboardController` "Approved"
+  tile, `AllQuotes` CSV export, `AirtableQuoteSync` (both directions).
+- Changing who may approve = editing `canApprovePrices()` AND `selectCanApprove` in one commit.
+
+## UPLOAD FILENAMES — SOURCE OF TRUTH: `QuoteController::safeExtension()`
+`mimes:` proves the BYTES are a pdf/image; it says nothing about the NAME. The stored extension is
+therefore taken from the file's own content MIME and checked against `SAFE_EXTENSIONS`, never from
+`getClientOriginalExtension()`. `PaymentLinkController::storeImage` applies the same allowlist to
+the extension inside the client's `data:image/...` URL. Consumers: everything under `/storage`,
+which is served by `bootstrap/app.php` under `CSP: sandbox` (see below) precisely because these
+files are attacker-influenced.
+
 ## AUTH — SOURCE OF TRUTH: `AuthController` + `authSlice`
 Login resolves username first, then case-insensitive email. 2FA turns a correct password into a
 short-lived CHALLENGE, never a token. Impersonation is a token *named* `impersonation` — never a

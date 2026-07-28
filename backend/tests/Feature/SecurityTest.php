@@ -3,6 +3,7 @@
 /* Two-factor auth, company-email restriction, and admin impersonation.
    These three touch sign-in itself: a hole here is either an open door or a locked-out team. */
 
+use App\Models\Quote;
 use App\Models\User;
 use App\Support\Totp;
 
@@ -327,4 +328,59 @@ it('keeps a missing file a clean CORS-bearing 404, not an opaque error', functio
     Illuminate\Support\Facades\Storage::fake('public');
     $res = $this->getJson('/storage/artwork/nope.png')->assertStatus(404);
     expect($res->headers->get('Access-Control-Allow-Origin'))->toBe('*');
+});
+
+// ---------------------------------------------------- price approval is oversight, not self-serve
+
+it('refuses to let a sales rep approve a price', function () {
+    $rep   = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote(['created_by' => $rep->id, 'price_approved' => false]);
+
+    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    $this->patchJson("/api/quotes/{$quote->quote_id}", ['price_approved' => true])
+        ->assertStatus(403);
+
+    expect((bool) $quote->fresh()->price_approved)->toBeFalse();
+});
+
+it('refuses to let a sales rep unlock a quote', function () {
+    $rep   = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote(['created_by' => $rep->id, 'approval_locked' => true]);
+
+    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    $this->patchJson("/api/quotes/{$quote->quote_id}", ['approval_locked' => false])
+        ->assertStatus(403);
+
+    expect((bool) $quote->fresh()->approval_locked)->toBeTrue();
+});
+
+it('still lets a manager approve, and stamps who did it', function () {
+    $mgr   = makeUser(['role' => 'manager', 'full_name' => 'Dana Lane']);
+    $quote = makeQuote(['price_approved' => false]);
+
+    $this->withHeader('Authorization', 'Bearer '.$mgr->createToken('test')->plainTextToken);
+    $this->patchJson("/api/quotes/{$quote->quote_id}", ['price_approved' => true])->assertOk();
+
+    $quote->refresh();
+    expect((bool) $quote->price_approved)->toBeTrue()
+        ->and($quote->approved_by)->toBe('Dana Lane')
+        ->and($quote->approved_at)->not->toBeNull();
+});
+
+// C1 GUARD: the frontend PATCHes the whole quote back on every save, so a rep re-sending the
+// value it already has must NOT start failing. The gate is on the CHANGE, not on the key.
+it('lets a sales rep save a quote that merely re-sends the unchanged approval flags', function () {
+    $rep   = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote([
+        'created_by' => $rep->id, 'price_approved' => false, 'approval_locked' => true,
+    ]);
+
+    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    $this->patchJson("/api/quotes/{$quote->quote_id}", [
+        'price_approved'  => false,      // unchanged
+        'approval_locked' => true,       // unchanged
+        'client_name'     => 'Edited By Rep',
+    ])->assertOk();
+
+    expect($quote->fresh()->client_name)->toBe('Edited By Rep');
 });

@@ -33,12 +33,21 @@ export function usePageCapture(parts) {
     return snapshots
   }
 
-  // Every sign page at HD ({url,w,h}) for the multi-page download (PDF = one page each; PNG stitched).
-  const capturePagesExport = async () => {
+  // Every sign page at HD ({url,w,h,index}) for the multi-page download (PDF = one page each).
+  //
+  // `indices` picks WHICH pages to export (the download page-picker); null/omitted keeps the old
+  // behaviour of every page, so every existing caller is unaffected. `index` is the page's position
+  // in the WHOLE quote, not in the returned array — exporting only pages A and C must still name
+  // them A and C, not re-letter them A and B.
+  const capturePagesExport = async (indices = null) => {
+    const wanted = Array.isArray(indices) ? new Set(indices) : null
     const exports = []
-    for (const part of parts) {
+    for (const [index, part] of parts.entries()) {
+      if (wanted && !wanted.has(index)) continue
       const pageHandle = pageRefs.current[part.__pid]
-      if (pageHandle?.captureExport) { try { exports.push(await pageHandle.captureExport()) } catch { /* skip */ } }
+      if (pageHandle?.captureExport) {
+        try { exports.push({ ...(await pageHandle.captureExport()), index }) } catch { /* skip */ }
+      }
     }
     return exports
   }

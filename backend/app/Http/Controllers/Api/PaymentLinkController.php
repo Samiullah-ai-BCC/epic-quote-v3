@@ -136,7 +136,14 @@ class PaymentLinkController extends Controller
         if ($bytes === false) {
             return null;
         }
-        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $name).'.'.($m[1] === 'jpeg' ? 'jpg' : $m[1]);
+        // The extension came out of the CLIENT's data URL, so "data:image/php;base64,..." wrote a
+        // .php file. Allowlist it: an unrecognised type is refused rather than guessed at, because
+        // this path only ever receives proposal renders (png/jpg) from our own export code.
+        $ext = strtolower($m[1]) === 'jpeg' ? 'jpg' : strtolower($m[1]);
+        if (!in_array($ext, ['png', 'jpg', 'gif', 'webp', 'avif'], true)) {
+            return null;
+        }
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $name).'.'.$ext;
 
         if (CloudinaryService::configured()) {
             $tmp = tempnam(sys_get_temp_dir(), 'pl_').'.png';

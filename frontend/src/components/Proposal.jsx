@@ -17,6 +17,7 @@ import EBlock from './proposal/EBlock'
 import EditCell from './proposal/EditCell'
 import { HEAD, LOUPE, SRC, detectSubjectBox } from './proposal/util'
 import SideViewPicker from './proposal/SideViewPicker'
+import PagePicker from './proposal/PagePicker'
 import ArtworkCropper from './ArtworkCropper'
 
 // A side-view entry is either a catalog key (renders from /side_views/) or an uploaded
@@ -92,7 +93,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // readOnly: rendered inside the All Quotes "View" modal — the doc is shown, not edited (the
   //   wrapper already kills pointer events). We use it only to hide the "click any text to edit"
   //   hint, which is a lie in that context. Editing still happens in the Generator wizard.
-  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, readOnly = false,
+  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, readOnly = false,
   pageActions = null }, fwdRef) {
   // approval lock: while the quote is locked and the price unapproved, nothing goes out
   const exportBlocked = !!(approval?.locked && !approval?.approved)
@@ -1244,21 +1245,36 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // load a dataURL into an <img> (for stitching); resolves null on failure
   const loadImg = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src })
 
-  const downloadPNG = async () => {
-    if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
+  // Which pages a multi-sign download should include. null = the picker is closed; otherwise
+  // 'pdf' | 'png' says which export is waiting on the choice. A single-sign quote has nothing to
+  // choose, so it never opens and both buttons behave exactly as they always did.
+  const [pagePicker, setPagePicker] = useState(null)
+  const pickerLabels = pageLabels || []
+  const canPickPages = !!capturePages && pickerLabels.length > 1
+
+  const runPNG = async (indices = null) => {
     setBusy('png')
     try {
       // one PNG file PER sign page (#4) — a multi-sign quote downloads several images, each a
       // single page; a single-sign quote downloads its one page.
-      const pages = capturePages ? await capturePages() : [await captureExport()]
-      const multiPages = pages.length > 1
+      const pages = capturePages ? await capturePages(indices) : [await captureExport()]
+      const multiPages = (pageLabels?.length || pages.length) > 1
       pages.forEach((p, i) => {
+        // Letter comes from the page's position in the QUOTE (p.index), not in this batch, so
+        // downloading only page C still writes "-C" rather than re-lettering it "-A".
+        const letter = String.fromCharCode(65 + (p.index ?? i))
         const a = document.createElement('a')
-        a.download = `${info.quoteId || 'quote'}${multiPages ? '-' + String.fromCharCode(65 + i) : ''}.png`
+        a.download = `${info.quoteId || 'quote'}${multiPages ? '-' + letter : ''}.png`
         a.href = p.url; a.click()
       })
-      flash(multiPages ? `${pages.length} PNGs downloaded` : 'PNG downloaded')
+      flash(pages.length > 1 ? `${pages.length} PNGs downloaded` : 'PNG downloaded')
     } catch (e) { flash('PNG failed: ' + e.message) } finally { setBusy('') }
+  }
+
+  const downloadPNG = async () => {
+    if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
+    if (canPickPages) { setPagePicker('png'); return }
+    await runPNG()
   }
 
   // ---- Shopify payment link (S5) ----
@@ -1301,6 +1317,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // downloaded file (#6) — image-based PDFs otherwise lose the href.
   const downloadPDF = async () => {
     if (exportBlocked) { flash('🔒 Blocked — the price needs approval before this quote can go out'); return }
+    if (canPickPages) { setPagePicker('pdf'); return }
+    await runPDF()
+  }
+
+  const runPDF = async (indices = null) => {
     setBusy('pdf')
     try {
       const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
@@ -1311,7 +1332,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         // the LAST page (#10). Downloads only render on the last page, so THIS proposal's DOM is
         // that page — its pay-button rect maps straight onto the last PDF page (which is also the
         // current jsPDF page after the loop).
-        const pages = await capturePages()
+        const pages = await capturePages(indices)
         let lastFit = 1, lastOx = 0
         pages.forEach((p, i) => {
           if (i > 0) pdf.addPage()
@@ -1321,7 +1342,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           lastFit = fit; lastOx = ox
         })
         const el = pageRef.current
-        const a = paymentLink ? el.querySelector('[data-pay-link]') : null
+        // The rect below is measured from THIS proposal's DOM, which is the quote's final page.
+        // That only lines up with the PDF's last sheet when the final page was actually included
+        // and sorts last — deselect it in the picker and the annotation would otherwise be pinned
+        // over whatever page ended up last, i.e. a clickable payment link in the wrong place.
+        const finalIndex = (pageLabels?.length || pages.length) - 1
+        const lastExported = pages.length ? (pages[pages.length - 1].index ?? pages.length - 1) : -1
+        const payPageIncluded = lastExported === finalIndex
+        const a = (paymentLink && payPageIncluded) ? el.querySelector('[data-pay-link]') : null
         if (a) {
           const sc = scaleRef.current || 1
           const pageRect = el.getBoundingClientRect(), r = a.getBoundingClientRect()
@@ -1330,7 +1358,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             (r.width / sc) * k, (r.height / sc) * k, { url: paymentLink })
         }
         pdf.save(`${info.quoteId || 'quote'}.pdf`)
-        flash(`PDF downloaded — ${pages.length} pages` + (a ? ' — payment link is clickable' : ''))
+        flash(`PDF downloaded — ${pages.length} page${pages.length === 1 ? '' : 's'}`
+          + (a ? ' — payment link is clickable' : ''))
         return
       }
 
@@ -1930,6 +1959,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         )}
         {toast && <span style={{ color: '#2e7d32', fontWeight: 600 }}>{toast}</span>}
       </div>
+
+      {/* Which pages to download — multi-sign quotes only; everything starts ticked, so
+          confirming straight away reproduces the old "whole quote" download exactly. */}
+      {isLast && canPickPages && (
+        <PagePicker
+          key={`${pagePicker || 'closed'}-${pickerLabels.length}`}
+          open={!!pagePicker}
+          kind={pagePicker || 'pdf'}
+          labels={pickerLabels}
+          onCancel={() => setPagePicker(null)}
+          onConfirm={(indices) => {
+            const kind = pagePicker
+            setPagePicker(null)
+            if (kind === 'pdf') runPDF(indices); else runPNG(indices)
+          }}
+        />
+      )}
 
       {/* Shopify payment link — only on the last page (one combined link per quote) */}
       {isLast && canCreatePaymentLinks && quoteId && (
