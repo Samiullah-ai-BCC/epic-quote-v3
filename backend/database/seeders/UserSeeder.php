@@ -33,39 +33,73 @@ class UserSeeder extends Seeder
         $generated = [];
 
         foreach ($seed as [$username, $fullName, $role, $email, $envKey]) {
-            $password = env($envKey);
-            if (!$password) {
-                $password = Str::password(16);
-                $generated[] = [$username, $password];
+            $user = User::where('username', $username)->first();
+
+            // Profile fields are safe to re-apply on every run.
+            $attributes = [
+                'full_name' => $fullName,
+                'role'      => $role,
+                'email'     => $email,
+            ];
+
+            // A PASSWORD IS ONLY EVER WRITTEN WHEN THE ACCOUNT IS CREATED, or when an explicit
+            // SEED_*_PASSWORD is supplied. The old code hashed a value on EVERY run and, with no
+            // env var set, that value was Str::password(16) — a random string printed once to the
+            // console. Re-seeding therefore overwrote the passwords of accounts that already
+            // existed with secrets nobody kept, and alishan/faraz/musavir/khola/khansa/usmanaltaf
+            // were left unable to log in at all ("no other user can log in", 2026-07-28; their
+            // last_login was still NULL). A password now survives reseeding; use
+            // `php artisan app:ensure-admin --username=…` to set one deliberately.
+            $envPassword = env($envKey);
+            if ($envPassword) {
+                $attributes['password'] = Hash::make($envPassword);
+            } elseif (!$user) {
+                $newPassword = Str::password(16);
+                $generated[] = [$username, $newPassword];
+                $attributes['password'] = Hash::make($newPassword);
             }
 
-            User::updateOrCreate(
-                ['username' => $username],
-                [
-                    'full_name' => $fullName,
-                    'role'      => $role,
-                    'email'     => $email,
-                    'password'  => Hash::make($password),
-                ]
-            );
+            if ($user) {
+                $user->forceFill($attributes)->save();
+            } else {
+                User::create($attributes + ['username' => $username]);
+            }
         }
 
         // Primary admin login. Renames any legacy placeholder row ('admin' / 'test@123.com') in
         // place — keeping that user's id and their quotes — so the seed no longer resurrects the
         // 'test@123.com' account on every deploy. Login is by USERNAME, so username IS the login id.
-        // SECURITY: the password comes from SEED_ADMIN_PASSWORD when set; the committed fallback is
-        // for local/dev only — set the env in production and rotate after first login.
         $admin = User::where('username', 'sami.ullah')->first()
             ?? User::where('username', 'admin')->first()
-            ?? User::where('username', 'test@123.com')->first()
-            ?? new User();
-        $admin->forceFill([
+            ?? User::where('username', 'test@123.com')->first();
+
+        $adminAttributes = [
             'username'  => 'sami.ullah',
             'full_name' => 'Sami Ullah',
             'role'      => User::ROLE_ADMIN,
             'email'     => 'sami.ullah@bluecascade.org',
-            'password'  => Hash::make(env('SEED_ADMIN_PASSWORD', '123456789!')),
-        ])->save();
+        ];
+
+        // Same rule as the loop: the password is written on CREATION only (or from an explicit
+        // SEED_ADMIN_PASSWORD). Previously this block hard-coded Hash::make('123456789!') on every
+        // run, which both shipped a committed password (PLATFORM-MAP §9 item 10) and reset the
+        // admin's real password back to it on every deploy. Rotate deliberately with
+        // `php artisan app:ensure-admin --username=sami.ullah`, which prompts instead of echoing.
+        if ($admin && env('SEED_ADMIN_PASSWORD')) {
+            $adminAttributes['password'] = Hash::make(env('SEED_ADMIN_PASSWORD'));
+        } elseif (!$admin) {
+            $adminPassword = env('SEED_ADMIN_PASSWORD') ?: Str::password(16);
+            if (!env('SEED_ADMIN_PASSWORD')) {
+                $generated[] = ['sami.ullah', $adminPassword];
+            }
+            $adminAttributes['password'] = Hash::make($adminPassword);
+        }
+
+        if ($admin) {
+            $admin->forceFill($adminAttributes)->save();
+        } else {
+            User::create($adminAttributes);
+        }
 
         if ($generated) {
             $this->command?->warn(str_repeat('=', 60));

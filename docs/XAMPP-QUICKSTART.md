@@ -37,7 +37,11 @@ It prints a link like `http://localhost:5173` — open that in your browser.
 
 ### 3. Log in
 - Username: `sami.ullah`
-- Password: `123456789!`
+- Password: ask whoever set the environment up. Don't know it? Set one yourself — it prompts, and
+  nothing is echoed to the screen or shell history:
+  ```bash
+  cd backend && php artisan app:ensure-admin --username=sami.ullah
+  ```
 
 ---
 

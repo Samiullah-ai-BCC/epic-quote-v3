@@ -61,7 +61,11 @@ Confirm the DB block matches your XAMPP if you changed anything.
 
 Known admin login (sets it explicitly, no guessing):
 ```bash
-php artisan db:seed --class=UserSeeder     # → username: sami.ullah   password: 123456789! (or $SEED_ADMIN_PASSWORD)
+php artisan db:seed --class=UserSeeder     # → username: sami.ullah (password: $SEED_ADMIN_PASSWORD,
+                                           #   else a random one PRINTED ONCE — copy it from the output)
+# Re-running the seeder never overwrites a password that already exists, so it is safe on a live DB.
+# To set/reset any login deliberately (it prompts, never echoes):
+php artisan app:ensure-admin --username=sami.ullah
 ```
 
 Run it:
@@ -98,7 +102,8 @@ No frontend `.env` is needed — Vite proxies `/api` and `/storage` to the backe
 |---|---|
 | `SQLSTATE[HY000] [2002]` connection refused | MySQL isn't started in XAMPP. |
 | `Unknown database 'epic-quote-estimator'` | Import step 3 didn't run, or DB name case mismatch — keep it lowercase. |
-| Login always "Invalid username or password" | Run `php artisan db:seed --class=UserSeeder`, use `sami.ullah` / `123456789!` (or your `SEED_ADMIN_PASSWORD`). |
+| Login always "Invalid username or password" | The account exists but the password is unknown — set one with `php artisan app:ensure-admin --username=sami.ullah` (prompts). |
+| "Login failed." for **every** user | Not a credential fault. Something in the chain is down: check MySQL is started (`netstat -ano \| grep :3306`), then `php artisan serve` (:8000), then `npm run dev`. With the API unreachable there is no HTTP response to read, so the UI falls back to this generic message. |
 | Frontend loads but every API call fails | Backend (`php artisan serve`) isn't running on `:8000`. |
 | `storage:link` fails on Windows | Run the terminal **as Administrator** (symlinks need it), or enable Developer Mode. |
 | Artwork images broken on old quotes | Expected — see §6; upload fresh or copy the storage files. |

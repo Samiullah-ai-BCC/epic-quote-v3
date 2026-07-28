@@ -19,7 +19,7 @@ database is created for you — no need to create it first. Or import via phpMyA
 
 After importing, get a known admin login:
 ```bash
-cd backend && php artisan db:seed --class=UserSeeder   # sets sami.ullah / 123456789! (or $SEED_ADMIN_PASSWORD)
+cd backend && php artisan app:ensure-admin --username=sami.ullah   # prompts for a password, idempotent
 ```
 
 ## (Re)generate a fresh dump from the current database

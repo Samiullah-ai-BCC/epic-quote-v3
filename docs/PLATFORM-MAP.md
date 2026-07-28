@@ -20,7 +20,7 @@ Accounts are seeded on every deploy. Two privilege levels only:
 - **admin** — sees everything (all quotes, Users, Sales Reports, Activity Log).
 - **everyone else (sales_rep, manager)** — sees only their own quotes, no admin pages. Note: "manager" has NO extra power; it is treated the same as a rep.
 
-Guaranteed login (seeded): `sami.ullah` / `123456789!` (dev fallback; overridable via `SEED_ADMIN_PASSWORD`). The committed dev password is still a security concern — flagged in section 9.
+Primary admin (seeded): username `sami.ullah`, email `sami.ullah@bluecascade.org`. Its password comes from `SEED_ADMIN_PASSWORD`, or is generated and printed once on first seed — no password is committed any more, and reseeding never overwrites an existing one. Set/reset any login with `php artisan app:ensure-admin --username=…` (prompts).
 
 Seeded people: rod + ed (reps), sami (manager, no admin powers despite the "Awaiting Sir Sami Response" status existing), and admins alishan, faraz, musavir, khola, khansa, usmanaltaf. Their passwords come from environment variables; if unset, a random one is printed once at boot.
 
@@ -171,7 +171,7 @@ These are real, found in the code. The golden-rule "problems that still exist" l
 7. **Tags reuse the status list.** You can only tag a quote with words that are also statuses, which is confusing and limits tagging.
 8. **Sign-type list mismatch.** The proposal catalog has 41 sign types, but AI can only pick from 29. Some catalog types can't be auto-matched. (Memory said "41" — the AI side is 29.)
 9. **Quote line-items table exists but is unused** — every spec lives in the JSON bundle, so multi-sign quotes and clean reporting aren't really supported yet.
-10. **Committed dev admin password** — the seeder's `SEED_ADMIN_PASSWORD` fallback (`123456789!` for `sami.ullah`) is committed. Set the env in production and rotate after first login.
+10. ~~**Hardcoded admin login** committed in the seeder.~~ FIXED 2026-07-28: the seeder no longer contains a password, and no longer rewrites an existing account's password on every run (that behaviour had locked six named admins out with unrecoverable random passwords). Passwords come from `SEED_*_PASSWORD` env vars, or are printed once at creation.
 11. **No real password reset** — "Forgot password?" just tells you to ask an admin.
 12. **Artwork can silently fail to save.** If the upload errors, the browser still shows a local preview, but nothing is stored, so the artwork is missing on reopen.
 
