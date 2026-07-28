@@ -526,11 +526,16 @@ export default function Generator() {
     const nextPick = pickSideView(nextTemplate.n)
     setSideViews(nextPick.selected ? [nextPick.selected] : [])
     // a different sign type makes any saved spec text wrong — drop it so the proposal
-    // rebuilds the SPECIFICATIONS block for the new type (other proposal edits are kept)
+    // rebuilds the SPECIFICATIONS block for the new type (other proposal edits are kept).
+    // __pkgSet goes with it: the sheet assigns the PACKAGE INCLUDES letter per sign type, and a
+    // saved letter outranks the new type's on mount — so without this the proposal would remount
+    // (it is keyed on a debounced previewKey) and restore the OLD type's package artwork.
     setGeneratedData((prevGeneratedData) => {
-      if (!prevGeneratedData?.proposal_state?.specBody) return prevGeneratedData
-      const proposalState = { ...prevGeneratedData.proposal_state }
+      const saved = prevGeneratedData?.proposal_state
+      if (!saved?.specBody && !saved?.__pkgSet) return prevGeneratedData
+      const proposalState = { ...saved }
       delete proposalState.specBody
+      delete proposalState.__pkgSet
       proposalState.__dirty = (proposalState.__dirty || []).filter((key) => key !== 'specBody')
       return { ...prevGeneratedData, proposal_state: proposalState }
     })

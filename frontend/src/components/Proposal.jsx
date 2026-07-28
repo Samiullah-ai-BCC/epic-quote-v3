@@ -133,7 +133,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     firstArtworkPath.current = artworkPath
     setLayout((L) => { const n = { ...L }; delete n.artwork; return n })
   }, [artworkPath])
-  const SW_W = 96, SW_H = 20   // default swatch size (now horizontally resizable)
+  // Default swatch size (still horizontally resizable). 80% of the old 96×20 — the chips read as
+  // oversized next to 10.5px spec text. Only NEW chips are affected: saved swatches carry their own
+  // w/h and are honoured as-is below, so proposals already sent keep the exact size they were sent at.
+  const SW_W = 77, SW_H = 16
   const [swatches, setSwatches] = useState(() => {
     // saved sizes are honored as-is — chips are fully resizable now (#3)
     if (savedState?.__swatches?.length) return savedState.__swatches.map((s) => ({ ...s }))
@@ -259,7 +262,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       const rowMates = row ? s.filter((x) => Math.abs(x.y - row.y) <= ROW_BAND) : []
       const rightX = rowMates.reduce((m, x) => Math.max(m, x.x + x.w), row ? row.x : 96)
       // A new chip copies the CURRENT size of the reference chip, not the SW_W/SW_H defaults —
-      // if the rep widened their swatches, the next one matches instead of snapping back to 96×20.
+      // if the rep widened their swatches, the next one matches instead of snapping back to SW_W×SW_H.
       const w = row?.w ?? SW_W, h = row?.h ?? SW_H
       // keep:true → a hand-added chip stays visible even while empty (it used to vanish on deselect)
       const next = [...s, { id, name: '', color: '', keep: true, x: row ? rightX + 16 : 96, y: row ? row.y : 640, w, h }]
@@ -289,9 +292,21 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // render whole — the section simply grows with its content now.
   // #11 — chosen package set. Precedence: what the rep saved (old keys mapped via PKG_ALIAS)
   // > the letter this sign type is assigned in the sheet (tpl.pkg) > A.
-  const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(tpl?.pkg) || 'A')
+  // '' = no package chosen yet, which is now the DEFAULT: the sheet assigns a letter per sign
+  // type, so until a type is known there is nothing honest to show. It used to fall back to 'A',
+  // which silently printed Package A's artwork on quotes whose type says otherwise.
+  const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(tpl?.pkg) || '')
   const [pkgPicking, setPkgPicking] = useState(false)   // #8 — image dropdown open
-  const packageItems = PACKAGE_SETS[pkgSet].items
+  // The package follows the SIGN TYPE when the type changes — the same rule the side view got.
+  // Skipped on mount (the ref starts at the current type), so a saved/hand-picked set is not
+  // clobbered just by opening the quote; only an actual change re-derives it.
+  const prevTplRef = useRef(tpl?.n)
+  useEffect(() => {
+    if (prevTplRef.current === tpl?.n) return
+    prevTplRef.current = tpl?.n
+    setPkgSet(resolvePkgSet(tpl?.pkg) || '')
+  }, [tpl?.n, tpl?.pkg])
+  const packageItems = pkgSet ? PACKAGE_SETS[pkgSet].items : []
   // A-D are ONE pre-composed image (labels baked in) — it should fill the whole PACKAGE INCLUDES
   // box, not the small multi-icon tile width pkgTileW was sized for (that 150px cap left a single
   // big image floating tiny in the box). pkgTileW stays available for a future multi-icon set.
@@ -1574,7 +1589,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 ))}
                 {/* captions from the set's item labels. `baked` sets (A–D) already carry their
                     labels inside the artwork, so drawing them again would double them up. */}
-                {!PACKAGE_SETS[pkgSet].baked && packageItems.map((p, i) => {
+                {pkgSet && !PACKAGE_SETS[pkgSet].baked && packageItems.map((p, i) => {
                   const t = layout[`pkg-${pkgSet}-${p.label}`]
                   return (
                     <div key={`cap-${pkgSet}-${p.label}`} style={{
@@ -1898,9 +1913,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 <button type="button" className="ghost p-0" style={{ width: '100%', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}
                   title="Choose which set of included items shows under PACKAGE INCLUDES"
                   onClick={() => setPkgPicking((v) => !v)}>
-                  {PACKAGE_SETS[pkgSet].items.map((it) => (
-                    <img key={it.img} src={it.img} alt={it.label} style={{ height: '70px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
-                  ))}
+                  {pkgSet
+                    ? PACKAGE_SETS[pkgSet].items.map((it) => (
+                      <img key={it.img} src={it.img} alt={it.label} style={{ height: '70px', objectFit: 'cover', background: '#fff', borderRadius: 3 }} />
+                    ))
+                    : <span style={{ fontSize: 11, padding: '26px 0', color: 'var(--text-faint)' }}>Choose a package</span>}
                   <span style={{ fontSize: 11 }}>▾</span>
                 </button>
                 {pkgPicking && (

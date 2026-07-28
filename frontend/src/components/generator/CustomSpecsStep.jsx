@@ -220,7 +220,12 @@ export default function CustomSpecsStep({
               signType: v,
               itemDesc: itemDescFor(nextCat?.desc || v, mounting),
               specText,
-              application: customSpec?.application || 'EXTERIOR',
+              // The sign type owns its application where the catalog states one (interior-only
+              // types like the neon families say INTERIOR) — adopting it on the pick is the same
+              // rule the side view and package follow, so switching type cannot leave the previous
+              // type's EXTERIOR behind. Types whose spec carries an [APPLICATION] placeholder
+              // (the FA/matrix families) define no value, so the rep's current answer stands.
+              application: nextCat?.application || customSpec?.application || 'EXTERIOR',
               price: customSpec?.price || '',
               fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap,
               // Template B (monument/pylon) carries neither a package nor a side view — custom
