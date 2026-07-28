@@ -81,6 +81,19 @@ otherwise wins, because `computeDimSpec`/`syncSpecFromFields` rewrite that line 
 - In these regexes use `[ 	]`, **never `\s`**, after the label's colon: `\s` matches newlines, so on
   an EMPTY `RETURNS:` line the value was written onto the FOLLOWING line (`5" FINISH: SATIN`).
 
+### PASTE INTO PROPOSAL BLOCKS — text yes, files and markup no
+`EBlock` sanitizes only the MOUNT write, so anything the browser pastes afterwards lands in the DOM
+unsanitized. Blocks therefore take the clipboard's `text/plain` and insert TEXT NODES
+(`textOnlyPaste` / `noImagePaste`): fonts, colours, tracked-change spans and embedded `<img>` cannot
+exist, whatever was copied. Any FILE payload is refused outright.
+- `noImagePaste` alone was NOT enough: it inspected `dataTransfer.files`, but an image copied from
+  a web page arrives as `text/html` with an `<img>` tag and went straight through.
+- A script-driven contentEditable edit fires **no** `input` event, so the handler dispatches one —
+  autosave, per-block `__dirty`, undo history and colour-chip re-anchoring all hang off `input`,
+  and without it a paste looks right and is never saved.
+- Pasting marks the block dirty, so the live spec re-sync correctly leaves it alone within the same
+  sign type.
+
 ### Colour chips are DERIVED, so deleting one needs a memory
 `syncChips` recreates any missing `auto-*` chip from the spec's colour lines, so a delete without a
 record silently reappears. Dismissals live in `__swDismissed` on the proposal state and are checked

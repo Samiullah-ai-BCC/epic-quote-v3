@@ -721,7 +721,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   }, [])
 
   // editable block — content written once at mount (see EBlock) so React can NEVER clobber edits
-  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} noImagePaste={opts?.noImagePaste} readOnly={opts?.readOnly} />
+  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} textOnlyPaste={opts?.textOnlyPaste} noImagePaste={opts?.noImagePaste} readOnly={opts?.readOnly} />
   // when the SPECIFICATIONS run long, drop ADDITIONAL NOTES so the proposal stays on one page (#17)
   const specLong = (initial.specBody || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length > 520
 
@@ -1509,7 +1509,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   existed to keep the PAGE length consistent when the right column emptied — dead
                   logic now that the sheet is a hard 1056px: the page can't shrink, so the big
                   floor only stole the very room the rep needs for Additional Notes lines. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { textOnlyPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
