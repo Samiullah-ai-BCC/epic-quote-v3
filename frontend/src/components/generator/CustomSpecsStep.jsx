@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 import { T, SIGN_GROUP_ORDER, signGroupOf } from '../../generator/catalog'
 import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, itemDescriptionFor } from '../../generator/faCatalog'
 import { buildSpecLines } from '../../generator/proposal'
-import { parseDims } from '../../generator/questions'
+import { parseDims, composeDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
 import { syncSpecFromFields, splitSpecialRequirements, mergeSpecial } from '../../generator/specSync'
 import { saveCatalogItem } from '../../api/catalog'
@@ -31,6 +31,20 @@ export default function CustomSpecsStep({
   const trimOpts = cat?.fa && cat.hasTrimCap ? faTrimCapOptions(cat) : []
   const thickOpts = cat?.fa && cat.hasThickness ? faThicknessOptions(cat) : []
   const mountOpts = cat?.fa ? faMountingOptions(cat, customSpec?.fa_thickness, customSpec?.fa_trimcap) : []
+
+  // DEPTH IS NOT THE REP'S TO TYPE WHEN THE SHEET ALREADY STATES IT. For the sign types whose
+  // standard data carries a `thickness` (the flat-cut families), that thickness IS the third
+  // dimension, and the leaf's own spec line ("LETTERS THICKNESS: 1/4\"") is the source of truth.
+  // The D box is therefore locked to it and shows it verbatim.
+  //
+  // It is shown, never stored: thicknesses are FRACTIONS (1/8" 1/4" 3/8" 1/2" 3/4" 1"), and
+  // customSpec.dims runs every value through cleanNum(), which keeps only digits and dots — it
+  // would silently turn 1/4" into 14 and print "OVERALL DIMENSIONS: 44\" x 18\" x 14\"" on a
+  // customer's proposal. composeDims() drops empty parts, so leaving D out yields the correct
+  // "H x W" for these types, with the thickness stated on its own line.
+  const depthFromSheet = (cat?.fa && cat.hasThickness)
+    ? (customSpec?.fa_thickness || faThicknessOptions(cat)[0] || '')
+    : ''
 
   // Item Description format: "{Sign Type} WITH {Mounting} FOR {Company}" — the mounting is part
   // of what the customer is buying, so it belongs in the line-item text. Types without a
@@ -82,11 +96,18 @@ export default function CustomSpecsStep({
     // IS the return depth — that is the only place this flow collects it (the live wizard's
     // fa_depth question does not exist here), so without it the template kept its [DEPTH] token.
     const d = parseDims(customSpec?.dims)
+    // When the sheet states the thickness, it OWNS the third dimension. A depth left over in
+    // customSpec.dims from an earlier type would otherwise keep winning: syncSpecFromFields
+    // rewrites "LETTERS THICKNESS:" from dims.h, so a stale h=2 printed `LETTERS THICKNESS: 2"`
+    // and `OVERALL DIMENSIONS: 44" x 18" x 2"` over the sheet's own 1/2". Dropping h makes
+    // composeDims emit the correct `44" x 18"` and leaves the template's thickness line intact.
+    const sheetThickness = (cat?.fa && cat.hasThickness) ? (thickness || faThicknessOptions(cat)[0] || '') : ''
+    const dims = sheetThickness ? composeDims(d.l, d.w, '') : (customSpec?.dims || '')
     const answers = {
       fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap,
-      dim_l: d.l, dim_w: d.w, fa_depth: d.h,
+      dim_l: d.l, dim_w: d.w, fa_depth: sheetThickness ? '' : d.h,
     }
-    const specText = syncSpecFromFields(buildSpecLines(cat, answers, null).join('\n'), customSpec)
+    const specText = syncSpecFromFields(buildSpecLines(cat, answers, null).join('\n'), { ...customSpec, dims })
     // The construction diagram is a property of the exact leaf, not of the sign type: trim cap
     // and mounting each change what the side view must show. Follow the leaf unless the rep
     // has hand-picked something else (then their choice stands).
@@ -106,7 +127,7 @@ export default function CustomSpecsStep({
     // own words: only when the box is empty or still holds exactly what the PREVIOUS template
     // put there. Same rule the item description uses. The bullet stays in the spec text as well,
     // because that is where it prints today and nobody asked for it to stop printing.
-    setCustomSpec({ ...customSpec, fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap, specText, itemDesc })
+    setCustomSpec({ ...customSpec, dims, fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap, specText, itemDesc })
   }
 
   // MOVE the template's trailing bullet out of the spec and into Special Requirements.
@@ -174,9 +195,14 @@ export default function CustomSpecsStep({
             const mounting = nextCat?.fa ? faMountingOptions(nextCat, thickness, trimcap)[0] : undefined
             // the template inherits whatever dims/depth/application are already typed —
             // the boxes are the source of truth (fixes RETURNS not matching the D box)
+            // Same rule as applyFaConfig: a thickness-driven type owns the third dimension, so a
+            // depth carried over from the previous type is dropped rather than left to overwrite
+            // the sheet's own thickness line.
+            const pd = parseDims(customSpec?.dims)
+            const nextDims = (nextCat?.fa && nextCat.hasThickness) ? composeDims(pd.l, pd.w, '') : (customSpec?.dims || '')
             const specText = syncSpecFromFields(
               nextCat ? buildSpecLines(nextCat, { fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap }, null).join('\n') : (stored?.data?.spec || `SIGN TYPE: ${v}`),
-              customSpec
+              { ...customSpec, dims: nextDims }
             )
             // The sign type implies its construction diagram, so switching type must re-derive it
             // — not merely fill it in when empty, which left the OLD type's drawing in place.
@@ -188,6 +214,7 @@ export default function CustomSpecsStep({
             }
             setCustomSpec({
               ...customSpec,
+              dims: nextDims,
               // PERSIST THE PICKED TYPE. `customTypeSel` is component state and was never saved,
               // so reopening a quote lost it — see resolveSignTypeName().
               signType: v,
@@ -330,9 +357,15 @@ export default function CustomSpecsStep({
         <div className="dims-row">
           {['l', 'w', 'h'].map((part, i) => (
             <div className="dims-cell" key={part}>
-              <input type="text" inputMode="decimal" placeholder={['H', 'W', 'D'][i]}
-                value={parseDims(customSpec?.dims)[part] || ''}
-                onChange={(e) => setCustomDim(part, e.target.value)} />
+              {part === 'h' && depthFromSheet ? (
+                <input type="text" readOnly value={depthFromSheet} tabIndex={-1}
+                  title={'Thickness comes from the standard data for this sign type (' + depthFromSheet + ') — it is not editable here.'}
+                  style={{ background: 'var(--navy-800, #f1f3f7)', cursor: 'default', color: 'var(--text-dim, #5a6577)' }} />
+              ) : (
+                <input type="text" inputMode="decimal" placeholder={['H', 'W', 'D'][i]}
+                  value={parseDims(customSpec?.dims)[part] || ''}
+                  onChange={(e) => setCustomDim(part, e.target.value)} />
+              )}
               {i < 2 && <span className="dims-x">×</span>}
             </div>
           ))}
@@ -373,7 +406,9 @@ export default function CustomSpecsStep({
           const overMax = Number.isFinite(n) && n > MAX_PRICE
           const badPrice = String(customSpec?.price ?? '').trim() === '' || !Number.isFinite(n) || n <= 0 || overMax
           // depth (D) is mandatory now, same as H and W — the overall dimensions must be complete
-          const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w || !dp.h
+          // Depth is not required when the sheet supplies it as a thickness — otherwise Next
+          // would be permanently disabled on a field that is deliberately read-only.
+          const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w || (!dp.h && !depthFromSheet)
           const hint = noDims ? 'Enter all three dimensions — H × W × D (depth required)' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
           return (
             <>

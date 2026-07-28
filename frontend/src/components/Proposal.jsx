@@ -737,9 +737,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // `specBody` is dropped from that set when the sign type has changed since the save: the edit was
   // about the previous product, so it must not outrank the new type's spec.
   const dirtyRef = useRef(new Set((savedState?.__dirty || []).filter((k) => !(k === 'specBody' && typeChangedSinceSave))))
+  // Auto colour chips are DERIVED from the spec's colour lines, so syncChips recreates any that
+  // are missing — which made deleting one look broken: it vanished and reappeared on the next
+  // sync. A deletion is a decision, so it is remembered per chip id and survives reload. The rep
+  // can always bring one back with "+ Add color swatch".
+  const dismissedChipsRef = useRef(new Set(savedState?.__swDismissed || []))
 
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __specTpl: specTypeKey || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __swDismissed: [...dismissedChipsRef.current], __specTpl: specTypeKey || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -1059,7 +1064,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       const present = new Set(next.map((s) => s.id))
       const size = next[0] ? { w: next[0].w, h: next[0].h } : { w: SW_W, h: SW_H }
       for (const id of Object.keys(target)) {
-        if (id.startsWith('auto-') && !present.has(id)) {
+        if (id.startsWith('auto-') && !present.has(id) && !dismissedChipsRef.current.has(id)) {
           next = [...next, { id, name: '', color: '', keep: true, ...target[id], ...size }]
           changed = true
         }
@@ -1673,7 +1678,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 })
                 return resized.map((x) => clampToArea(flowed.get(x.id)))
               })}
-              onRemove={() => { setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null) }}
+              onRemove={() => {
+                // An auto chip must be remembered as dismissed, or syncChips just puts it back.
+                if (String(sw.id).startsWith('auto-')) dismissedChipsRef.current.add(sw.id)
+                setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null); queueSave()
+              }}
               onDragEnd={() => { snapRow(sw.id); if (sw.id === 'face' || sw.id === 'rettrim' || sw.id.startsWith('auto-')) setSwatches((arr) => arr.map((x) => (x.id === sw.id ? { ...x, moved: true } : x))) }}
               onPick={() => { artCanvasRef.current = null; setPickFor(sw.id) }} canPick={!!artworkPath} />
           ) : null))}

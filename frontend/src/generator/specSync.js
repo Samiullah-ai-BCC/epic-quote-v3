@@ -25,9 +25,17 @@ export const computeDimSpec = (part, v, cs) => {
   // (RETURNS: 3" DEEP ALUMINUM → RETURNS: 5" DEEP ALUMINUM). Synced on EVERY dim edit —
   // not just when D itself changes — so a template default can never linger out of step.
   if (p.h) {
+    // [ \t] — NEVER \s — after the colon. `\s` matches newlines, so on an EMPTY "RETURNS:" line
+    // the capture group swallowed the line break and the depth was written onto the FOLLOWING
+    // line: "RETURNS:" stayed blank and the next line became `5" FINISH: SATIN` on a customer's
+    // proposal. Harmless while the line always had a value in it; an empty RETURNS became the
+    // normal case once the [DEPTH] placeholder stopped being printed.
+    // The optional number is still consumed so a suffix survives (RETURNS: 3" DEEP ALUMINUM ->
+    // RETURNS: 5" DEEP ALUMINUM), and `LETTER RETURNS:` is the same line under another name.
     specText = specText
-      .replace(/^(RETURNS?\s*:\s*)(?:[\d./]+["”]\s*)?/im, `$1${p.h}" `)
-      .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
+      .replace(/^((?:[A-Z ]*[ \t])?RETURNS?[ \t]*:)[ \t]*(?:[\d./]+["”][ \t]*)?/im, `$1 ${p.h}" `)
+      .replace(/^(LETTERS? THICKNESS[ \t]*:[ \t]*).*$/im, `$1${p.h}"`)
+      .replace(/[ \t]+$/gm, '')
   }
   return { ...cs, dims, specText }
 }

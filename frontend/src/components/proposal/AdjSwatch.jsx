@@ -96,7 +96,7 @@ export default function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick,
   return (
     <div data-rk={rk} onMouseDown={startDrag}
       style={{ position: 'absolute', left: sw.x, top: sw.y, width: sw.w, height: sw.h, cursor: 'move' }}>
-      <div ref={boxRef} style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, fontWeight: 700, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
+      <div ref={boxRef} style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, fontWeight: 400, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
         <span ref={textRef} style={{ display: 'inline-block', maxWidth: '100%', whiteSpace: fit.wrap ? 'normal' : 'nowrap', overflowWrap: 'anywhere', lineHeight: 1.1, textAlign: 'center' }}>{label}</span>
       </div>
       {selected && (

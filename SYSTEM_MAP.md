@@ -69,6 +69,23 @@ reliable alone:
 Also note `__specTpl` was historically `tpl?.n`, i.e. always null in custom mode — the guard that
 depended on it was dead code for every custom quote.
 
+### DEPTH vs THICKNESS — who owns the third dimension
+Where the sheet states a `thickness` (the two flat-cut families, `hasThickness`), that value IS the
+third dimension: the D box is read-only and shows it verbatim, and `dims.h` is CLEARED so the
+template's own `LETTERS THICKNESS:` line stands. A depth left in `dims.h` from a previous type
+otherwise wins, because `computeDimSpec`/`syncSpecFromFields` rewrite that line FROM `dims.h`.
+- **Never store a thickness in `customSpec.dims`.** Thicknesses are fractions (`1/4"`); `cleanNum`
+  keeps only digits and dots and would turn `1/4"` into `14` on a customer's proposal.
+- `composeDims` drops empty parts, so omitting D correctly yields `H" x W"`.
+- The "depth required" Next gate must exempt these types, or it blocks on a read-only field.
+- In these regexes use `[ 	]`, **never `\s`**, after the label's colon: `\s` matches newlines, so on
+  an EMPTY `RETURNS:` line the value was written onto the FOLLOWING line (`5" FINISH: SATIN`).
+
+### Colour chips are DERIVED, so deleting one needs a memory
+`syncChips` recreates any missing `auto-*` chip from the spec's colour lines, so a delete without a
+record silently reappears. Dismissals live in `__swDismissed` on the proposal state and are checked
+before recreating. Seeded `face`/`rettrim` chips are not recreated, so they need no entry.
+
 ## ITEM DESCRIPTION — SOURCE OF TRUTH: `MOUNTING_DESC` in `frontend/src/generator/faCatalog.js`
 Format: `{SIGN TYPE} WITH {MOUNTING PHRASE} FOR {COMPANY}`, or `{SIGN TYPE} FOR {COMPANY}` when
 the mounting adds nothing (Flush Mount). The mounting phrase is the CUSTOMER-FACING wording, not

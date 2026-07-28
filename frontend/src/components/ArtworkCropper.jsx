@@ -73,10 +73,22 @@ export default function ArtworkCropper({ src, onApply, onCancel, onMark, busy, i
       <div ref={wrapRef} style={{ position: 'relative', display: 'inline-block', userSelect: 'none', lineHeight: 0 }}>
         <img ref={imgRef} src={src} alt="crop" crossOrigin="anonymous" draggable={false}
           style={{ maxWidth: '100%', display: 'block', borderRadius: 8 }} />
-        {/* dim the area outside the crop with a big box-shadow trick on the selection */}
+        {/* DIM ONLY THE ARTWORK. The "outside the crop" dimming is a 9999px box-shadow, and it used
+            to sit on the selection box itself with nothing clipping it — so the veil spilled far
+            past the image and laid 50% black over the whole dialog, including the button row
+            below. The buttons still worked (a box-shadow is painted, never hit-tested), which is
+            exactly what the reps reported: "we thought they weren't clickable but they were".
+            The veil now lives in its own inset layer with overflow:hidden, so it is clipped to the
+            image. It is pointer-events:none, and the selection box stays a separate sibling above
+            it — so dragging and the corner handles behave exactly as before, and the handles are
+            never clipped at the image edges. */}
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 1, pointerEvents: 'none', borderRadius: 8 }}>
+          <div style={{ position: 'absolute', left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.w * 100}%`, height: `${box.h * 100}%`,
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }} />
+        </div>
         <div onMouseDown={startMove}
           style={{ position: 'absolute', left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.w * 100}%`, height: `${box.h * 100}%`,
-            border: '1.5px solid var(--gold, #f5a623)', boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', cursor: 'move', zIndex: 2 }}>
+            border: '1.5px solid var(--gold, #f5a623)', cursor: 'move', zIndex: 2 }}>
           <span style={{ ...handle, left: -7, top: -7, cursor: 'nwse-resize' }} onMouseDown={startCorner('nw')} />
           <span style={{ ...handle, right: -7, top: -7, cursor: 'nesw-resize' }} onMouseDown={startCorner('ne')} />
           <span style={{ ...handle, left: -7, bottom: -7, cursor: 'nesw-resize' }} onMouseDown={startCorner('sw')} />
