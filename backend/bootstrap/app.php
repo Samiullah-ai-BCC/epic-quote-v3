@@ -26,6 +26,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 $cors = [
                     'Access-Control-Allow-Origin'  => '*',
                     'Access-Control-Allow-Methods' => 'GET, HEAD, OPTIONS',
+                    // STORED-XSS GUARD. Uploads accept SVG (mimes:...,svg on artwork / pdf /
+                    // extra-file), and an SVG is an XML DOCUMENT: served from this origin as
+                    // image/svg+xml, opening its URL directly executes any <script> inside it —
+                    // in OUR origin, where the API token lives. `nosniff` does not help, because
+                    // the type is genuinely SVG. Verified before this line existed: a probe SVG
+                    // came back as image/svg+xml with its <script> intact.
+                    //
+                    // `sandbox` (no allow-scripts) puts the response in a unique origin with
+                    // scripting off, so nothing served from /storage can run code or reach the
+                    // app's localStorage. Rendering is untouched: scripts in an SVG never execute
+                    // via <img> anyway, and a response CSP does not affect fetch/XHR, so the
+                    // proposal preview, pdf.js rasterise and the PNG/PDF export all behave
+                    // exactly as before. SVG upload keeps working — only script execution dies.
+                    'Content-Security-Policy'      => "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+                    'X-Content-Type-Options'       => 'nosniff',
                 ];
                 if (! $disk->exists($path)) {
                     return response()->json(['message' => 'File not found.'], 404, $cors);

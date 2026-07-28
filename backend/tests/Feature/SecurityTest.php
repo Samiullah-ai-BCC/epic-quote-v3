@@ -300,3 +300,31 @@ it('is idempotent — a second identical rename changes nothing', function () {
 
     expect(App\Models\User::where('username', 'newuser')->count())->toBe(1);
 });
+
+// ---------------------------------------------------------------- stored-file XSS guard
+
+it('serves uploaded files with a CSP that cannot execute scripts', function () {
+    Illuminate\Support\Facades\Storage::fake('public');
+    Illuminate\Support\Facades\Storage::disk('public')->put(
+        'artwork/probe.svg',
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    );
+
+    $res = $this->get('/storage/artwork/probe.svg')->assertOk();
+
+    // SVG is still SERVED — the guard must not remove a supported upload type
+    expect($res->headers->get('Content-Type'))->toContain('svg');
+    // ...but sandboxed, so a <script> inside it can never run in this origin (where the token lives)
+    $csp = (string) $res->headers->get('Content-Security-Policy');
+    expect($csp)->toContain('sandbox')
+        ->and($csp)->toContain("default-src 'none'");
+    expect($res->headers->get('X-Content-Type-Options'))->toBe('nosniff');
+    // the SPA still has to be able to read these cross-origin for the PNG/PDF export
+    expect($res->headers->get('Access-Control-Allow-Origin'))->toBe('*');
+});
+
+it('keeps a missing file a clean CORS-bearing 404, not an opaque error', function () {
+    Illuminate\Support\Facades\Storage::fake('public');
+    $res = $this->getJson('/storage/artwork/nope.png')->assertStatus(404);
+    expect($res->headers->get('Access-Control-Allow-Origin'))->toBe('*');
+});
