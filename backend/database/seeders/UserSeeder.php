@@ -101,6 +101,17 @@ class UserSeeder extends Seeder
             User::create($adminAttributes);
         }
 
+        // If a 'sami.ullah' row already existed, the legacy placeholder above was NOT renamed and
+        // survives as a separate admin whose password ('123456789!') is committed in this repo's
+        // history — i.e. a usable backdoor into production. Its row is left in place (it may own
+        // quotes; deleting it is not this seeder's call) but its password is scrambled so the known
+        // one stops working, and the operator is told to retire it deliberately.
+        foreach (User::whereIn('username', ['test@123.com', 'admin'])->get() as $stale) {
+            $stale->forceFill(['password' => Hash::make(Str::password(32))])->save();
+            $this->command?->warn("Legacy admin '{$stale->username}' (id={$stale->id}) still exists; "
+                . 'its password has been scrambled. Reassign anything it owns, then delete it.');
+        }
+
         if ($generated) {
             $this->command?->warn(str_repeat('=', 60));
             $this->command?->warn('Generated random passwords — store these, they will not show again:');
