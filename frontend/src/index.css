@@ -698,10 +698,20 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
    Deliberately padding ONLY — this does NOT switch `list-style-type` back on. Blocks where the
    team already typed • by hand would otherwise render the marker AND their character, i.e. a
    double bullet on every line. Restoring real markers is a separate change that needs those
-   hand-typed bullets stripped from the saved content first. */
+   hand-typed bullets stripped from the saved content first.
+
+   !important because this content is PASTED: a list arriving from Word/Docs/a web page carries
+   its own inline `style="padding-left:0"`, and an inline declaration outranks any normal rule
+   here — the marker would go straight back outside the border. Narrow selector, so the blast
+   radius is the proposal's editable blocks and nothing else. */
 [data-key] ul,
 [data-key] ol {
-  margin: 0;
-  padding-left: 1.4em;
+  margin: 0 !important;
+  padding-left: 1.4em !important;
   list-style-position: outside;
+}
+/* Same reasoning for the rows: a pasted <li> can carry a negative margin/indent of its own. */
+[data-key] li {
+  margin-left: 0 !important;
+  text-indent: 0 !important;
 }
