@@ -122,6 +122,25 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     Object.keys(L).forEach((k) => { if (k.startsWith('pkg-') || k.startsWith('sv2-')) delete L[k] })
     return L
   })
+  // Delete / Backspace removes the SELECTED dimension arrow. The × chip is 15px and easy to miss,
+  // and a measurement is the one thing on the sheet a rep adds and drops repeatedly.
+  // Scoped to `dim-` keys ONLY: the same selection state also holds images, and a stray keystroke
+  // must never delete the artwork. Ignored while typing — the arrow's own label is contentEditable
+  // and so is every text block on the sheet, so an unguarded handler would eat text instead.
+  useEffect(() => {
+    if (!selId || !String(selId).startsWith('dim-')) return undefined
+    const onKey = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const t = e.target
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return
+      e.preventDefault()
+      setLayout((L) => { const n = { ...L }; delete n[selId]; return n })
+      setSelId(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selId])
+
   // The artwork's saved frame is only valid for the FILE it was fit to. When the rep replaces
   // the artwork (re-upload), the old frame's aspect/crop window is meaningless for the new image
   // and, worse, its presence as `lay` tells AdjImg "already auto-fit" — silently skipping the
@@ -1515,7 +1534,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           <div data-sec="items" style={{ margin: '6px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 150, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
-              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
+              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150, padX: 10, padY: 5 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 16, w: 360, h: 118, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"

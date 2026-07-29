@@ -16,16 +16,22 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
   // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
   // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
   // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
+  // `bounds` may carry padX/padY: a gutter INSIDE the section box that the image may not enter, so
+  // the dimension arrows drawn beside the artwork have room to sit without landing on top of it.
+  // Every other caller omits them, so they are 0 and the arithmetic below is exactly as it was.
+  const padX = bounds?.padX || 0, padY = bounds?.padY || 0
+  const innerW = bounds ? Math.max(24, bounds.w - padX * 2) : 0
+  const innerH = bounds ? Math.max(24, bounds.h - padY * 2) : 0
   const fitBounds = (b) => {
     if (!bounds) return b
     let { x, y, w, h, ix, iy, iw, ih } = b
-    if (w > bounds.w || h > bounds.h) {
-      const s = Math.min(bounds.w / w, bounds.h / h)
+    if (w > innerW || h > innerH) {
+      const s = Math.min(innerW / w, innerH / h)
       w = Math.max(24, Math.round(w * s)); h = Math.max(24, Math.round(h * s))
       ix = Math.round(ix * s); iy = Math.round(iy * s); iw = Math.round(iw * s); ih = Math.round(ih * s)
     }
-    x = Math.min(Math.max(0, x), Math.max(0, bounds.w - w))
-    y = Math.min(Math.max(0, y), Math.max(0, bounds.h - h))
+    x = Math.min(Math.max(padX, x), Math.max(padX, padX + innerW - w))
+    y = Math.min(Math.max(padY, y), Math.max(padY, padY + innerH - h))
     return { ...b, x, y, w, h, ix, iy, iw, ih }
   }
   const init = lay || def
@@ -199,7 +205,7 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
                   // The crop window (ix/iy/iw/ih) is part of the same geometry and scales with it,
                   // otherwise the frame grows while the image inside it stays put.
                   if (bounds && !fitCenterH) {
-                    const k = Math.min((bounds.h * ART_FILL_H) / fitted.h, bounds.w / fitted.w)
+                    const k = Math.min((innerH * ART_FILL_H) / fitted.h, innerW / fitted.w)
                     if (k > 0 && Math.abs(k - 1) > 0.001) {
                       const sc = (v) => Math.round((v || 0) * k)
                       fitted = fitBounds({
@@ -209,7 +215,7 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
                         iw: sc(fitted.iw || fitted.w), ih: sc(fitted.ih || fitted.h),
                       })
                     }
-                    fitted = { ...fitted, x: Math.round((bounds.w - fitted.w) / 2), y: Math.round((bounds.h - fitted.h) / 2) }
+                    fitted = { ...fitted, x: Math.round(padX + (innerW - fitted.w) / 2), y: Math.round(padY + (innerH - fitted.h) / 2) }
                   }
                   // fitCenterH tiles: centre each image on ITS OWN SLOT's midline. The aspect-fit
                   // narrows w from the slot width, but x stayed at the slot's LEFT edge — every
