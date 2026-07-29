@@ -11,7 +11,7 @@ export default function PreviewStep({
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
-  savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, deletePage,
+  savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, editArtwork, deletePage,
 }) {
   // Quote-level actions (Back / Done / + Add sign page) live at the TOP of the FIRST page's
   // controls column — the old toolbar row above the sheet (plus the "Proposal" heading and the
@@ -66,6 +66,16 @@ export default function PreviewStep({
                   title={`Edit the sign type & specifications of page ${multi ? partLetter(i) : ''}`.trim()}>
                   ✎ Edit specs{multi ? ' ' + partLetter(i) : ''}
                 </button>
+                {/* Artwork is its own pipeline now: editing a spec no longer drags the rep through
+                    the artwork step to get back to the preview. Closes over THIS row's `i`, so on a
+                    multi-sign quote it edits the artwork of the page it sits beside — and after a
+                    reorder it still does, because the row is rebuilt from the fresh map. */}
+                {editArtwork && (
+                  <button className="ghost sm" style={{ flex: 1 }} onClick={() => editArtwork(i)} disabled={saving}
+                    title={`Add, replace or crop the artwork on page ${multi ? partLetter(i) : ''}`.trim()}>
+                    🖼 Edit artwork{multi ? ' ' + partLetter(i) : ''}
+                  </button>
+                )}
                 {multi && (
                   <button className="ghost sm" onClick={() => deletePage(i)} disabled={saving}
                     title={`Delete sign page ${partLetter(i)}`}

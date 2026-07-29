@@ -17,9 +17,12 @@ export const MAX_PRICE = 1000000   // sanity guard against typos — real jobs g
 
 export const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
-  // manual mode gets the Artwork step too, so the sign image can be added/changed here
-  // (the proposal even points to it) — it was missing before.
-  custom: ['client', 'customspecs', 'artwork', 'preview'],
+  // Manual mode NO LONGER walks through Artwork on the way to the preview. Editing a spec meant
+  // traversing the artwork step to get back, which is a different job on a different page — the
+  // team asked for the two to be separated. Artwork is now its own one-step pipeline, opened per
+  // page from the preview's "Edit artwork" button, so it is deliberately absent from this list.
+  // Generator (AI) mode is untouched: it has its own ordering and its own entry point.
+  custom: ['client', 'customspecs', 'preview'],
 }
 
 // A sign type the catalog doesn't have: free-form template (like monuments) — the spec body

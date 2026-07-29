@@ -1578,7 +1578,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 150, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
               ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150, padX: 12, padTop: 12, padBottom: 0 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
-              : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
+              : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it with “Edit artwork” ]</span>}
             {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 16, w: 360, h: 118, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
                 style={{ position: 'absolute', left: a.x, top: a.y, width: a.w, height: a.h, transform: `rotate(${a.rot || 0}deg)`, cursor: 'crosshair', zIndex: 80, outline: '2px dashed #8b5cf6', outlineOffset: -1 }} />

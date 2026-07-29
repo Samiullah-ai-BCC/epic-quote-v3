@@ -118,7 +118,14 @@ export default function Generator() {
   const aiSuggestedName = aiResult && aiResult.signType ? (matchSignType(aiResult.signType)?.n || null) : null
   const goto = (s) => setStep(s)
   const next = () => goto(flow[flowIndex + 1])
-  const back = () => (flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo))
+  // A step that is NOT part of the pipeline (custom mode's 'artwork', opened per page from the
+  // preview) has no position in `flow`, so flowIndex is -1. Without this it would fall to the
+  // "first step" branch and LEAVE THE QUOTE on Back, instead of returning to the preview the
+  // editor was opened from.
+  const back = () => {
+    if (flowIndex < 0) return goto('preview')
+    return flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo)
+  }
 
   const { pageRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts)
 
@@ -291,6 +298,16 @@ export default function Generator() {
     setActivePart(index)
     loadPartIntoHooks(partsRef.current[index] || {})
     setStep(mode === 'custom' ? 'customspecs' : 'signtype')
+  }
+
+  // Artwork editor for ONE page. Same shape as editPart — make that part active, load it into the
+  // hooks, open its step — which is what scopes it to that page: loadPartIntoHooks restores that
+  // part's artwork_path and sign_box, and saveProgress writes back to `activePart`. So on a
+  // multi-sign quote each page's button edits its OWN artwork and cannot touch its neighbours'.
+  const editArtwork = (index) => {
+    setActivePart(index)
+    loadPartIntoHooks(partsRef.current[index] || {})
+    setStep('artwork')
   }
 
   // Delete one page (only offered when >1). Letters (A/B/…) are index-derived, so they resync
@@ -660,7 +677,9 @@ export default function Generator() {
         <>
           <WizardHeader mode={mode} quoteId={quoteId} company={quote?.company_name}
             customerPdf={quote?.customer_pdf} onViewDrawing={() => setShowDrawing(true)} />
-          <WizardProgressBar flow={flow} currentIndex={flowIndex} />
+          {/* An off-pipeline step (the per-page artwork editor) has no index; show the bar full
+              rather than blank, since it is opened FROM the finished preview. */}
+          <WizardProgressBar flow={flow} currentIndex={flowIndex < 0 ? flow.length - 1 : flowIndex} />
         </>
       )}
 
@@ -719,7 +738,7 @@ export default function Generator() {
             savePaymentLink={savePaymentLink} logo={logo} paymentLink={paymentLink} quote={quote}
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
             pageRefs={pageRefs} proposalRef={proposalRef} mode={mode}
-            editPart={editPart} deletePage={deletePage} />
+            editPart={editPart} editArtwork={editArtwork} deletePage={deletePage} />
         )}
        </div>
 
