@@ -277,23 +277,18 @@ export default function CustomSpecsStep({
                       </div>
                     ) : null
                   })}
-                  {signLib.length > 0 && (
-                    <div className="sign-opt" style={{ fontWeight: 700 }} onClick={() => setTypeGroup('__team__')}>
-                      TEAM'S CUSTOM TYPES <span className="muted" style={{ fontWeight: 400 }}>· {signLib.length} →</span>
-                    </div>
-                  )}
-                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>  {/* Chqanged the  text "➕ Type a new sign type" to "➕ Type a new custom sign type" */}
+                  {/* TEAM'S CUSTOM TYPES is no longer offered here. `signLib` itself is still
+                      loaded and still consulted when a type is picked (see `stored` above), so a
+                      quote already saved against one of those names keeps resolving its stored
+                      spec — only the browsing entry is gone, not the data. */}
+                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>
                   <div className="sign-opt muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
                 </div>
               ) : (
                 <>
                   <button type="button" className="ghost sm" style={{ marginBottom: 8 }} onClick={() => setTypeGroup(null)}>← Main sign types</button>
                   <div className="sign-list">
-                    {typeGroup === '__team__'
-                      ? signLib.map((s) => (
-                          <div key={'lib' + s.id} className={'sign-opt' + (customTypeSel === s.name ? ' sel' : '')} onClick={() => pickCustomType(s.name)}>{s.name} ✏️</div>
-                        ))
-                      : FA_FAMILY_ORDER.includes(typeGroup)
+                    {FA_FAMILY_ORDER.includes(typeGroup)
                       ? FA_SIGN_GROUPS.filter((g) => g.family === typeGroup).map((g) => (
                           <div key={g.n} className={'sign-opt' + (customTypeSel === g.n ? ' sel' : '')} onClick={() => pickCustomType(g.n)}>{g.n}</div>
                         ))
