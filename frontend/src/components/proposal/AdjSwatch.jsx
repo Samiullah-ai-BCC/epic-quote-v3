@@ -48,13 +48,20 @@ export default function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick,
   // Measure the text at the base size and scale the font down only as far as needed, to a floor
   // that stays readable in print; short labels are untouched and still render at 11px.
   const BASE_FS = 11, MIN_FS = 6
+  // Breathing room above and below the label. It is subtracted from the height the fit is allowed
+  // to use, NOT just painted on: padding alone would have done nothing, because the label only
+  // ever had to satisfy the WIDTH check — a short name like "BLACK" passed at 11px and its height
+  // was never looked at, so it kept touching the chip's top and bottom edges. Height is a real
+  // constraint below now, which is what makes the gap hold at every chip size.
+  const PAD_Y = 2
   const boxRef = useRef(null)
   const textRef = useRef(null)
   const [fit, setFit] = useState({ fs: BASE_FS, wrap: false })
   useLayoutEffect(() => {
     const box = boxRef.current, el = textRef.current
     if (!box || !el) return
-    const availW = box.clientWidth - 8, availH = box.clientHeight
+    // clientWidth/clientHeight both INCLUDE padding, so both insets are subtracted the same way.
+    const availW = box.clientWidth - 8, availH = box.clientHeight - PAD_Y * 2
     if (availW <= 0 || availH <= 0) return
 
     const measure = (fs, wrap) => {
@@ -63,26 +70,39 @@ export default function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick,
       return { w: el.scrollWidth, h: el.scrollHeight }
     }
 
+    // Both axes, every time. Width alone used to decide steps 1 and 2, which is why a short label
+    // sat flush against the chip's top and bottom edges however much padding was applied.
+    const fitsBoth = (m) => m.w <= availW && m.h <= availH
+
     // 1. TEXT THAT ALREADY FITS IS LEFT COMPLETELY ALONE — same single line at the same 11px it
-    //    has always rendered at. Auto-fit must not quietly restyle every short label ("BLACK")
-    //    while fixing the long ones.
+    //    has always rendered at. Auto-fit must not quietly restyle a label that has the room.
     let best = null
-    if (measure(BASE_FS, false).w <= availW) {
+    if (fitsBoth(measure(BASE_FS, false))) {
       best = { fs: BASE_FS, wrap: false }
     } else {
-      // 2. Largest single-line size that fits the width.
+      // 2. Largest single-line size that fits inside the padded box.
       for (let fs = BASE_FS - 0.5; fs >= MIN_FS && !best; fs -= 0.5) {
-        if (measure(fs, false).w <= availW) best = { fs, wrap: false }
+        if (fitsBoth(measure(fs, false))) best = { fs, wrap: false }
       }
       // 3. Still too wide even at the legible floor -> wrap, and fit the HEIGHT too, or a name
-      //    that fits across still runs out the bottom of a 20px chip.
+      //    that fits across still runs out the bottom of the chip.
+      if (!best) {
+        for (let fs = BASE_FS; fs >= MIN_FS && !best; fs -= 0.5) {
+          if (fitsBoth(measure(fs, true))) best = { fs, wrap: true }
+        }
+      }
+      // 4. The label cannot fit inside the PADDED box at any legible size — two wrapped lines need
+      //    ~13px and a 14px chip has only 10px once the gutter is reserved. Retry against the full
+      //    height before giving up: the gap is a nicety, but clipping loses characters on a
+      //    document about to be sent, which is the very failure this auto-fit was added to stop.
+      //    So the gutter yields, not the text.
       if (!best) {
         for (let fs = BASE_FS; fs >= MIN_FS && !best; fs -= 0.5) {
           const m = measure(fs, true)
-          if (m.w <= availW && m.h <= availH) best = { fs, wrap: true }
+          if (m.w <= availW && m.h <= box.clientHeight) best = { fs, wrap: true }
         }
       }
-      // 4. Genuinely impossible in this box (a very long name in a small chip): show the most
+      // 5. Genuinely impossible in this box (a very long name in a small chip): show the most
       //    we can at the floor. The chip is resizable — that is the rep's lever, not a smaller font.
       if (!best) best = { fs: MIN_FS, wrap: true }
     }
@@ -96,7 +116,7 @@ export default function AdjSwatch({ rk, sw, onChange, onRemove, onPick, canPick,
   return (
     <div data-rk={rk} onMouseDown={startDrag}
       style={{ position: 'absolute', left: sw.x, top: sw.y, width: sw.w, height: sw.h, cursor: 'move' }}>
-      <div ref={boxRef} style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, fontWeight: 400, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: '0 4px', boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
+      <div ref={boxRef} style={{ width: '100%', height: '100%', background: bg, color: isRGB ? '#111' : swatchText(bg), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fs, fontWeight: 400, border: '1px solid rgba(0,0,0,0.3)', overflow: 'hidden', padding: `${PAD_Y}px 4px`, boxSizing: 'border-box', textShadow: isRGB ? '0 0 3px rgba(255,255,255,0.9)' : undefined }}>
         <span ref={textRef} style={{ display: 'inline-block', maxWidth: '100%', whiteSpace: fit.wrap ? 'normal' : 'nowrap', overflowWrap: 'anywhere', lineHeight: 1.1, textAlign: 'center' }}>{label}</span>
       </div>
       {selected && (
