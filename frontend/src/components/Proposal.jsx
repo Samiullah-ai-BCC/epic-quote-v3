@@ -843,6 +843,15 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const key = String(selId || '')
     const isDim = key.startsWith('dim-'), isSwatch = key.startsWith('swatch-')
     if (!isDim && !isSwatch) return undefined
+    // SELECTING AN OBJECT MUST ALSO TAKE THE CARET OUT OF THE TEXT. AdjSwatch and AdjDim both
+    // preventDefault on mousedown (that is how they start a drag), which stops the browser moving
+    // focus — so the caret stays in whatever block was last clicked, every keydown is delivered
+    // THERE, and the typing-guard below refuses to delete. The colour chips sit ON TOP of the
+    // contentEditable SPECIFICATIONS block, so this was the normal case rather than an edge one:
+    // click a chip, press Delete, nothing happens.
+    const active = document.activeElement
+    if (active && active !== document.body
+      && (active.isContentEditable || /^(INPUT|TEXTAREA)$/.test(active.tagName || ''))) active.blur()
     const onKey = (e) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       const t = e.target
