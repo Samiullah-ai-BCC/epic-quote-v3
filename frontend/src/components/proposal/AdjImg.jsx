@@ -16,12 +16,16 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
   // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
   // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
   // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
-  // `bounds` may carry padX/padY: a gutter INSIDE the section box that the image may not enter, so
+  // `bounds` may carry padX/padTop/padBottom: a gutter INSIDE the section box the image may not enter, so
   // the dimension arrows drawn beside the artwork have room to sit without landing on top of it.
   // Every other caller omits them, so they are 0 and the arithmetic below is exactly as it was.
-  const padX = bounds?.padX || 0, padY = bounds?.padY || 0
+  // padTop/padBottom are separate because only the TOP carries an annotation: the horizontal
+  // arrow hangs above the artwork, nothing sits below it, and padding the bottom as well would
+  // shrink the image for no reason.
+  const padX = bounds?.padX || 0
+  const padTop = bounds?.padTop || 0, padBottom = bounds?.padBottom || 0
   const innerW = bounds ? Math.max(24, bounds.w - padX * 2) : 0
-  const innerH = bounds ? Math.max(24, bounds.h - padY * 2) : 0
+  const innerH = bounds ? Math.max(24, bounds.h - padTop - padBottom) : 0
   const fitBounds = (b) => {
     if (!bounds) return b
     let { x, y, w, h, ix, iy, iw, ih } = b
@@ -31,7 +35,7 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
       ix = Math.round(ix * s); iy = Math.round(iy * s); iw = Math.round(iw * s); ih = Math.round(ih * s)
     }
     x = Math.min(Math.max(padX, x), Math.max(padX, padX + innerW - w))
-    y = Math.min(Math.max(padY, y), Math.max(padY, padY + innerH - h))
+    y = Math.min(Math.max(padTop, y), Math.max(padTop, padTop + innerH - h))
     return { ...b, x, y, w, h, ix, iy, iw, ih }
   }
   const init = lay || def
@@ -215,7 +219,7 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
                         iw: sc(fitted.iw || fitted.w), ih: sc(fitted.ih || fitted.h),
                       })
                     }
-                    fitted = { ...fitted, x: Math.round(padX + (innerW - fitted.w) / 2), y: Math.round(padY + (innerH - fitted.h) / 2) }
+                    fitted = { ...fitted, x: Math.round(padX + (innerW - fitted.w) / 2), y: Math.round(padTop + (innerH - fitted.h) / 2) }
                   }
                   // fitCenterH tiles: centre each image on ITS OWN SLOT's midline. The aspect-fit
                   // narrows w from the slot width, but x stayed at the slot's LEFT edge — every

@@ -1250,8 +1250,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       : { x: a.x, y: a.y, w: a.w, h: a.h }
     setLayout((L) => {
       const n = { ...L }
-      if (n['dim-w']) n['dim-w'] = { ...n['dim-w'], x: Math.round(rect.x), y: Math.max(2, Math.round(rect.y - 16)), len: Math.max(24, Math.round(rect.w)) }
-      if (n['dim-h']) n['dim-h'] = { ...n['dim-h'], x: Math.max(2, Math.round(rect.x - 18)), y: Math.round(rect.y), len: Math.max(24, Math.round(rect.h)) }
+      // Floor 0, not 2: the arrow sits in the gutter the artwork is held out of, and those two
+      // pixels are the difference between the arrowhead clearing the image and printing on it.
+      if (n['dim-w']) n['dim-w'] = { ...n['dim-w'], x: Math.round(rect.x), y: Math.max(0, Math.round(rect.y - 16)), len: Math.max(24, Math.round(rect.w)) }
+      if (n['dim-h']) n['dim-h'] = { ...n['dim-h'], x: Math.max(0, Math.round(rect.x - 18)), y: Math.round(rect.y), len: Math.max(24, Math.round(rect.h)) }
       return n
     })
   }, [layout.artwork, signBox]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1534,7 +1536,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           <div data-sec="items" style={{ margin: '6px 40px 0', ...headCell, borderTop: '1px solid #777' }}>ITEM DETAILS</div>
           <div style={{ margin: '0 40px', border: '1px solid #777', borderTop: 'none', height: 150, position: 'relative', background: artBg, overflow: 'hidden' }}>
             {artworkPath
-              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150, padX: 10, padY: 5 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
+              ? <AdjImg key={artworkPath} {...adjProps('artwork', { x: 188, y: 16, w: 360, h: 118 })} src={fileUrl(artworkPath)} alt="artwork" lockAspect liveLay autoCrop bounds={{ w: 734, h: 150, padX: 12, padTop: 12, padBottom: 0 }} cors={/res\.cloudinary\.com/i.test(fileUrl(artworkPath) || '')} />
               : <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontStyle: 'italic', fontSize: 12, textTransform: 'none' }}>[ Customer artwork — add it in the Artwork step ]</span>}
             {pickFor && artworkPath && (() => { const a = layout.artwork || { x: 188, y: 16, w: 360, h: 118, rot: 0 }; return (
               <div onClick={sampleArtwork} onMouseMove={onPickMove} onMouseLeave={() => setLoupe(null)} title="Click to grab this color"
@@ -1917,8 +1919,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     ...L,
                     ...(cropped ? { artwork: cropped } : {}),
                     __dimsSeeded: true,
-                    'dim-w': { vert: false, ...(L['dim-w'] || {}), x: rect.x, y: Math.max(2, rect.y - 16), len: rect.w, label: L['dim-w']?.label || hLbl },
-                    'dim-h': { vert: true, ...(L['dim-h'] || {}), x: Math.max(2, rect.x - 18), y: rect.y, len: rect.h, label: L['dim-h']?.label || vLbl },
+                    'dim-w': { vert: false, ...(L['dim-w'] || {}), x: rect.x, y: Math.max(0, rect.y - 16), len: rect.w, label: L['dim-w']?.label || hLbl },
+                    'dim-h': { vert: true, ...(L['dim-h'] || {}), x: Math.max(0, rect.x - 18), y: rect.y, len: rect.h, label: L['dim-h']?.label || vLbl },
                   }))
                   flash(cropped ? 'Artwork auto-cropped to the sign — arrows match its dimensions.'
                     : snapped ? 'Arrows snapped to the sign’s bounding box.'
