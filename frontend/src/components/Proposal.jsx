@@ -133,20 +133,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     firstArtworkPath.current = artworkPath
     setLayout((L) => { const n = { ...L }; delete n.artwork; return n })
   }, [artworkPath])
-  // Default swatch size (still horizontally resizable). 80% of the retired 96×20 — the chips read
-  // as oversized next to 10.5px spec text.
-  const SW_W = 77, SW_H = 16
-  const OLD_SW_W = 96, OLD_SW_H = 20   // the retired default, migrated on load (see below)
+  // Default swatch size (still horizontally resizable). 62×14 is the size the team actually sized
+  // their chips to by hand once they could — measured off a live quote — so it is now the default
+  // rather than something every rep has to drag to.
+  const SW_W = 62, SW_H = 14
+  // Sizes that were only ever STAMPED BY A DEFAULT, never chosen: the original 96×20 and the
+  // short-lived 77×16 that replaced it. Chips still sitting on one of these are migrated on load.
+  const RETIRED_SW_SIZES = [[96, 20], [77, 16]]
   const [swatches, setSwatches] = useState(() => {
     // Saved sizes are honoured as-is — chips are fully resizable (#3) — with ONE exception: a chip
-    // still sitting at exactly the retired 96×20 was never sized by anyone, it was stamped by the
-    // old default, so shrinking only the defaults leaves every existing quote showing the old size
-    // forever. Rewriting that exact pair migrates those and no others: a chip a rep actually
-    // dragged has some other size and is left alone, and the rule cannot compound or re-fire
-    // because its own result (77×16) is not 96×20.
+    // still sitting on a RETIRED DEFAULT was never sized by anyone, so lowering the default alone
+    // would leave every existing quote showing the old size forever. Those exact pairs are
+    // migrated and nothing else: a chip a rep actually dragged has some other size and is left
+    // alone, and the rule cannot compound or re-fire because its result (the current default) is
+    // not itself a retired size.
     if (savedState?.__swatches?.length) {
       return savedState.__swatches.map((s) => (
-        s.w === OLD_SW_W && s.h === OLD_SW_H ? { ...s, w: SW_W, h: SW_H } : { ...s }
+        RETIRED_SW_SIZES.some(([w, h]) => s.w === w && s.h === h) ? { ...s, w: SW_W, h: SW_H } : { ...s }
       ))
     }
     // custom mode: seed the two chips only when the spec text actually has colour lines
