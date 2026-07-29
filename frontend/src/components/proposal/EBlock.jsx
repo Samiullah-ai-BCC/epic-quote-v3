@@ -43,7 +43,7 @@ const insertPlainText = (text) => {
   return true
 }
 
-export default function EBlock({ k, html, style, noPaste, textOnlyPaste, noImagePaste, readOnly }) {
+export default function EBlock({ k, html, style, noPaste, textOnlyPaste, noImagePaste, readOnly, readOnlyTitle }) {
   const ref = useRef(null)
   const first = useRef(true)
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function EBlock({ k, html, style, noPaste, textOnlyPaste, noImage
     <div ref={ref} data-key={k} contentEditable={!readOnly} suppressContentEditableWarning
       onPaste={guarded ? handle : undefined}
       onDrop={guarded ? handle : undefined}
-      title={readOnly ? 'Follows the price on the Specifications step — not directly editable' : undefined}
+      title={readOnly ? (readOnlyTitle || 'Follows the price on the Specifications step — not directly editable') : undefined}
       spellCheck lang="en-US" style={{ outline: 'none', ...(readOnly ? { cursor: 'default' } : {}), ...style }} />
   )
 }

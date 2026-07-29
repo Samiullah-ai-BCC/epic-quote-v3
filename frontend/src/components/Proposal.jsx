@@ -778,7 +778,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   }, [])
 
   // editable block — content written once at mount (see EBlock) so React can NEVER clobber edits
-  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} textOnlyPaste={opts?.textOnlyPaste} noImagePaste={opts?.noImagePaste} readOnly={opts?.readOnly} />
+  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} textOnlyPaste={opts?.textOnlyPaste} noImagePaste={opts?.noImagePaste} readOnly={opts?.readOnly} readOnlyTitle={opts?.readOnlyTitle} />
   // when the SPECIFICATIONS run long, drop ADDITIONAL NOTES so the proposal stays on one page (#17)
   const specLong = (initial.specBody || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length > 520
 
@@ -872,22 +872,21 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // view had all moved on. `setBlock` is the one honest channel after mount — the money blocks
   // already use it; the spec text never did.
   //
-  // Ownership is respected exactly as before: a block the rep edited ON the proposal keeps their
-  // words. The one exception is a SIGN TYPE change, where the edit described a different product —
-  // the same rule the item description and the side view already follow.
+  // OWNERSHIP IS GONE, because the proposal can no longer own this text: SPECIFICATIONS is
+  // read-only here and is written on the Edit-specs step. Leaving the old "the rep edited it on
+  // the proposal, so leave it alone" rule in place would have frozen the 19 saved blocks that
+  // already carry a hand-edit — read-only on the sheet AND deaf to the wizard, i.e. a spec nobody
+  // could change by any route, which is the exact opposite of what was asked for.
+  // Existing text is still not rewritten on load: the effect returns on its first run, so a saved
+  // spec stays on screen until the wizard actually produces a different one.
   const specSyncMounted = useRef(false)
   const lastSpecType = useRef(null)
   useEffect(() => {
     if (!specSyncMounted.current) {
       specSyncMounted.current = true; lastSpecType.current = specTypeKey; return   // mount already wrote it
     }
-    const typeChanged = lastSpecType.current !== specTypeKey
-    if (typeChanged) {
-      lastSpecType.current = specTypeKey
-      dirtyRef.current.delete('specBody')   // that edit belonged to the old sign type
-    } else if (dirtyRef.current.has('specBody')) {
-      return                                 // rep owns this text within the same type — leave it
-    }
+    if (lastSpecType.current !== specTypeKey) lastSpecType.current = specTypeKey
+    dirtyRef.current.delete('specBody')   // nothing can hand-edit this block any more
     // innerHTML assignment fires no 'input' event, so this can never mark the block dirty itself.
     setBlock('specBody', specHTML)
     queueSave()
@@ -1662,7 +1661,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   existed to keep the PAGE length consistent when the right column emptied — dead
                   logic now that the sheet is a hard 1056px: the page can't shrink, so the big
                   floor only stole the very room the rep needs for Additional Notes lines. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
+              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true, readOnly: true, readOnlyTitle: 'Specifications are written on the “Edit specs” step — this block always shows what the wizard produced' })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
