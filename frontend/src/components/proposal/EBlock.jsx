@@ -56,11 +56,15 @@ export default function EBlock({ k, html, style, noPaste, textOnlyPaste, noImage
   //   textOnlyPaste / noImagePaste — accept TEXT, refuse files, and strip markup by inserting
   //                                 text nodes
   //
-  // The spec block was noPaste because pasted markup on a customer document is a real hazard; the
-  // team now needs to paste text into it. Letting the browser paste normally would re-open that
-  // hazard, because pasted HTML is NOT run through sanitizeHtml — only the initial mount is.
-  // Taking the clipboard's text/plain sidesteps it entirely: fonts, colours, tracked-change spans
-  // and any embedded <img> simply never exist.
+  // SPECIFICATIONS is back on `noPaste` (2026-07-29, owner's call): nothing may be pasted into it
+  // at all, by any route, and it is edited from the keyboard only. Typing is untouched — this
+  // intercepts paste and drop, not input.
+  //
+  // The middle ground it replaces (textOnlyPaste) existed because pasted markup on a customer
+  // document is a real hazard: pasted HTML is NOT run through sanitizeHtml — only the initial
+  // mount is — so taking the clipboard's text/plain sidestepped fonts, colours, tracked-change
+  // spans and embedded <img>. That reasoning still applies to every OTHER block, which is why
+  // textOnlyPaste stays available rather than being deleted.
   //
   // It closes the same hole on Additional Notes, whose `noImagePaste` only looked for FILES: an
   // image copied from a web page arrives as text/html carrying an <img> tag and went straight

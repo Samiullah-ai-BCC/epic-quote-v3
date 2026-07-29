@@ -1621,7 +1621,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   existed to keep the PAGE length consistent when the right column emptied — dead
                   logic now that the sheet is a hard 1056px: the page can't shrink, so the big
                   floor only stole the very room the rep needs for Additional Notes lines. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { textOnlyPaste: true })}
+              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true })}
               {!specLong && !hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
