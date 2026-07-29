@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { toCanvas } from 'html-to-image'
 import { jsPDF } from 'jspdf'
 import { buildSpecLines, money, esc } from '../generator/proposal'
-import { resolveSignTypeName } from '../generator/faCatalog'
+import { resolveSignTypeName, faLeafExtras } from '../generator/faCatalog'
 import { T } from '../generator/catalog'
 import { parseDims } from '../generator/questions'
 import { itemSigned, resolveTplByName } from '../generator/parts'
@@ -300,17 +300,34 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // mode the team actually uses, and every custom quote rendered an empty PACKAGE INCLUDES.
   // Look the type up by its saved NAME there, exactly as the sheet does in generator mode.
   const signTypeName = mode === 'custom' ? (customSpec?.signType || '') : (tpl?.n || '')
-  const typePkg = tpl?.pkg || (mode === 'custom' ? resolveTplByName(customSpec?.signType)?.pkg : null)
-  const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(typePkg) || '')
+  const typeCat = mode === 'custom' ? resolveTplByName(customSpec?.signType) : tpl
+  // An FA sign type can assign a DIFFERENT letter per mounting — the neon families are C flush /
+  // D ceiling-hung — so the group-wide letter is blank for them by design (uniformPkg only sets it
+  // when every leaf agrees). Ask the RESOLVED leaf first, exactly as the side view does, and keep
+  // the group letter as the fallback for types whose leaves all match.
+  const leafPkg = typeCat?.fa ? faLeafExtras(typeCat, (mode === 'custom' ? customSpec : answers) || {}).package : ''
+  const typePkg = leafPkg || typeCat?.pkg || ''
+  // A SAVED LETTER IS ONLY TRUSTED WHEN THE REP ACTUALLY PICKED IT. The old code initialised this
+  // with a hardcoded `|| 'A'`, and the autosave then wrote that guess into proposal_state — so
+  // essentially every existing quote carries __pkgSet:"A" that nobody chose. Honouring it outranked
+  // the sheet's real letter: a DOUBLE SIDED NON ILLUMINATED CABINET (package B) showed B for one
+  // frame, then the live preview remounted, re-read the stale "A", and snapped back to it.
+  // __pkgSetManual is written ONLY by the dropdown below, so old quotes have no flag and correctly
+  // fall through to the sign type.
+  const pickedPkg = savedState?.__pkgSetManual ? resolvePkgSet(savedState?.__pkgSet) : ''
+  const [pkgSet, setPkgSet] = useState(pickedPkg || resolvePkgSet(typePkg) || '')
+  const [pkgManual, setPkgManual] = useState(!!pickedPkg)
   const [pkgPicking, setPkgPicking] = useState(false)   // #8 — image dropdown open
   // The package follows the SIGN TYPE when the type changes — the same rule the side view got.
-  // Skipped on mount (the ref starts at the current type), so a saved/hand-picked set is not
-  // clobbered just by opening the quote; only an actual change re-derives it.
+  // Skipped on mount (the ref starts at the current type), so a hand-picked set is not clobbered
+  // just by opening the quote; only an actual change re-derives it, which also clears the manual
+  // flag because the previous pick belonged to the previous sign type.
   const prevTypeRef = useRef(signTypeName)
   useEffect(() => {
     if (prevTypeRef.current === signTypeName) return
     prevTypeRef.current = signTypeName
     setPkgSet(resolvePkgSet(typePkg) || '')
+    setPkgManual(false)
   }, [signTypeName, typePkg])
   const packageItems = pkgSet ? PACKAGE_SETS[pkgSet].items : []
   // A-D are ONE pre-composed image (labels baked in) — it should fill the whole PACKAGE INCLUDES
@@ -766,7 +783,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const dismissedChipsRef = useRef(new Set(savedState?.__swDismissed || []))
 
   const captureState = () => {
-    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __swDismissed: [...dismissedChipsRef.current], __specTpl: specTypeKey || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet }
+    const state = { __layout: layout, __swatches: swatches.filter((s) => s.color || s.name || s.moved), __dirty: [...dirtyRef.current], __swDismissed: [...dismissedChipsRef.current], __specTpl: specTypeKey || null, __artBg: artBg, __qty: qty, __items: items, __hideNotes: hideNotes, __pkgSet: pkgSet, __pkgSetManual: pkgManual }
     pageRef.current?.querySelectorAll('[data-key]').forEach((el) => { state[el.dataset.key] = el.innerHTML })
     return state
   }
@@ -815,7 +832,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     queueSave()
   }, [specHTML, specTypeKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes, pkgSet]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The package is persisted IMMEDIATELY, not through the 600ms autosave debounce. The live
+  // preview remounts on its OWN 600ms timer and rebuilds from the SAVED state, so a queued save is
+  // a coin flip the rep's pick can lose — it would reappear as the sign type's default letter a
+  // moment after being chosen. Separate mount guard: `mounted` is already true by the time this
+  // runs, so reusing it would fire a save on first render.
+  const pkgSaved = useRef(false)
+  useEffect(() => {
+    if (!pkgSaved.current) { pkgSaved.current = true; return }
+    flushRef.current()
+  }, [pkgSet, pkgManual])
   // ---- Undo / redo / copy / paste for EVERYTHING on the proposal (#1). History used to cover
   // only geometry + swatches, so Ctrl+Z did nothing for a line item, a discount, a quantity, the
   // artwork background, the package set, a removed Notes section, or the text blocks. A snapshot
@@ -860,7 +888,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       }
     })
   }
-  const snapshot = () => ({ layout, swatches, items, qty, artBg, pkgSet, hideNotes, hideRet, sideViews, blocks: readBlocks() })
+  const snapshot = () => ({ layout, swatches, items, qty, artBg, pkgSet, pkgManual, hideNotes, hideRet, sideViews, blocks: readBlocks() })
   // Push a history entry for the OBJECT state. Text edits are pushed separately (below) because
   // they don't flow through React state — they mutate the DOM directly.
   useEffect(() => {
@@ -902,6 +930,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     setQty(s.qty)
     setArtBg(s.artBg)
     setPkgSet(s.pkgSet)
+    setPkgManual(!!s.pkgManual)   // undo must restore WHY the letter was set, not just the letter
     setHideNotes(s.hideNotes)
     setHideRet(s.hideRet)
     // side views live in the parent (they're saved on the PART, not the proposal) — push the
@@ -1930,7 +1959,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   <div style={{ position: 'absolute', top: '105%', left: 0, right: 0, zIndex: 90, background: 'var(--navy-700)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.3))', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {Object.entries(PACKAGE_SETS).map(([k, v]) => (
                       <button key={k} type="button" className="ghost p-0"
-                        onClick={() => { setPkgSet(k); setPkgPicking(false) }}
+                        onClick={() => { setPkgSet(k); setPkgManual(true); setPkgPicking(false) }}
                         style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 8, borderColor: pkgSet === k ? 'var(--gold)' : undefined }}
                         title={v.label}>
                         {v.items.map((it) => (
