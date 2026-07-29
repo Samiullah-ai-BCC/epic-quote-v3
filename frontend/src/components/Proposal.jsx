@@ -128,25 +128,6 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     Object.keys(L).forEach((k) => { if (k.startsWith('pkg-') || k.startsWith('sv2-')) delete L[k] })
     return L
   })
-  // Delete / Backspace removes the SELECTED dimension arrow. The × chip is 15px and easy to miss,
-  // and a measurement is the one thing on the sheet a rep adds and drops repeatedly.
-  // Scoped to `dim-` keys ONLY: the same selection state also holds images, and a stray keystroke
-  // must never delete the artwork. Ignored while typing — the arrow's own label is contentEditable
-  // and so is every text block on the sheet, so an unguarded handler would eat text instead.
-  useEffect(() => {
-    if (!selId || !String(selId).startsWith('dim-')) return undefined
-    const onKey = (e) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const t = e.target
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return
-      e.preventDefault()
-      setLayout((L) => { const n = { ...L }; delete n[selId]; return n })
-      setSelId(null)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [selId])
-
   // The artwork's saved frame is only valid for the FILE it was fit to. When the rep replaces
   // the artwork (re-upload), the old frame's aspect/crop window is meaningless for the new image
   // and, worse, its presence as `lay` tells AdjImg "already auto-fit" — silently skipping the
@@ -839,6 +820,40 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
+
+  // ONE removal path for a colour chip, shared by the × button and the Delete key, so the two can
+  // never drift. The dismissed-set line is the reason this is not two call sites: an auto- chip
+  // that is merely filtered out of `swatches` is put straight back by syncChips on the next DOM
+  // mutation, so deleting it by keyboard without recording the dismissal would look like the chip
+  // ignoring the key.
+  const removeSwatchById = (id) => {
+    if (String(id).startsWith('auto-')) dismissedChipsRef.current.add(id)
+    setSwatches((arr) => arr.filter((x) => x.id !== id))
+    setSelId(null)
+    queueSave()
+  }
+
+  // Delete / Backspace removes the SELECTED dimension arrow or colour chip. Their × handles are
+  // 15px and easy to miss, and both are things a rep adds and drops repeatedly.
+  // Scoped to `dim-` and `swatch-` keys ONLY: the same selection state also holds IMAGES, and a
+  // stray keystroke must never delete the customer's artwork. Ignored whenever the event target is
+  // editable — the arrow's label, the chip's name field and every text block on the sheet are
+  // contentEditable, so an unguarded handler would eat the rep's text instead of the object.
+  useEffect(() => {
+    const key = String(selId || '')
+    const isDim = key.startsWith('dim-'), isSwatch = key.startsWith('swatch-')
+    if (!isDim && !isSwatch) return undefined
+    const onKey = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const t = e.target
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return
+      e.preventDefault()
+      if (isDim) { setLayout((L) => { const n = { ...L }; delete n[key]; return n }); setSelId(null) }
+      else removeSwatchById(key.slice('swatch-'.length))
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── SPECIFICATIONS FOLLOWS THE WIZARD, LIVE ────────────────────────────────────────────────
   // EBlock writes its content ONCE on mount and ignores every later `html` prop (deliberately —
@@ -1807,11 +1822,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 })
                 return resized.map((x) => clampToArea(flowed.get(x.id)))
               })}
-              onRemove={() => {
-                // An auto chip must be remembered as dismissed, or syncChips just puts it back.
-                if (String(sw.id).startsWith('auto-')) dismissedChipsRef.current.add(sw.id)
-                setSwatches((arr) => arr.filter((x) => x.id !== sw.id)); setSelId(null); queueSave()
-              }}
+              onRemove={() => removeSwatchById(sw.id)}
               onDragEnd={() => { snapRow(sw.id); if (sw.id === 'face' || sw.id === 'rettrim' || sw.id.startsWith('auto-')) setSwatches((arr) => arr.map((x) => (x.id === sw.id ? { ...x, moved: true } : x))) }}
               onPick={() => { artCanvasRef.current = null; setPickFor(sw.id) }} canPick={!!artworkPath} />
           ) : null))}
