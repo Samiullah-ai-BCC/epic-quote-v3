@@ -13,7 +13,7 @@ export default function PreviewStep({
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, editArtwork, deletePage,
 }) {
-  // Quote-level actions (Back / Done / + Add sign page) live at the TOP of the FIRST page's
+  // Quote-level actions (Back / Done) live at the TOP of the FIRST page's
   // controls column — the old toolbar row above the sheet (plus the "Proposal" heading and the
   // .step panel chrome) was pure vertical waste on the one step where the sheet needs every
   // pixel. Only ONE "Edit specs" entry point (#12) — the per-page row below, which knows
@@ -28,11 +28,19 @@ export default function PreviewStep({
           {cpBusy ? 'Saving…' : '✓ Done'}
         </button>
       </div>
-      <button className="ghost sm" disabled={saving}
-        title="Add another sign to this quote — one client, one combined total"
-        onClick={addPage}>＋ Add sign page</button>
       {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
     </>
+  )
+
+  // "+ Add sign page" is rendered beside EVERY page, not just the first. addPage always appends to
+  // the end and jumps into the new sign's specs, so it behaves identically wherever it is clicked
+  // — and on a long multi-sign quote, having it only at the top meant scrolling back up to add
+  // each new sign. Back / Done stay on the first page only: those are once-per-quote actions and
+  // repeating them down the column would invite clicking "Done" while reading page C.
+  const addPageButton = (
+    <button className="ghost sm" disabled={saving} style={{ width: '100%' }}
+      title="Add another sign to this quote — one client, one combined total"
+      onClick={addPage}>＋ Add sign page</button>
   )
   return (
     <div>
@@ -94,6 +102,7 @@ export default function PreviewStep({
                     onClick={() => movePart(i, +1)}>↓ Move down</button>
                 </div>
               )}
+              {addPageButton}
             </>
           )
           return (
