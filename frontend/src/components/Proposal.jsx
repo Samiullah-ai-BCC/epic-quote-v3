@@ -133,13 +133,22 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     firstArtworkPath.current = artworkPath
     setLayout((L) => { const n = { ...L }; delete n.artwork; return n })
   }, [artworkPath])
-  // Default swatch size (still horizontally resizable). 80% of the old 96×20 — the chips read as
-  // oversized next to 10.5px spec text. Only NEW chips are affected: saved swatches carry their own
-  // w/h and are honoured as-is below, so proposals already sent keep the exact size they were sent at.
+  // Default swatch size (still horizontally resizable). 80% of the retired 96×20 — the chips read
+  // as oversized next to 10.5px spec text.
   const SW_W = 77, SW_H = 16
+  const OLD_SW_W = 96, OLD_SW_H = 20   // the retired default, migrated on load (see below)
   const [swatches, setSwatches] = useState(() => {
-    // saved sizes are honored as-is — chips are fully resizable now (#3)
-    if (savedState?.__swatches?.length) return savedState.__swatches.map((s) => ({ ...s }))
+    // Saved sizes are honoured as-is — chips are fully resizable (#3) — with ONE exception: a chip
+    // still sitting at exactly the retired 96×20 was never sized by anyone, it was stamped by the
+    // old default, so shrinking only the defaults leaves every existing quote showing the old size
+    // forever. Rewriting that exact pair migrates those and no others: a chip a rep actually
+    // dragged has some other size and is left alone, and the rule cannot compound or re-fire
+    // because its own result (77×16) is not 96×20.
+    if (savedState?.__swatches?.length) {
+      return savedState.__swatches.map((s) => (
+        s.w === OLD_SW_W && s.h === OLD_SW_H ? { ...s, w: SW_W, h: SW_H } : { ...s }
+      ))
+    }
     // custom mode: seed the two chips only when the spec text actually has colour lines
     // (catalog-prefilled specs do); a fully free-form spec starts with none.
     if (mode === 'custom' && !/FACE[^\n]*COLOR/i.test(customSpec?.specText || '')) return []
