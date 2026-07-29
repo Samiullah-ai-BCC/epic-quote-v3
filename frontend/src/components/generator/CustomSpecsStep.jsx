@@ -225,7 +225,7 @@ export default function CustomSpecsStep({
               // rule the side view and package follow, so switching type cannot leave the previous
               // type's EXTERIOR behind. Types whose spec carries an [APPLICATION] placeholder
               // (the FA/matrix families) define no value, so the rep's current answer stands.
-              application: nextCat?.application || customSpec?.application || 'EXTERIOR',
+              application: nextCat?.application || customSpec?.application || '',
               price: customSpec?.price || '',
               fa_mounting: mounting, fa_thickness: thickness, fa_trimcap: trimcap,
               // Template B (monument/pylon) carries neither a package nor a side view — custom
@@ -349,7 +349,7 @@ export default function CustomSpecsStep({
             const NAME = newTypeName.trim().toUpperCase()
             const spec = newTypeSpec.trim() || `SIGN TYPE: ${NAME}`
             try { const item = await saveCatalogItem('sign_type', NAME, { spec }); setSignLib((l) => [...l.filter((x) => x.name !== NAME), item]) } catch { /* still usable locally */ }
-            setCustomSpec({ ...customSpec, itemDesc: `${NAME} FOR ${client.company_name || 'CUSTOMER'}`, specText: spec, application: customSpec?.application || 'EXTERIOR', price: customSpec?.price || '' })
+            setCustomSpec({ ...customSpec, itemDesc: `${NAME} FOR ${client.company_name || 'CUSTOMER'}`, specText: spec, application: customSpec?.application || '', price: customSpec?.price || '' })
             setCustomTypeSel(NAME)
             setNewTypeName(''); setNewTypeSpec('')
           }}>Save & use this type</button>
@@ -393,7 +393,11 @@ export default function CustomSpecsStep({
       <div className="step-section">3. Application</div>
       <div className="field">
         <label>Application</label>
-        <select value={customSpec?.application || 'EXTERIOR'} onChange={(e) => setCustomApplication(e.target.value)}>
+        {/* No preselection: EXTERIOR used to be the default, so a rep who never looked at this
+            field still shipped a proposal claiming EXTERIOR — including on interior-only signs.
+            The blank option is the starting state and Next stays disabled until one is chosen. */}
+        <select value={customSpec?.application || ''} onChange={(e) => setCustomApplication(e.target.value)}>
+          <option value="">— Select application —</option>
           <option value="EXTERIOR">EXTERIOR</option><option value="INTERIOR">INTERIOR</option>
         </select>
       </div>
@@ -414,11 +418,14 @@ export default function CustomSpecsStep({
           // Depth is not required when the sheet supplies it as a thickness — otherwise Next
           // would be permanently disabled on a field that is deliberately read-only.
           const dp = parseDims(customSpec?.dims); const noDims = !dp.l || !dp.w || (!dp.h && !depthFromSheet)
-          const hint = noDims ? 'Enter all three dimensions — H × W × D (depth required)' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
+          // APPLICATION prints on the proposal's SPECIFICATIONS block, so it cannot go out blank —
+          // and it no longer defaults to EXTERIOR, which is exactly why it now has to be answered.
+          const noApp = !String(customSpec?.application || '').trim()
+          const hint = noDims ? 'Enter all three dimensions — H × W × D (depth required)' : noApp ? 'Choose the application — INTERIOR or EXTERIOR' : overMax ? `Maximum quote price is $${MAX_PRICE.toLocaleString()}` : badPrice ? 'Enter a real price (more than $0) to continue' : ''
           return (
             <>
               {hint && <span style={{ color: 'var(--text-faint)', fontSize: 12, alignSelf: 'center' }}>{hint}</span>}
-              <button disabled={badPrice || noDims} onClick={saveNext}>{saving ? 'Saving…' : 'Next →'}</button>
+              <button disabled={badPrice || noDims || noApp} onClick={saveNext}>{saving ? 'Saving…' : 'Next →'}</button>
             </>
           )
         })()}
