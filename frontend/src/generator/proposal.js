@@ -51,6 +51,33 @@ export function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// SPECIFICATIONS prints on a fixed-height sheet, so the spec text has a hard ceiling: at the
+// block's 17px line height it holds about 14 lines before the rest would simply be cut off the
+// printed page. 14 is also the longest spec in the database today, so nothing existing is
+// truncated by this. The wizard stops the rep here rather than letting them find out in a PDF.
+export const MAX_SPEC_LINES = 14
+
+// Turn typed spec text into the exact lines the sheet will render.
+//
+// BLANK LINES ARE PRESERVED. They are the rep's paragraph breaks, and dropping them (the old
+// `.filter(Boolean)`) is why the preview never matched what was typed. They cannot be used to push
+// content off the page, though: a run of blanks collapses to ONE, and leading/trailing blanks go.
+// Semicolons still split, as they always did, so a pasted run-on line still becomes a tidy list.
+export function normalizeSpecLines(text) {
+  const raw = String(text ?? '')
+    .split(/\r?\n/)
+    .flatMap((line) => (line.includes(';') ? line.split(/;\s*/) : [line]))
+    .map((s) => s.trim())
+
+  const out = []
+  for (const line of raw) {
+    if (line === '' && (out.length === 0 || out[out.length - 1] === '')) continue
+    out.push(line)
+  }
+  while (out.length && out[out.length - 1] === '') out.pop()
+  return out
+}
+
 // Returns an array of spec lines for a generator-mode quote.
 export function buildSpecLines(t, a = {}, ai = null) {
   if (!t) return []

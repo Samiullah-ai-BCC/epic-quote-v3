@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { toCanvas } from 'html-to-image'
 import { jsPDF } from 'jspdf'
-import { buildSpecLines, money, esc } from '../generator/proposal'
+import { buildSpecLines, money, esc, normalizeSpecLines, MAX_SPEC_LINES } from '../generator/proposal'
 import { resolveSignTypeName, faLeafExtras } from '../generator/faCatalog'
 import { T } from '../generator/catalog'
 import { parseDims } from '../generator/questions'
@@ -657,10 +657,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const specHTML = useMemo(() => {
     // Break any run-on text (semicolon- or newline-separated) into clean one-per-line bullets
     // so a dumped paragraph reads as a tidy spec list instead of a wall of text.
-    const toLines = (text) => (text || '').split(/\r?\n|;\s*/).map((s) => s.trim()).filter(Boolean)
-    const lines = mode === 'custom'
-      ? toLines(customSpec?.specText)
-      : buildSpecLines(tpl, answers, aiResult).flatMap((l) => toLines(l))
+    // normalizeSpecLines KEEPS blank lines — the rep's paragraph breaks used to be dropped here,
+    // which is why a gap typed on the Edit-specs step never appeared on the sheet beside it.
+    // Generator mode is unaffected: each built line is normalised on its own, and a blank one
+    // still normalises to nothing.
+    const lines = (mode === 'custom'
+      ? normalizeSpecLines(customSpec?.specText)
+      : buildSpecLines(tpl, answers, aiResult).flatMap((l) => normalizeSpecLines(l))
+    ).slice(0, MAX_SPEC_LINES)   // hard page ceiling; the wizard stops the rep before this bites
     // Bullet ONLY the face-colour and return/trim-colour lines (the two with swatches); the rest stay
     // plain. Strip any existing bullet/indent first so colour rows don't end up double-bulleted.
     return lines.map((l) => {

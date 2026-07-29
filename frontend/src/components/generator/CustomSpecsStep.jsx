@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react'
 import { T, SIGN_GROUP_ORDER, signGroupOf } from '../../generator/catalog'
 import { FA_FAMILY_ORDER, FA_SIGN_GROUPS, faMountingOptions, faThicknessOptions, faTrimCapOptions, faLeafExtras, itemDescriptionFor } from '../../generator/faCatalog'
-import { buildSpecLines } from '../../generator/proposal'
+import { buildSpecLines, normalizeSpecLines, MAX_SPEC_LINES } from '../../generator/proposal'
 import { parseDims, composeDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
 import { syncSpecFromFields, splitSpecialRequirements, mergeSpecial } from '../../generator/specSync'
@@ -45,6 +45,11 @@ export default function CustomSpecsStep({
   const depthFromSheet = (cat?.fa && cat.hasThickness)
     ? (customSpec?.fa_thickness || faThicknessOptions(cat)[0] || '')
     : ''
+
+  // Counted with the SAME function the proposal renders with, so the number under the box is what
+  // the sheet will actually print — blank lines included, collapsed runs excluded.
+  const specLineCount = normalizeSpecLines(customSpec?.specText).length
+  const specFull = specLineCount >= MAX_SPEC_LINES
 
   // Item Description format: "{Sign Type} WITH {Mounting} FOR {Company}" — the mounting is part
   // of what the customer is buying, so it belongs in the line-item text. Types without a
@@ -402,7 +407,25 @@ export default function CustomSpecsStep({
         </select>
       </div>
       <div className="step-section">4. Specification text</div>
-      <div className="field"><label>Specification Text</label><textarea ref={specRef} rows={5} value={customSpec?.specText || ''} onChange={(e) => setCustomSpec({ ...customSpec, specText: e.target.value })} /></div>
+      <div className="field">
+        <label>Specification Text</label>
+        {/* Blank lines now survive into the proposal, so the sheet's fixed height becomes a real
+            limit the rep can hit by pressing Enter. The edit is refused only when it would GROW
+            the spec past what the page can print — editing or deleting inside an already-long
+            spec still works, so a legacy quote can never become uneditable. */}
+        <textarea ref={specRef} rows={5} value={customSpec?.specText || ''}
+          onChange={(e) => {
+            const nextText = e.target.value
+            const nextLines = normalizeSpecLines(nextText).length
+            if (nextLines > MAX_SPEC_LINES && nextLines > specLineCount) return
+            setCustomSpec({ ...customSpec, specText: nextText })
+          }} />
+        <span className="muted" style={{ fontSize: 12, color: specFull ? 'var(--danger)' : undefined }}>
+          {specFull
+            ? `Specification is full — ${specLineCount} of ${MAX_SPEC_LINES} lines. Remove a line to add another; the proposal cannot print more than this.`
+            : `${specLineCount} of ${MAX_SPEC_LINES} lines used. Blank lines count — they print on the proposal.`}
+        </span>
+      </div>
       <div className="step-section">5. Special requirements</div>
       <div className="field">
         <label>Special requirements (anything unusual about this job)</label>
