@@ -5,7 +5,7 @@ import { buildSpecLines, money, esc } from '../generator/proposal'
 import { resolveSignTypeName } from '../generator/faCatalog'
 import { T } from '../generator/catalog'
 import { parseDims } from '../generator/questions'
-import { itemSigned } from '../generator/parts'
+import { itemSigned, resolveTplByName } from '../generator/parts'
 import { sanitizeHtml } from '../utils/sanitizeHtml'
 import client, { fileUrl } from '../api/client'
 import { attachCheckpointImage } from '../api/quotes'
@@ -295,17 +295,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // '' = no package chosen yet, which is now the DEFAULT: the sheet assigns a letter per sign
   // type, so until a type is known there is nothing honest to show. It used to fall back to 'A',
   // which silently printed Package A's artwork on quotes whose type says otherwise.
-  const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(tpl?.pkg) || '')
+  // CUSTOM MODE CARRIES NO `tpl` — it only ever tracks customSpec (same reason isMonoType below
+  // reads customSpec.mono). Resolving the letter from tpl alone therefore found nothing in the
+  // mode the team actually uses, and every custom quote rendered an empty PACKAGE INCLUDES.
+  // Look the type up by its saved NAME there, exactly as the sheet does in generator mode.
+  const signTypeName = mode === 'custom' ? (customSpec?.signType || '') : (tpl?.n || '')
+  const typePkg = tpl?.pkg || (mode === 'custom' ? resolveTplByName(customSpec?.signType)?.pkg : null)
+  const [pkgSet, setPkgSet] = useState(resolvePkgSet(savedState?.__pkgSet) || resolvePkgSet(typePkg) || '')
   const [pkgPicking, setPkgPicking] = useState(false)   // #8 — image dropdown open
   // The package follows the SIGN TYPE when the type changes — the same rule the side view got.
   // Skipped on mount (the ref starts at the current type), so a saved/hand-picked set is not
   // clobbered just by opening the quote; only an actual change re-derives it.
-  const prevTplRef = useRef(tpl?.n)
+  const prevTypeRef = useRef(signTypeName)
   useEffect(() => {
-    if (prevTplRef.current === tpl?.n) return
-    prevTplRef.current = tpl?.n
-    setPkgSet(resolvePkgSet(tpl?.pkg) || '')
-  }, [tpl?.n, tpl?.pkg])
+    if (prevTypeRef.current === signTypeName) return
+    prevTypeRef.current = signTypeName
+    setPkgSet(resolvePkgSet(typePkg) || '')
+  }, [signTypeName, typePkg])
   const packageItems = pkgSet ? PACKAGE_SETS[pkgSet].items : []
   // A-D are ONE pre-composed image (labels baked in) — it should fill the whole PACKAGE INCLUDES
   // box, not the small multi-icon tile width pkgTileW was sized for (that 150px cap left a single
