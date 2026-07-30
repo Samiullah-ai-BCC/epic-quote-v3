@@ -39,8 +39,24 @@ EXPOSE 8000
 #   • SignCatalogSeeder — truncate+reload, correct: that table is reference data from a JSON file,
 #     not user data. The team's own sign types live in user_catalog_items and are untouched.
 # companies:import likewise only BACKFILLS a blank address, so an address edited in the app survives.
-CMD mkdir -p "$(dirname "${DB_DATABASE:-/app/database/database.sqlite}")" \
- && touch "${DB_DATABASE:-/app/database/database.sqlite}" \
+#
+# The DB_DATABASE default below is /var/data/…, NOT /app/database/… — and that is the whole
+# point. /app lives in the container image: it is rebuilt from scratch on every deploy, so a
+# sqlite file there is destroyed each time and the boot line above then "helpfully" re-seeds a
+# virgin database. That is exactly what a wiped-logins deploy looks like from the outside, and
+# an /app default meant one unset env var was enough to cause it, silently. /var/data is the
+# persistent disk; if it is somehow not mounted the data is lost either way, but nothing about
+# a plain deploy can lose it. (the vanished-logins deploys, 2026-07)
+# On MySQL, DB_DATABASE is a schema NAME, not a path — none of this applies and it is left alone.
+CMD if [ "${DB_CONNECTION:-sqlite}" = sqlite ]; then \
+      DB_DATABASE="${DB_DATABASE:-/var/data/database.sqlite}"; export DB_DATABASE; \
+      case "$DB_DATABASE" in /var/data/*) : ;; *) \
+        echo "!! WARNING: sqlite DB is at $DB_DATABASE, OUTSIDE the persistent disk (/var/data)." >&2; \
+        echo "!! Every deploy destroys it and re-seeds a blank install (all logins lost)." >&2; \
+        echo "!! Fix: set DB_DATABASE=/var/data/database.sqlite in the Render dashboard." >&2 ;; \
+      esac; \
+      mkdir -p "$(dirname "$DB_DATABASE")" && touch "$DB_DATABASE"; \
+    fi \
  && mkdir -p "${PUBLIC_DISK_ROOT:-/app/storage/app/public}" \
  && (cp -rn /app/storage/app/public/. "${PUBLIC_DISK_ROOT:-/app/storage/app/public}"/ 2>/dev/null || true) \
  && php artisan migrate --force \
