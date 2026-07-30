@@ -34,6 +34,16 @@ it('tracks inventory and makes each variant a one-time purchase (1 in stock, den
     // untracks the variant so it can never become an unpayable "sold out".
 });
 
+// RATCHET (2026-07-30): a live $23,000 checkout could not be paid. The variant was created as a
+// shippable good, so Shopify demanded a shipping rate for the customer's address and, finding no
+// matching zone, refused the order — "not available for delivery to your location". The address was
+// correct; the flag was wrong. This test exists so that flag can never come back.
+it('never requires shipping — the variant is a PAYMENT, not a parcel', function () {
+    foreach (['full', 'deposit', 'balance'] as $kind) {
+        expect(ShopifyService::variantsFor(23000.0, $kind)[0]['requires_shipping'])->toBeFalse();
+    }
+});
+
 it('rounds a 50% amount to cents', function () {
     expect(ShopifyService::variantsFor(3499.99, 'deposit')[0]['price'])->toBe('1750.00');
 });

@@ -134,6 +134,29 @@ Uses the browser's own layout engine (SVG `foreignObject`), so screen == export 
 - Fonts must be **same-origin** (`/fonts/roboto.css`); a cross-origin font sheet cannot be read
   and the export silently falls back to a wider font, re-wrapping every tight line.
 
+## SHOPIFY PAYMENT LINK — SOURCE OF TRUTH: `ShopifyService::variantsFor` + `PaymentLinkController`
+The variant IS the charge, so every field on it is a money field. **MONEY — tests/adversary pass
+required before changing anything here.**
+- **`requires_shipping` MUST stay `false`.** The variant is a PAYMENT for a sign, not the sign; Epic
+  ships outside Shopify and nothing in this codebase reads a shipping address off a Shopify order.
+  While it was `true`, Shopify demanded a shipping RATE covering the customer's address and, with no
+  zone matching, the checkout dead-ended on "not available for delivery to your location" /
+  "Shipping not available" — a correct address, an unpayable link, a $23,000 order (2026-07-30).
+  Making it `false` means the failure cannot recur for any address or country, without depending on
+  the store's shipping zones. Setting it back re-arms that trap.
+- A variant ALREADY in Shopify keeps the flag it was born with: code changes here only affect NEW
+  links. Existing ones are repaired with `php artisan payments:fix-shipping` (idempotent, --dry-run).
+- Inventory is tracked at exactly 1 (`setInventoryOne`), with `untrackVariant` as the fallback — a
+  product whose stock could not be set must stay payable, never read "sold out".
+- **KNOWN MONEY RISK, still open: Shopify's cart is shared per browser session.** Links are
+  product-page URLs, so opening two of them in one browser leaves BOTH in the cart — observed live
+  with three items across two quotes, including a Full Payment and a 50% Deposit for the SAME quote,
+  offered as one $23,000 total. One link per session is safe; the accumulation is not detectable
+  server-side. Candidate fixes: `/cart/clear?return_to=/products/{handle}`, the theme's "Buy it now"
+  dynamic checkout button, or draft-order invoices (needs the `write_draft_orders` scope).
+- Read surfaces: `Proposal.jsx` (creates links, `exportBlocked` gate), `PaymentLinks` page,
+  `ShopifyWebhookController` (marks paid), `QuoteCheckpoint` (a payment mints a version).
+
 ## WIZARD STEP ORDER — SOURCE OF TRUTH: `FLOWS` in `parts.js` + `returnTo` in `Generator.jsx`
 Two DIFFERENT things decide where a step goes next, and conflating them has broken this twice:
 - **`FLOWS[mode]`** is the pipeline a NEW sign walks: `custom: client → customspecs → artwork →

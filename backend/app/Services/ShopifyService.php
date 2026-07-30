@@ -130,7 +130,24 @@ class ShopifyService
             // location AFTER create (see setInventoryOne) — REST no longer accepts it inline.
             'inventory_management' => 'shopify',
             'inventory_policy'     => 'deny',
-            'requires_shipping'    => true,
+            // NOT A PARCEL. This variant is a PAYMENT for a sign, not the sign — Epic ships the sign
+            // itself, outside Shopify, and nothing in this codebase ever reads a shipping address off
+            // a Shopify order.
+            //
+            // While this was `true`, Shopify treated every payment link as a shippable good and
+            // demanded a shipping RATE covering the customer's address before it would let them pay.
+            // With no zone/rate matching that address the checkout dead-ends on two red boxes —
+            // "The products in your cart are not available for delivery to your location" and
+            // "Shipping not available" — with a perfectly valid address typed in. That is not an
+            // address problem and no amount of retyping fixes it: the customer simply cannot pay.
+            // (Reported 2026-07-30 on a live $23,000 checkout with the company's own Philadelphia
+            // address, which the whole team had been using by hand.)
+            //
+            // `false` removes the shipping step from the checkout entirely, so this class of failure
+            // cannot happen again for ANY address or country — it does not depend on the store's
+            // shipping zones being configured correctly. Card payments still collect a billing
+            // address, so nothing needed for the charge is lost.
+            'requires_shipping'    => false,
             'taxable'              => true,
         ];
         $amount = $kind === 'full' ? $total : $total / 2;
@@ -215,6 +232,31 @@ class ShopifyService
                 'variant' => ['id' => $variantId, 'inventory_management' => null, 'inventory_policy' => 'continue'],
             ]);
         } catch (\Throwable) { /* best-effort */ }
+    }
+
+    /**
+     * Clear `requires_shipping` on an EXISTING variant, so a link created before that default was
+     * corrected stops dead-ending at "Shipping not available". Returns true only when Shopify
+     * confirms the variant now reads false — the repair command counts on that, because a silent
+     * failure here would leave an unpayable link looking fixed.
+     */
+    public static function clearVariantShipping(string $variantId): bool
+    {
+        if (!self::configured() || $variantId === '') {
+            return false;
+        }
+        $domain  = self::domain();
+        $version = config('services.shopify.version', '2025-01');
+        try {
+            $resp = Http::timeout(15)->withHeaders([
+                'X-Shopify-Access-Token' => config('services.shopify.token'), 'Content-Type' => 'application/json',
+            ])->put("https://{$domain}/admin/api/{$version}/variants/{$variantId}.json", [
+                'variant' => ['id' => $variantId, 'requires_shipping' => false],
+            ]);
+        } catch (\Throwable) {
+            return false;
+        }
+        return $resp->successful() && $resp->json('variant.requires_shipping') === false;
     }
 
     /** Build the storefront product description: the sign specs shown under the CTA. On a multi-

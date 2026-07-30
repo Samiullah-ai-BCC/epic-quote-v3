@@ -1,28 +1,43 @@
 <?php
 
-/* Intake required fields: a quote needs a Job Name (#6) and at least one of Company / Client
-   (#7). Enforced on the API so the form can't be bypassed. */
+/* Intake required fields: a quote needs a Quote ID, a Job Name (#6) and at least one of
+   Company / Client (#7). Enforced on the API so the form can't be bypassed.
 
-it('rejects a quote with neither company nor client', function () {
+   Every case below sends a VALID quote_id and varies only the field under test. The rep assigns the
+   Quote ID by hand now, so a payload without one 422s on that alone — which made the two "rejects"
+   cases pass without ever exercising the rule they name, and the two "accepts" cases fail even though
+   the rules work. A test that cannot fail for its stated reason is not a gate. */
+
+$id = fn () => 'EC'.random_int(100000, 999999);
+
+it('rejects a quote with neither company nor client', function () use ($id) {
     login(makeUser(['role' => 'admin']));
-    $this->postJson('/api/quotes', ['job_name' => 'Storefront sign'])
+    $this->postJson('/api/quotes', ['quote_id' => $id(), 'job_name' => 'Storefront sign'])
+        ->assertStatus(422)
+        ->assertJson(['error' => 'Enter a Company Name or a Client Name (at least one).']);
+});
+
+it('rejects a quote with no job name', function () use ($id) {
+    login(makeUser(['role' => 'admin']));
+    $this->postJson('/api/quotes', ['quote_id' => $id(), 'company_name' => 'Signarama'])
+        ->assertStatus(422)
+        ->assertJson(['error' => 'Job Name is required.']);
+});
+
+it('rejects a quote with no quote id', function () {
+    login(makeUser(['role' => 'admin']));
+    $this->postJson('/api/quotes', ['company_name' => 'Signarama', 'job_name' => 'Channel letters'])
         ->assertStatus(422);
 });
 
-it('rejects a quote with no job name', function () {
+it('accepts a quote with only a client name and a job name', function () use ($id) {
     login(makeUser(['role' => 'admin']));
-    $this->postJson('/api/quotes', ['company_name' => 'Signarama'])
-        ->assertStatus(422);
-});
-
-it('accepts a quote with only a client name and a job name', function () {
-    login(makeUser(['role' => 'admin']));
-    $this->postJson('/api/quotes', ['client_name' => 'Jane Doe', 'job_name' => 'Window decal'])
+    $this->postJson('/api/quotes', ['quote_id' => $id(), 'client_name' => 'Jane Doe', 'job_name' => 'Window decal'])
         ->assertCreated();
 });
 
-it('accepts a quote with only a company name and a job name', function () {
+it('accepts a quote with only a company name and a job name', function () use ($id) {
     login(makeUser(['role' => 'admin']));
-    $this->postJson('/api/quotes', ['company_name' => 'Signarama', 'job_name' => 'Channel letters'])
+    $this->postJson('/api/quotes', ['quote_id' => $id(), 'company_name' => 'Signarama', 'job_name' => 'Channel letters'])
         ->assertCreated();
 });
