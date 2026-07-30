@@ -6,6 +6,11 @@ import { useRef } from 'react'
 // keyed by its stable part id, so these can pull from EVERY sign in page order.
 export function usePageCapture(parts) {
   const pageRefs = useRef({})
+  // The CLIENT DOCUMENT sheet(s) that hang off each sign page, keyed by the same part id. Their
+  // capture handles return ARRAYS (a customer PDF is often several pages), and they are emitted
+  // DIRECTLY AFTER their own sign page everywhere below — the whole point is the pair being read
+  // together, so the order is part of the feature, not a detail.
+  const docRefs = useRef({})
   const proposalRef = useRef(null)   // LAST-page Proposal, for capturing the version snapshot image
   const multiPreviewRef = useRef(null)   // wraps all stacked pages — captured whole for the version image
 
@@ -29,6 +34,10 @@ export function usePageCapture(parts) {
     for (const part of parts) {
       const pageHandle = pageRefs.current[part.__pid]
       if (pageHandle?.captureSnapshot) { try { snapshots.push(await pageHandle.captureSnapshot()) } catch { /* skip a bad page */ } }
+      const docHandle = docRefs.current[part.__pid]
+      if (docHandle?.hasDoc?.()) {
+        try { snapshots.push(...(await docHandle.captureSnapshot())) } catch { /* skip a bad sheet */ }
+      }
     }
     return snapshots
   }
@@ -46,11 +55,20 @@ export function usePageCapture(parts) {
       if (wanted && !wanted.has(index)) continue
       const pageHandle = pageRefs.current[part.__pid]
       if (pageHandle?.captureExport) {
-        try { exports.push({ ...(await pageHandle.captureExport()), index }) } catch { /* skip */ }
+        // kind:'sign' matters downstream: the clickable payment-link annotation must land on the
+        // last SIGN sheet, which is no longer the last sheet in the file once a client document
+        // follows it.
+        try { exports.push({ ...(await pageHandle.captureExport()), index, kind: 'sign' }) } catch { /* skip */ }
+      }
+      const docHandle = docRefs.current[part.__pid]
+      if (docHandle?.hasDoc?.()) {
+        try {
+          for (const sheet of await docHandle.captureExport()) exports.push({ ...sheet, index, kind: 'doc' })
+        } catch { /* skip */ }
       }
     }
     return exports
   }
 
-  return { pageRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport }
+  return { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport }
 }

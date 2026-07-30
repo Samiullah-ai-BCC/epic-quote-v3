@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, generateSpecs, createCheckpoint } from '../api/quotes'
+import { updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, uploadExtraFile, generateSpecs, createCheckpoint } from '../api/quotes'
 import { useConstants } from '../hooks'
 import { useSelector } from 'react-redux'
 import { selectUser, selectIsAdmin } from '../store/authSlice'
@@ -127,7 +127,7 @@ export default function Generator() {
     return flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo)
   }
 
-  const { pageRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts)
+  const { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts)
 
   // Persist the shared payment link (top-level, one per quote) without touching parts or hooks.
   const savePaymentLink = async (url) => {
@@ -416,6 +416,26 @@ export default function Generator() {
     await savePart(index, { artwork_path: path, artwork_auto: false, proposal_state: cleanedProposalState })
     if (index === activePart) setArtworkPath(path)
   }
+  // The customer's own spec sheet / drawing for ONE sign page (the CLIENT DOCUMENT sheet under it).
+  // Stored through the extra-file endpoint on purpose: it must NOT touch `quote.customer_pdf`, which
+  // is the quote's primary intake drawing and feeds the AI spec read, the artwork fallback and the
+  // View modal's carousel. A per-page attachment overwriting that would rewrite the quote's history.
+  const [clientDocBusy, setClientDocBusy] = useState(null)   // part id currently uploading
+  const [clientDocErr, setClientDocErr] = useState('')
+  const commitPartClientDoc = async (index, file) => {
+    if (!file) return
+    const partId = partsRef.current[index]?.__pid || null
+    setClientDocBusy(partId); setClientDocErr('')
+    try {
+      const path = await uploadExtraFile(quoteId, file)
+      await savePart(index, { client_doc: path })
+    } catch (err) {
+      // The preview step has no artwork-error strip, so this has to surface ON the sheet — a failed
+      // upload that only logged would look exactly like a successful one that rendered nothing.
+      setClientDocErr(err?.response?.data?.error || err?.message || 'That file could not be uploaded.')
+    } finally { setClientDocBusy(null) }
+  }
+
   const onCustomerFile = async (e) => {
     const file = e.target.files[0]; if (!file) return
     const path = await uploadCustomerFile(quoteId, file)
@@ -737,7 +757,9 @@ export default function Generator() {
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
             savePaymentLink={savePaymentLink} logo={logo} paymentLink={paymentLink} quote={quote}
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
-            pageRefs={pageRefs} proposalRef={proposalRef} mode={mode}
+            specialRequirements={special}
+            commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
+            pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
             editPart={editPart} editArtwork={editArtwork} deletePage={deletePage} />
         )}
        </div>
@@ -763,6 +785,7 @@ export default function Generator() {
            paymentLink={paymentLink}
            approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
            proposalNotes={proposalNotes}
+           specialRequirements={special}
            savedState={livePreviewState()}
            sideViews={sideViews}
            signBox={signBox}

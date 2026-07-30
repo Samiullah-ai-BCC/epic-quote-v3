@@ -134,6 +134,42 @@ Uses the browser's own layout engine (SVG `foreignObject`), so screen == export 
 - Fonts must be **same-origin** (`/fonts/roboto.css`); a cross-origin font sheet cannot be read
   and the export silently falls back to a wider font, re-wrapping every tight line.
 
+## ADDITIONAL NOTES (`notes` block) — SOURCE OF TRUTH: the wizard's TWO note fields
+`proposalNotes` (Artwork step) **+ `special_requirements`** (Edit specs, step 5), joined by
+`notesHTML` in `Proposal.jsx` and de-duplicated line-wise.
+- Special requirements had NO surface on the customer document at all: `splitSpecialRequirements`
+  LIFTS the template's trailing bullet out of the spec text into that field, so whatever sat there
+  printed nowhere. ADDITIONAL NOTES is that surface — and nothing is duplicated, because the lift
+  already removed those lines from SPECIFICATIONS. If the lift is ever removed, this block starts
+  double-printing.
+- Write-once `EBlock` means the mount write is not enough: a second effect calls
+  `setBlock('notes', notesHTML)` on every change (the same channel SPECIFICATIONS uses).
+- **Ownership stands here, unlike the spec:** this block is still hand-editable on the sheet, so the
+  sync skips it once `notes` is in `__dirty`. A wizard keystroke must never erase words the rep typed
+  on the proposal.
+- The block only EXISTS while `!specLong && !hideNotes` — a >520-char spec still swallows it (#17),
+  and then neither note field shows. Same trade-off as before this feature.
+- Read surfaces: `PreviewStep` (quote-level `special`), `LivePreviewPanel`, `ViewProposalImage`.
+
+## CLIENT DOCUMENT sheets — SOURCE OF TRUTH: per-part `client_doc` (a stored file path)
+One blank Letter sheet hangs off EVERY sign page (`ClientDocPage.jsx`, rendered by `PreviewStep`
+right under its `Proposal`), so our spec and the customer's own spec sheet are read as a pair.
+- Stored through the **extra-file** endpoint, never `quote.customer_pdf`: that column is the quote's
+  primary intake drawing and feeds the AI spec read, the artwork fallback and the View carousel. A
+  per-page attachment overwriting it would rewrite the quote's own history.
+- A PDF is **rasterised** (`rasterizePdfPages`, all pages, max 12) — an `<iframe>` renders on screen
+  and exports as an empty box, which would ship blank sheets to a customer. Cloudinary-hosted
+  PDF/AI stay one sheet (`cloudRaster` gives page 1 only; the page count is not in the URL).
+- Capture handles live in `docRefs` (`usePageCapture`) and return ARRAYS; every collector emits a
+  page's doc sheets DIRECTLY AFTER that page, tagged `kind:'doc'` and carrying the SIGN page's
+  `index`.
+- **`kind` is load-bearing in `runPDF`/`runPNG`:** the file's last sheet is now routinely a customer
+  drawing, so the clickable payment-link annotation is placed on the last **sign** sheet via
+  `pdf.setPage`, and PNG letters/`multiPages` count sign sheets only. Counting doc sheets moved the
+  payment link onto a drawing and, on a single-sign quote, dropped it entirely.
+- Any attached doc flips a single-sign quote onto the multi-sheet export path
+  (`capturePages = multi || anyClientDoc`), or the download would omit the attachment.
+
 ## PROPOSAL PAGE LIMIT — SOURCE OF TRUTH: `PAGE_H = 1056` in `Proposal.jsx`
 Headroom is measured from the **content's real bottom** (lowest in-flow child), NEVER from
 `scrollHeight` — the sheet is height-pinned with `overflow:hidden`, so its `scrollHeight`

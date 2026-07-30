@@ -4,6 +4,7 @@
 // component threads them into each <Proposal> without owning any state.
 import { partLetter } from '../../generator/parts'
 import Proposal from '../Proposal'
+import ClientDocPage from './ClientDocPage'
 
 export default function PreviewStep({
   parts, cpBusy, cpMsg, saving, saveCheckpoint, navigate, exitTo, addPage,
@@ -11,8 +12,13 @@ export default function PreviewStep({
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
-  savePart, commitPartArtworkFile, movePart, pageRefs, proposalRef, mode, editPart, editArtwork, deletePage,
+  savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage,
+  specialRequirements, commitPartClientDoc, docBusy, docErr,
 }) {
+  // Any client document at all switches the downloads onto the multi-sheet path, even for a
+  // single-sign quote — otherwise Proposal would export its own DOM alone and the attached
+  // document would be missing from the PDF the customer receives.
+  const anyClientDoc = parts.some((p) => !!p.client_doc)
   // Quote-level actions (Back / Done) live at the TOP of the FIRST page's
   // controls column — the old toolbar row above the sheet (plus the "Proposal" heading and the
   // .step panel chrome) was pure vertical waste on the one step where the sheet needs every
@@ -123,8 +129,8 @@ export default function PreviewStep({
                 quoteTotal={multi ? grandTotal : null}
                 collectImages={multi ? collectPartImages : null}
                 linkTitle={multi ? linkTitle : null}
-                captureAll={multi ? captureAllPages : null}
-                capturePages={multi ? capturePagesExport : null}
+                captureAll={(multi || anyClientDoc) ? captureAllPages : null}
+                capturePages={(multi || anyClientDoc) ? capturePagesExport : null}
                 pageLabels={multi ? parts.map((part, n) => `Page ${partLetter(n)} — ${tplForPart(part)?.n || 'Sign'}`) : null}
                 canCreatePaymentLinks={canCreatePaymentLinks}
                 onPaymentLinkCreated={(url) => savePaymentLink(url)}
@@ -135,12 +141,30 @@ export default function PreviewStep({
                 paymentLink={paymentLink}
                 approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
                 proposalNotes={p.proposal_notes}
+                specialRequirements={specialRequirements || quote?.special_requirements || ''}
                 savedState={p.proposal_state}
                 sideViews={p.side_views || []}
                 signBox={p.sign_box}
                 onSideViews={(sv) => savePart(i, { side_views: sv })}
                 onSave={(proposalState) => savePart(i, { proposal_state: proposalState })}
               />
+              {/* The client's own document, on its own sheet, directly under the sign page it has to
+                  be checked against. Present for EVERY page (blank until a file is attached) and on
+                  multi-sign quotes too — each sign carries its own. */}
+              {/* Same width as the sheet beside it: the Proposal's own layout is
+                  [sheet flex:1] + [220px controls column] + 16px gap, so the doc sheet has to give
+                  those 236px back or it would render WIDER than the proposal it sits under. */}
+              <div style={{ marginTop: 26, maxWidth: 'calc(100% - 236px)' }}>
+                <ClientDocPage
+                  ref={(el) => { if (docRefs) docRefs.current[p.__pid] = el }}
+                  doc={p.client_doc || null}
+                  label={multi ? partLetter(i) : null}
+                  busy={docBusy === p.__pid || saving}
+                  errorText={docBusy === null ? docErr : ''}
+                  onPick={(file) => commitPartClientDoc && commitPartClientDoc(i, file)}
+                  onRemove={() => savePart(i, { client_doc: null })}
+                />
+              </div>
             </div>
           )
         })}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getRevisions, getGenerated } from '../../api/quotes'
 import Proposal from '../Proposal'
+import ClientDocPage from '../generator/ClientDocPage'
 import { resolveTplByName, itemSigned } from '../../generator/parts'
 
 // The PROPOSAL itself at the top of the View modal (#7): the latest version image when one
@@ -102,11 +103,20 @@ export default function ViewProposalImage({ quote }) {
             sideViews={p.side_views || []}
             paymentLink={gd.payment_link}
             proposalNotes={p.proposal_notes}
+            specialRequirements={quote.special_requirements || ''}
             partLabel={multi ? String.fromCharCode(65 + i) : null}
             multi={multi}
             isLast={i === parts.length - 1}
             quoteTotal={multi ? total : null}
           />
+          {/* The client's own document belongs to the page, so View must show it too — otherwise the
+              one screen people check a quote on is the one screen that hides half of it. Read-only
+              here: attaching/replacing happens in the wizard. */}
+          {p.client_doc && (
+            <div style={{ marginTop: 26 }}>
+              <ClientDocPage readOnly doc={p.client_doc} label={multi ? String.fromCharCode(65 + i) : null} />
+            </div>
+          )}
           </div>
         </div>
       </div>

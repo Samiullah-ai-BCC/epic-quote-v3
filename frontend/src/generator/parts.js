@@ -36,7 +36,10 @@ export const makeCustomTpl = (name, storedSpec = null) => {
 // The fields that make up ONE sign part. Company/client/job/payment_link live at the top level
 // of generated_data (shared across every part) — only these are per-part.
 export const PART_KEYS = ['quote_type', 'tpl_name', 'tpl_stored_spec', 'custom_spec', 'answers', 'ai',
-  'artwork_path', 'artwork_auto', 'sign_box', 'side_views', 'proposal_notes', 'proposal_state']
+  'artwork_path', 'artwork_auto', 'sign_box', 'side_views', 'proposal_notes', 'proposal_state',
+  // client_doc: the customer's own spec sheet / drawing, shown on this page's CLIENT DOCUMENT sheet
+  // (one stored path per sign page; a multi-page PDF becomes several sheets at render time).
+  'client_doc']
 
 // A→Z→AA labels for the parts (rarely past B in practice, but never breaks).
 export const partLetter = (i) => {

@@ -7,7 +7,7 @@ import Proposal from '../../../components/Proposal'
 export default function LivePreviewPanel({
   previewKey, onBack, onSaveAndReturn, saving,
   mode, template, answers, customSpec, info, artworkPath, onArtworkFile, logo, aiResult,
-  paymentLink, approval, proposalNotes, savedState, sideViews, signBox, onSideViews, onSave,
+  paymentLink, approval, proposalNotes, specialRequirements, savedState, sideViews, signBox, onSideViews, onSave,
 }) {
   return (
     <aside className="wiz-live">
@@ -30,6 +30,7 @@ export default function LivePreviewPanel({
         paymentLink={paymentLink}
         approval={approval}
         proposalNotes={proposalNotes}
+        specialRequirements={specialRequirements}
         savedState={savedState}
         sideViews={sideViews}
         signBox={signBox}

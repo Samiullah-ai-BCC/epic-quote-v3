@@ -82,7 +82,7 @@ const HD_SCALE = 3   // capture DPI factor for PNG/PDF downloads (~288dpi on a L
 // 0.96MB / 1.46MB for those pages — no better where it counts, and lossy. Nothing about the
 // capture resolution (HD_SCALE) changes either way.
 
-function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, mainView, signBox,
+function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, specialRequirements = '', sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, mainView, signBox,
   // --- multi-page (multi-sign) quote props ---
   // partLabel: 'A'/'B'/… shown after the PROPOSAL ID, or null for a single-sign quote.
   // multi: this quote has >1 part → per-part prices are hidden (Sami's rule: the customer only
@@ -717,8 +717,32 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     (savedSpecType && savedSpecType !== specTypeKey)
   ))
 
+  // ── ADDITIONAL NOTES = the wizard's two note fields, joined ────────────────────────────────
+  // `proposalNotes` is the Artwork step's "Notes for the proposal". `specialRequirements` is the
+  // quote's Special requirements box (Edit specs, step 5) — which until now printed NOWHERE: the
+  // spec templates' trailing bullet is LIFTED OUT of the spec text into that field
+  // (splitSpecialRequirements), so anything sitting there had no surface on the customer document
+  // at all. ADDITIONAL NOTES is that surface. Nothing is duplicated by this: the lift already
+  // removed those lines from SPECIFICATIONS.
+  // Identical lines are collapsed, because the lift can put the same caveat in both boxes.
+  // Deliberately NOT memoised: the value is a STRING, so the sync effect below compares by value
+  // and a fresh identity each render costs nothing (and the loop's array mutation makes the React
+  // compiler bail on a useMemo here anyway).
+  const notesHTML = (() => {
+    const lines = []
+    for (const src of [proposalNotes, specialRequirements]) {
+      for (const line of String(src || '').split('\n')) {
+        const dup = line.trim() && lines.some((l) => l.trim().toUpperCase() === line.trim().toUpperCase())
+        if (!dup) lines.push(line)
+      }
+    }
+    const text = lines.join('\n').replace(/^\n+|\n+$/g, '')
+    if (text.trim()) return esc(text).replace(/\n/g, '<br>')
+    return tpl?.notes ? esc(tpl.notes) : '&nbsp;'
+  })()
+
   const today = new Date()
-  const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
+  const dateStr =`${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
 
   // default content per editable block; any saved proposal_state overrides it.
   const initial = useMemo(() => {
@@ -731,7 +755,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       unitPrice: money(price),
       totalPrice: money(price * qty),
       specBody: specHTML,
-      notes: proposalNotes ? esc(proposalNotes).replace(/\n/g, '<br>') : (tpl?.notes ? esc(tpl.notes) : '&nbsp;'),
+      notes: notesHTML,
       subtotal: money(totalsAmount),
       dep1: money(totalsAmount / 2),
       dep2: money(totalsAmount / 2),
@@ -895,6 +919,22 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     setBlock('specBody', specHTML)
     queueSave()
   }, [specHTML, specTypeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── ADDITIONAL NOTES FOLLOWS THE WIZARD, LIVE ──────────────────────────────────────────────
+  // Same write-once problem as SPECIFICATIONS above: `EBlock` ignores every `html` prop after
+  // mount, so typing in the Artwork notes / Special requirements box only reached the sheet when
+  // the preview happened to remount — "not reflected at that very time". `setBlock` is the honest
+  // channel.
+  // UNLIKE the spec, this block IS still hand-editable on the proposal, so ownership stands: once
+  // the rep has typed into ADDITIONAL NOTES on the sheet (tracked in __dirty) the wizard stops
+  // overwriting it — otherwise a keystroke in the wizard would erase words they wrote here.
+  const notesSyncMounted = useRef(false)
+  useEffect(() => {
+    if (!notesSyncMounted.current) { notesSyncMounted.current = true; return }   // mount already wrote it
+    if (dirtyRef.current.has('notes')) return
+    setBlock('notes', notesHTML)   // innerHTML fires no 'input' event, so this cannot mark it dirty
+    queueSave()
+  }, [notesHTML]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1384,13 +1424,24 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       // one PNG file PER sign page (#4) — a multi-sign quote downloads several images, each a
       // single page; a single-sign quote downloads its one page.
       const pages = capturePages ? await capturePages(indices) : [await captureExport()]
-      const multiPages = (pageLabels?.length || pages.length) > 1
+      // Letters are per SIGN page: a single-sign quote that only has extra sheets because a client
+      // document is attached is still "one sign", so it must not suddenly download as "… - A".
+      const multiPages = (pageLabels?.length || pages.filter((p) => p.kind !== 'doc').length) > 1
+      // A page's own CLIENT DOCUMENT sheets follow it in `pages` and share its index, so they are
+      // numbered within that letter ("- A (client doc 2)") instead of stealing the next letter.
+      let docSeq = 0, docSeqFor = null
       pages.forEach((p, i) => {
         // Letter comes from the page's position in the QUOTE (p.index), not in this batch, so
         // downloading only page C still writes "-C" rather than re-lettering it "-A".
         const letter = String.fromCharCode(65 + (p.index ?? i))
+        let suffix = multiPages ? ' - ' + letter : ''
+        if (p.kind === 'doc') {
+          if (docSeqFor !== p.index) { docSeqFor = p.index; docSeq = 0 }
+          docSeq += 1
+          suffix += ` (client doc${docSeq > 1 ? ' ' + docSeq : ''})`
+        }
         const a = document.createElement('a')
-        a.download = `${exportName()}${multiPages ? ' - ' + letter : ''}.png`
+        a.download = `${exportName()}${suffix}.png`
         a.href = p.url; a.click()
       })
       flash(pages.length > 1 ? `${pages.length} PNGs downloaded` : 'PNG downloaded')
@@ -1470,14 +1521,22 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         })
         const el = pageRef.current
         // The rect below is measured from THIS proposal's DOM, which is the quote's final page.
-        // That only lines up with the PDF's last sheet when the final page was actually included
-        // and sorts last — deselect it in the picker and the annotation would otherwise be pinned
-        // over whatever page ended up last, i.e. a clickable payment link in the wrong place.
-        const finalIndex = (pageLabels?.length || pages.length) - 1
-        const lastExported = pages.length ? (pages[pages.length - 1].index ?? pages.length - 1) : -1
-        const payPageIncluded = lastExported === finalIndex
+        // That only lines up with the PDF's last SIGN sheet when the final page was actually
+        // included and sorts last — deselect it in the picker and the annotation would otherwise be
+        // pinned over whatever page ended up last, i.e. a clickable payment link in the wrong place.
+        //
+        // CLIENT DOCUMENT sheets are excluded from this arithmetic AND jumped over: they carry the
+        // index of the sign page they follow, so the file's last sheet is now routinely a customer
+        // drawing. Counting them would have moved the payment link onto that drawing (and on a
+        // single-sign quote with a document, made `payPageIncluded` false and dropped it entirely).
+        const signSheets = pages.filter((p) => p.kind !== 'doc')
+        const finalIndex = (pageLabels?.length || signSheets.length) - 1
+        const lastSign = signSheets.length ? (signSheets[signSheets.length - 1].index ?? signSheets.length - 1) : -1
+        const payPageIncluded = lastSign === finalIndex
         const a = (paymentLink && payPageIncluded) ? el.querySelector('[data-pay-link]') : null
         if (a) {
+          // 1-based jsPDF page of that last sign sheet (the loop above left us on the LAST sheet)
+          pdf.setPage(pages.lastIndexOf(signSheets[signSheets.length - 1]) + 1)
           const sc = scaleRef.current || 1
           const pageRect = el.getBoundingClientRect(), r = a.getBoundingClientRect()
           const k = HD_SCALE * lastFit   // 1 unscaled css px = HD_SCALE canvas px = HD_SCALE*fit pt
