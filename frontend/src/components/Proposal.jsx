@@ -805,8 +805,18 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // editable block — content written once at mount (see EBlock) so React can NEVER clobber edits
-  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} textOnlyPaste={opts?.textOnlyPaste} noImagePaste={opts?.noImagePaste} readOnly={opts?.readOnly} readOnlyTitle={opts?.readOnlyTitle} />
+  // Proposal block — content written once at mount (see EBlock) so React can NEVER clobber it.
+  //
+  // NOTHING here is hand-editable. Every block mirrors something the WIZARD owns, and a typed
+  // edit on the preview only ever looked like it worked: it changed the printed page while the
+  // quote's own record kept the original, so the proposal, the dashboard, a payment link made
+  // afterwards and the next reopen could all disagree. The money cells were locked first for
+  // exactly that reason (#7/#9), then the spec block; this closes the rest by the same rule.
+  // The single channel is the wizard — "Edit specs" — and `setBlock` carries its values in.
+  // Locking here rather than at each call site is deliberate: a new block added later is
+  // read-only by default and cannot reopen the hole by omission.
+  const E = (key, style, opts) => <EBlock key={key} k={key} html={initial[key]} style={style} noPaste={opts?.noPaste} textOnlyPaste={opts?.textOnlyPaste} noImagePaste={opts?.noImagePaste} readOnly
+    readOnlyTitle={opts?.readOnlyTitle || 'Not editable here — change it on the “Edit specs” step'} />
   // when the SPECIFICATIONS run long, drop ADDITIONAL NOTES so the proposal stays on one page (#17)
   const specLong = (initial.specBody || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length > 520
 
@@ -1663,11 +1673,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none', textAlign: 'center' }}>UNIT PRICE</div>
             <div style={{ ...headCell, borderTop: '1px solid #777', borderLeft: 'none', textAlign: 'center' }}>TOTAL PRICE</div>
             {E('itemDesc', { ...cell, borderTop: 'none' })}
-            {/* QTY is editable (#2): TOTAL = qty × unit price, live.
+            {/* QTY mirrors the wizard's Quantity field, which seeds __qty — so like the price
+                cells below it is READ-ONLY here: TOTAL = qty × unit price, and a qty typed onto
+                the proposal moved the printed total without moving the quote's own record.
                 Number cells are VERTICALLY CENTRED (numCell): a description that wraps to two
                 lines makes the whole grid row taller, and top-padded numbers were left hanging
                 at the top of their taller cells. Flex-centring tracks any row height. */}
-            <EditCell value={qty}
+            <EditCell value={qty} readOnly
+              readOnlyTitle="Quantity comes from the “Edit specs” step — change it there"
               onCommit={(v) => { const n = parseInt(v, 10); setQty(Number.isFinite(n) && n > 0 ? n : 1) }}
               style={{ ...numCell, borderTop: 'none' }} />
             {/* Not hand-editable (#7/#9 money bug): these mirror the price set on the Specifications

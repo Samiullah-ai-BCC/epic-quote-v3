@@ -81,7 +81,25 @@ otherwise wins, because `computeDimSpec`/`syncSpecFromFields` rewrite that line 
 - In these regexes use `[ 	]`, **never `\s`**, after the label's colon: `\s` matches newlines, so on
   an EMPTY `RETURNS:` line the value was written onto the FOLLOWING line (`5" FINISH: SATIN`).
 
+### THE PREVIEW IS READ-ONLY — the wizard is the only way in
+Every `EBlock` is `readOnly` (forced in the `E` helper in `Proposal.jsx`, not per call site, so a
+block added later cannot reopen the hole by forgetting a flag), and the QTY cell is a `readOnly`
+`EditCell`. A typed edit on the preview only ever *looked* like it worked: it changed the printed
+page while `quotes.price` / the wizard fields kept the original, so the proposal, the dashboard, a
+payment link made afterwards and the next reopen could all disagree. Money cells were locked first
+for exactly that reason (#7/#9), then the spec block; the rest followed.
+- **Locking does NOT block the programmatic channel.** `contentEditable=false` stops the human,
+  not the script: `setBlock` still writes the DOM and still dispatches `input`, which is what
+  autosave, per-block `__dirty`, undo history and colour-chip re-anchoring hang off. Verified live.
+- Blocks stay VISIBLE and keep their content — read-only, not hidden.
+- STILL hand-editable ON PURPOSE, because they have no wizard source and locking them would
+  delete the feature: extra line-item / discount rows (`addItem`/`addDiscount` create them in the
+  preview), the `AdjDim` measurement-arrow labels, and the colour chips. Locking these means
+  first giving them a home in the wizard.
+
 ### PASTE INTO PROPOSAL BLOCKS — text yes, files and markup no
+(Historical: the paste guards below now sit behind `readOnly`, which returns before them. They are
+kept because they are the correct behaviour the moment any block is ever unlocked again.)
 `EBlock` sanitizes only the MOUNT write, so anything the browser pastes afterwards lands in the DOM
 unsanitized. Blocks therefore take the clipboard's `text/plain` and insert TEXT NODES
 (`textOnlyPaste` / `noImagePaste`): fonts, colours, tracked-change spans and embedded `<img>` cannot
