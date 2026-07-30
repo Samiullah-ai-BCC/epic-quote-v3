@@ -134,6 +134,22 @@ Uses the browser's own layout engine (SVG `foreignObject`), so screen == export 
 - Fonts must be **same-origin** (`/fonts/roboto.css`); a cross-origin font sheet cannot be read
   and the export silently falls back to a wider font, re-wrapping every tight line.
 
+## WIZARD STEP ORDER — SOURCE OF TRUTH: `FLOWS` in `parts.js` + `returnTo` in `Generator.jsx`
+Two DIFFERENT things decide where a step goes next, and conflating them has broken this twice:
+- **`FLOWS[mode]`** is the pipeline a NEW sign walks: `custom: client → customspecs → artwork →
+  preview`. Artwork belongs here — a first-time quote must be asked for it.
+- **`returnTo`** is how the step was OPENED. The per-page buttons (`editPart` → "Edit specs",
+  `editArtwork` → "Edit artwork") set it to `'preview'`, so Next AND Back both return straight to the
+  preview: the rep asked to change one thing, not to re-walk the wizard. `addPage` clears it, because
+  a second sign is a new build and needs its own artwork.
+**Do NOT express "Edit specs shouldn't pass through artwork" by deleting `artwork` from `FLOWS`.**
+That was tried (2026-07-29) and it silently removed the artwork step from the whole custom pipeline —
+new quotes were never asked for artwork at all. Entry mode is not a property of the flow.
+- `flowIndex === -1` (a step absent from the flow) still falls back to the preview on Back, but it is
+  no longer the mechanism — `returnTo` is checked first.
+- Consumers: `back()`, `saveNext()`, `toPreview()` (clears the flag), `WizardProgressBar` (segment
+  count comes straight from `flow`, so adding a step needs no change there).
+
 ## ADDITIONAL NOTES (`notes` block) — SOURCE OF TRUTH: the wizard's TWO note fields
 `proposalNotes` (Artwork step) **+ `special_requirements`** (Edit specs, step 5), joined by
 `notesHTML` in `Proposal.jsx` and de-duplicated line-wise.

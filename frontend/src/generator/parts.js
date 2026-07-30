@@ -17,12 +17,15 @@ export const MAX_PRICE = 1000000   // sanity guard against typos — real jobs g
 
 export const FLOWS = {
   generator: ['client', 'project', 'signtype', 'specs', 'artwork', 'preview'],
-  // Manual mode NO LONGER walks through Artwork on the way to the preview. Editing a spec meant
-  // traversing the artwork step to get back, which is a different job on a different page — the
-  // team asked for the two to be separated. Artwork is now its own one-step pipeline, opened per
-  // page from the preview's "Edit artwork" button, so it is deliberately absent from this list.
-  // Generator (AI) mode is untouched: it has its own ordering and its own entry point.
-  custom: ['client', 'customspecs', 'preview'],
+  // Artwork IS part of building a sign — a first-time quote must be ASKED for it, so it sits in the
+  // pipeline for both modes.
+  // It was briefly deleted from this list to stop "Edit specs" dragging the rep through the artwork
+  // step on its way back to the preview. That fixed the re-entry and broke the pipeline: a brand-new
+  // custom quote was never asked for artwork at all. The re-entry is a property of HOW the step was
+  // opened, not of the flow, so it is handled by `returnTo` in Generator.jsx instead — "Edit specs"
+  // and "Edit artwork" both return straight to the preview, while the pipeline still walks
+  // customspecs → artwork → preview.
+  custom: ['client', 'customspecs', 'artwork', 'preview'],
 }
 
 // A sign type the catalog doesn't have: free-form template (like monuments) — the spec body

@@ -118,11 +118,24 @@ export default function Generator() {
   const aiSuggestedName = aiResult && aiResult.signType ? (matchSignType(aiResult.signType)?.n || null) : null
   const goto = (s) => setStep(s)
   const next = () => goto(flow[flowIndex + 1])
-  // A step that is NOT part of the pipeline (custom mode's 'artwork', opened per page from the
-  // preview) has no position in `flow`, so flowIndex is -1. Without this it would fall to the
-  // "first step" branch and LEAVE THE QUOTE on Back, instead of returning to the preview the
-  // editor was opened from.
+
+  // ── ONE STEP, TWO WAYS IN ───────────────────────────────────────────────────────────────────
+  // A step reached through the PIPELINE continues down the pipeline. The SAME step opened from the
+  // preview's "Edit specs" / "Edit artwork" is a single-purpose errand and must return to the
+  // preview it was opened from — the rep asked to change one thing, not to be walked through the
+  // rest of the wizard again.
+  // `returnTo` records which of the two happened. The alternative — inferring it from the step's
+  // absence in `flow` — is what deleted Artwork from the custom pipeline entirely, so a brand-new
+  // quote was never asked for artwork. Entry mode is not a property of the flow.
+  const [returnTo, setReturnTo] = useState(null)   // 'preview' when opened from a per-page button
+  const openFromPreview = (s) => { setReturnTo('preview'); goto(s) }
+  const startPipeline = (s) => { setReturnTo(null); goto(s) }
+
+  // A step that is NOT part of the pipeline has no position in `flow`, so flowIndex is -1. Without
+  // this it would fall to the "first step" branch and LEAVE THE QUOTE on Back, instead of returning
+  // to the preview the editor was opened from.
   const back = () => {
+    if (returnTo === 'preview') { setReturnTo(null); return goto('preview') }
     if (flowIndex < 0) return goto('preview')
     return flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo)
   }
@@ -289,15 +302,18 @@ export default function Generator() {
     setActivePart(newIndex)
     loadPartIntoHooks({})                       // blank scratch buffer for the new sign
     await putGenerated(quoteId, payload)
-    setStep(mode === 'custom' ? 'customspecs' : 'signtype')
+    // A second sign is a NEW build, so it walks the whole pipeline — including artwork, which this
+    // sign does not have yet.
+    startPipeline(mode === 'custom' ? 'customspecs' : 'signtype')
   }
 
   // #9 — open the full wizard spec editor (sign type picker, dims, price, spec text) for ONE page:
-  // make it the active part, load it into the hooks, and jump to the spec step.
+  // make it the active part, load it into the hooks, and jump to the spec step. Returns STRAIGHT to
+  // the preview when done (#12): changing a spec is not a reason to re-walk the artwork step.
   const editPart = (index) => {
     setActivePart(index)
     loadPartIntoHooks(partsRef.current[index] || {})
-    setStep(mode === 'custom' ? 'customspecs' : 'signtype')
+    openFromPreview(mode === 'custom' ? 'customspecs' : 'signtype')
   }
 
   // Artwork editor for ONE page. Same shape as editPart — make that part active, load it into the
@@ -307,7 +323,7 @@ export default function Generator() {
   const editArtwork = (index) => {
     setActivePart(index)
     loadPartIntoHooks(partsRef.current[index] || {})
-    setStep('artwork')
+    openFromPreview('artwork')
   }
 
   // Delete one page (only offered when >1). Letters (A/B/…) are index-derived, so they resync
@@ -585,10 +601,12 @@ export default function Generator() {
     try { await updateQuote(quoteId, { special_requirements: special }) } catch { /* non-fatal */ }
     await saveProgress()
     setSaving(false)
+    setReturnTo(null)      // the errand is over; the next visit decides its own entry mode
     goto('preview')
   }
 
-  // save the current step, then advance to the NEXT step in the flow (not straight to preview)
+  // Save the current step, then advance to the NEXT step in the flow — EXCEPT when this step was
+  // opened from the preview by "Edit specs", where the next thing is the preview itself.
   const saveNext = async () => {
     setSaving(true)
     try { await updateQuote(quoteId, { special_requirements: special }) } catch { /* non-fatal */ }
@@ -599,6 +617,7 @@ export default function Generator() {
       ? { proposal_state: { ...(parts[activePart]?.proposal_state || {}), __qty: wizardQuantity } }
       : {})
     setSaving(false)
+    if (returnTo === 'preview') { setReturnTo(null); return goto('preview') }
     next()
   }
 
