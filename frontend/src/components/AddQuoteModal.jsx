@@ -161,16 +161,15 @@ export default function AddQuoteModal({ onClose }) {
   const onSubmit = async (form) => {
     setServerError('')
     const payload = { ...form }
-    // If this is a KNOWN company and the address you typed differs from the one on file,
-    // offer to update the company's saved details (#5) — otherwise the old address stays.
+    // A KNOWN company whose address you typed differently just gets UPDATED — no confirm dialog.
+    // The prompt (#5) was asking a question with only one sensible answer: the rep is looking at the
+    // customer's current paperwork, so what they typed IS the newer address, and the popup fired on
+    // trivia (a phone number the autofill had glued onto the front of the stored value) in the
+    // middle of creating a quote. Note the overwrite is NOT logged anywhere (company edits carry no
+    // revision history, unlike quotes) — the previous address is simply replaced.
     const known = companyHits.find((c) => c.name.toLowerCase() === form.company_name.trim().toLowerCase())
     const newAddr = form.address.trim()
-    if (known && newAddr && newAddr !== (known.address || '').trim()) {
-      const msg = known.address
-        ? `You entered a different address for "${form.company_name}".\n\nOn file:  ${known.address}\nEntered:  ${newAddr}\n\nUpdate this company's saved address?`
-        : `"${form.company_name}" has no saved address yet.\n\nSave "${newAddr}" as this company's address?`
-      if (window.confirm(msg)) payload.update_company_address = true
-    }
+    if (known && newAddr && newAddr !== (known.address || '').trim()) payload.update_company_address = true
     if (files[0]) payload.customer_pdf = files[0]   // first file is the primary drawing
     try {
       const created = await create.mutateAsync(payload)

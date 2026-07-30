@@ -29,8 +29,16 @@ ENV APP_DEBUG=false
 
 EXPOSE 8000
 
-# On boot: ensure the sqlite file exists (fresh persistent disk), migrate, seed
-# (idempotent updateOrCreate), link storage, then serve on Render's $PORT.
+# On boot: ensure the sqlite file exists (fresh persistent disk), migrate, seed, link storage, then
+# serve on Render's $PORT.
+#
+# `db:seed` runs on EVERY boot, so every seeder it calls must leave an existing install alone or the
+# deploy silently reverts real work. That is a property of the SEEDERS, not of this line:
+#   • UserSeeder    — populates an EMPTY users table only (deletes, roles and passwords now stick).
+#   • SettingsSeeder — firstOrCreate; never touches the live counters.
+#   • SignCatalogSeeder — truncate+reload, correct: that table is reference data from a JSON file,
+#     not user data. The team's own sign types live in user_catalog_items and are untouched.
+# companies:import likewise only BACKFILLS a blank address, so an address edited in the app survives.
 CMD mkdir -p "$(dirname "${DB_DATABASE:-/app/database/database.sqlite}")" \
  && touch "${DB_DATABASE:-/app/database/database.sqlite}" \
  && mkdir -p "${PUBLIC_DISK_ROOT:-/app/storage/app/public}" \

@@ -164,7 +164,10 @@ class QuoteController extends Controller
         $quoteSource = (string) $request->input('quote_source', '');
         $orderId     = trim((string) $request->input('order_id', ''));
         $qid         = strtoupper(trim((string) $request->input('quote_id', '')));  // IDs are case-insensitive → normalize
-        $updateCompanyAddr = $request->boolean('update_company_address');   // (#5) rep confirmed overwriting the saved address
+        // (#5) the intake typed an address that differs from the company's saved one. It is sent
+        // unconditionally now — the old confirm() dialog is gone, because what the rep is reading off
+        // the customer's paperwork IS the current address.
+        $updateCompanyAddr = $request->boolean('update_company_address');
 
         // Non-admins may leave the rep blank (N/A → shared quote) or own it themselves,
         // but can never assign it to somebody else.
@@ -225,7 +228,7 @@ class QuoteController extends Controller
                     ]);
                 } elseif ($address && (!$company->address || $updateCompanyAddr)) {
                     // fill a blank address automatically, OR overwrite an existing one when the
-                    // rep explicitly confirmed the update in the intake (#5).
+                    // intake reported a different address (#5 — no longer a confirmed action).
                     $company->update(['address' => $address]);
                 }
 
