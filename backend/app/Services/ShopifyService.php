@@ -157,9 +157,61 @@ class ShopifyService
     }
 
     /**
-     * Set the product's stock to 1 at the US warehouse (the store's primary location for now).
-     * Called right after createProduct. Returns true on success. On ANY failure the caller must
-     * untrack the variant so the link never becomes an unpayable "sold out" (0 tracked stock).
+     * The US WAREHOUSE's location id — the one the team stocks payment links at, by name.
+     *
+     * It used to be `locations.json?limit=1`, commented "primary (US) location", which was simply an
+     * assumption: Shopify returns locations in ITS order, and this store has three (france warehouse,
+     * NY Warehouse, US Warehouse). Asking for one got whichever came first — NY — so every link was
+     * stocked at, or failed against, the wrong warehouse.
+     * Name match is deliberate over "first": a location list can grow at any time, and the team's rule
+     * is about the US warehouse specifically. Override with SHOPIFY_LOCATION_NAME if it is ever
+     * renamed; falls back to any name containing "us", then to the first active location, so a store
+     * with one nameless location still works.
+     */
+    public static function usLocationId(): ?string
+    {
+        if (!self::configured()) {
+            return null;
+        }
+        // An explicit id wins: it is exact and survives a rename. (This setting already existed and
+        // was never read — the lookup below was doing all the work, badly.)
+        $explicit = trim((string) config('services.shopify.location_id', ''));
+        if ($explicit !== '') {
+            return $explicit;
+        }
+        $domain  = self::domain();
+        $version = config('services.shopify.version', '2025-01');
+        try {
+            $resp = Http::timeout(15)->withHeaders(['X-Shopify-Access-Token' => config('services.shopify.token')])
+                ->get("https://{$domain}/admin/api/{$version}/locations.json");
+            if (!$resp->successful()) {
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+        $locations = collect($resp->json('locations') ?? [])->filter(fn ($l) => ($l['active'] ?? true));
+        $wanted = strtolower(trim((string) (config('services.shopify.location_name') ?: 'US Warehouse')));
+        // "us" must be matched as a WORD. A plain str_contains matched "france warehoUSe" — every
+        // warehouse contains those two letters, so the fallback would have picked France.
+        $isUs = function ($l) {
+            $name = strtolower((string) ($l['name'] ?? ''));
+            $words = preg_split('/[^a-z]+/', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            return in_array('us', $words, true) || in_array('usa', $words, true)
+                || str_contains($name, 'united states');
+        };
+        $byName = $locations->first(fn ($l) => strtolower(trim((string) ($l['name'] ?? ''))) === $wanted)
+            ?? $locations->first($isUs)
+            ?? $locations->first();
+        return $byName ? (string) $byName['id'] : null;
+    }
+
+    /**
+     * Stock the variant with exactly 1 at the US warehouse (the team's convention: the link reads
+     * "1 in stock" and is a one-time purchase). Called right after createProduct. Returns true only
+     * when Shopify confirms the level. On failure the caller untracks the variant so the link can
+     * never become an unpayable "sold out" — safe, but it is a FALLBACK, and every product in the
+     * store showing "Inventory not tracked" is one of these failures, not a choice.
      */
     public static function setInventoryOne(string $inventoryItemId): bool
     {
@@ -169,25 +221,39 @@ class ShopifyService
         $domain  = self::domain();
         $version = config('services.shopify.version', '2025-01');
         $headers = ['X-Shopify-Access-Token' => config('services.shopify.token'), 'Content-Type' => 'application/json'];
-        try {
-            // primary (US) location — the first active location Shopify returns
-            $loc = Http::timeout(15)->withHeaders($headers)
-                ->get("https://{$domain}/admin/api/{$version}/locations.json", ['limit' => 1]);
-            $locationId = $loc->json('locations.0.id');
-            if (!$locationId) {
-                return false;
-            }
-            $set = Http::timeout(15)->withHeaders($headers)
+        $locationId = self::usLocationId();
+        if (!$locationId) {
+            return false;
+        }
+        $setLevel = function () use ($domain, $version, $headers, $locationId, $inventoryItemId) {
+            return Http::timeout(15)->withHeaders($headers)
                 ->post("https://{$domain}/admin/api/{$version}/inventory_levels/set.json", [
                     'location_id'       => $locationId,
                     'inventory_item_id' => $inventoryItemId,
                     'available'         => 1,
                 ]);
-            return $set->successful();
+        };
+        try {
+            $set = $setLevel();
+            if ($set->successful()) {
+                return true;
+            }
+            // A brand-new variant is only STOCKED AT the store's default location, so setting a level
+            // at any other one answers 404/422 ("inventory item does not have an inventory level at
+            // this location"). That was the whole failure: set → refused → caller untracks → the
+            // product reads "Inventory not tracked" and lists the default warehouse. Connect the item
+            // to the location first, then set. Connecting an already-connected item is harmless.
+            Http::timeout(15)->withHeaders($headers)
+                ->post("https://{$domain}/admin/api/{$version}/inventory_levels/connect.json", [
+                    'location_id'       => $locationId,
+                    'inventory_item_id' => $inventoryItemId,
+                ]);
+            return $setLevel()->successful();
         } catch (\Throwable) {
             return false;
         }
     }
+
 
     /** Flip a product to the "Unlisted" status (#1): sellable via its direct link but hidden from
      *  search / collections / channels. This status only exists in GraphQL (ProductStatus.UNLISTED)

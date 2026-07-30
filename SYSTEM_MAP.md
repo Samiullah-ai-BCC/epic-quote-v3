@@ -147,7 +147,16 @@ required before changing anything here.**
 - A variant ALREADY in Shopify keeps the flag it was born with: code changes here only affect NEW
   links. Existing ones are repaired with `php artisan payments:fix-shipping` (idempotent, --dry-run).
 - Inventory is tracked at exactly 1 (`setInventoryOne`), with `untrackVariant` as the fallback — a
-  product whose stock could not be set must stay payable, never read "sold out".
+  product whose stock could not be set must stay payable, never read "sold out". **That fallback is
+  also a silencer:** it kept every link payable while `setInventoryOne` failed on all of them, so the
+  store filled with "Inventory not tracked" products on the wrong warehouse and only a human noticed
+  (2026-07-30). Two causes, both now pinned by `tests/Feature/PaymentLinkInventoryTest.php`:
+  * the location was `locations.json?limit=1` — "whichever Shopify lists first". This store has
+    france / NY / US warehouses. Resolve the US one BY NAME (`usLocationId`), or exactly via
+    `SHOPIFY_LOCATION_ID`. Beware the "us" fallback: match it as a WORD — `str_contains` matches
+    "france warehoUSe".
+  * a new variant has no inventory level at a NON-default location, so `inventory_levels/set` is
+    refused until the item is CONNECTED there. Connect, then set (the retry is not optional).
 - **KNOWN MONEY RISK, still open: Shopify's cart is shared per browser session.** Links are
   product-page URLs, so opening two of them in one browser leaves BOTH in the cart — observed live
   with three items across two quotes, including a Full Payment and a 50% Deposit for the SAME quote,

@@ -16,7 +16,11 @@ return [
         // accept either name — SHOPIFY_API_TOKEN (preferred) or SHOPIFY_API_KEY (common mistake)
         'token'   => env('SHOPIFY_API_TOKEN', env('SHOPIFY_API_KEY')),
         'version' => env('SHOPIFY_API_VERSION', '2025-07'),
-        'location_id' => env('SHOPIFY_LOCATION_ID'), // US warehouse (optional)
+        // Where payment-link stock lives. `location_id` wins when set (exact, survives a rename);
+        // otherwise the location is found BY NAME — this store has three warehouses and picking
+        // "the first one Shopify returns" silently used the wrong one.
+        'location_id'   => env('SHOPIFY_LOCATION_ID'),
+        'location_name' => env('SHOPIFY_LOCATION_NAME', 'US Warehouse'),
         'webhook_secret' => env('SHOPIFY_WEBHOOK_SECRET'), // verifies orders/paid webhooks
     ],
 
