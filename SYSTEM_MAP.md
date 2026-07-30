@@ -236,6 +236,19 @@ right under its `Proposal`), so our spec and the customer's own spec sheet are r
 - Any attached doc flips a single-sign quote onto the multi-sheet export path
   (`capturePages = multi || anyClientDoc`), or the download would omit the attachment.
 
+## ADDITIONAL NOTES — SOURCE OF TRUTH: `hideNotes` (the ⊗ / "+ Notes" pair) ONLY
+The section is hidden when, and only when, the rep removed it. It is the ONLY place the special
+requirement prints, because the lift moves that line OUT of the spec text — so hiding it drops a
+build instruction off the customer's document.
+- **A section must not be gated by more conditions than it has controls.** It used to be
+  `{!specLong && !hideNotes && …}` where `specLong` = spec text over 520 chars, but "+ Notes" only
+  cleared `hideNotes`. Over 520 the button was DEAD: the rep clicked, nothing appeared, no reason
+  given. Adding a second silent gate to a controlled section is what made this unfindable.
+- Measured, not guessed: at 521 chars of spec the sheet had **394px of headroom** — the rule threw
+  away ~23 lines' worth of room. Real overflow is caught by the page limit below (content's true
+  bottom vs `PAGE_H`) plus `refuseIfFull`; a character count was never needed.
+- `specLong` survives, and now only sets the spec block's `minHeight` (185 vs 150).
+
 ## PROPOSAL PAGE LIMIT — SOURCE OF TRUTH: `PAGE_H = 1056` in `Proposal.jsx`
 Headroom is measured from the **content's real bottom** (lowest in-flow child), NEVER from
 `scrollHeight` — the sheet is height-pinned with `overflow:hidden`, so its `scrollHeight`

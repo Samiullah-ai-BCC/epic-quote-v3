@@ -1737,8 +1737,21 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   existed to keep the PAGE length consistent when the right column emptied — dead
                   logic now that the sheet is a hard 1056px: the page can't shrink, so the big
                   floor only stole the very room the rep needs for Additional Notes lines. */}
-              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: (!specLong && !hideNotes) ? '1px solid #777' : 'none' }, { noPaste: true, readOnly: true, readOnlyTitle: 'Specifications are written on the “Edit specs” step — this block always shows what the wizard produced' })}
-              {!specLong && !hideNotes && <>
+              {E('specBody', { fontSize: 10.5, lineHeight: '17px', padding: '8px 12px', flex: '1 1 auto', minHeight: specLong ? 185 : 150, whiteSpace: 'pre-wrap', outline: 'none', borderBottom: !hideNotes ? '1px solid #777' : 'none' }, { noPaste: true, readOnly: true, readOnlyTitle: 'Specifications are written on the “Edit specs” step — this block always shows what the wizard produced' })}
+              {/* ADDITIONAL NOTES is hidden ONLY when the rep removes it (the ⊗ / "+ Notes" pair).
+                  It used to ALSO be suppressed whenever the spec text passed 520 characters, as a
+                  crude one-page guard. That was wrong twice over:
+                  1. It deleted a section the rep never asked to lose, on a sheet with obvious room
+                     left — and since the special-requirement lift, ADDITIONAL NOTES is the ONLY
+                     place a requirement like "POWER SUPPLY TO BE INSIDE OF CABINET" appears. A
+                     long spec silently dropped a build instruction off the customer's document.
+                  2. "+ Notes" clears hideNotes and nothing else, so once a spec was over 520 the
+                     button was DEAD — the rep clicked it and the section stayed gone, with no
+                     explanation. Two conditions gated the section; only one had a control.
+                  Overflow is still caught, properly: the page limit measures the content's real
+                  bottom against PAGE_H and refuses the add (refuseIfFull) instead of guessing from
+                  a character count. Measurement was already there; the guess was never needed. */}
+              {!hideNotes && <>
                 <div style={{ ...secHead, position: 'relative' }}>ADDITIONAL NOTES
                   {/* screen-only remover (#6) — restore via "+ Notes" in the right column */}
                   <span className="adj-ui" title="Remove the Additional Notes section"
