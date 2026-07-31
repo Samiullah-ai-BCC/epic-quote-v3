@@ -51,11 +51,26 @@ export function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-// SPECIFICATIONS prints on a fixed-height sheet, so the spec text has a hard ceiling: at the
-// block's 17px line height it holds about 14 lines before the rest would simply be cut off the
-// printed page. 14 is also the longest spec in the database today, so nothing existing is
-// truncated by this. The wizard stops the rep here rather than letting them find out in a PDF.
+// SPECIFICATIONS prints on a fixed-height sheet, so the spec text does have a ceiling — but 14 was
+// a GUESS at it, and the guess was wrong in both directions. It assumed the worst-case sheet: notes
+// present, side view present, extra line items present. Remove the ADDITIONAL NOTES block, or quote
+// a mono type with no side view, and the same 14 applied while a third of the sheet sat empty. The
+// rep gave up a whole section to buy room and was handed none of it.
+//
+// The real limit is geometric and it is already measured on the live sheet: how much empty room is
+// left inside the SPECIFICATIONS box plus how much room is left on the page below it, divided by
+// the block's line height. Proposal reports that number up (onSpecCapacity) and the wizard uses it,
+// so the cap moves with the sheet the rep is actually looking at.
+//
+// This constant survives as the FLOOR of that measurement — the cap can never drop below what reps
+// could type before, no matter what a measurement does on some layout nobody has hit yet.
 export const MAX_SPEC_LINES = 14
+
+// The hard stop that keeps a pathological paste (a pasted essay) from rendering thousands of lines
+// into a fixed box. It is not the page limit — the page limit is measured — it is a sanity bound
+// far above any real spec. The sheet clips at 1056px and the red over-page banner still tells the
+// rep when they are past the edge, exactly as before.
+export const SPEC_HARD_CEILING = 60
 
 // Turn typed spec text into the exact lines the sheet will render.
 //

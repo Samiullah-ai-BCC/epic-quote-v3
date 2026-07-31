@@ -19,7 +19,7 @@ export default function CustomSpecsStep({
   signLib, setSignLib, sideViews, setSideViews, client,
   newTypeName, setNewTypeName, newTypeSpec, setNewTypeSpec,
   customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial, onSpecialLifted, ready,
-  saveNext, saving,
+  saveNext, saving, specCapacity,
 }) {
   // FA sign types (family/mounting-driven) prefill from a resolved leaf's spec — the rep
   // free-edits from there (this flow is a one-time prefill, not the live wizard). FA checked
@@ -49,7 +49,13 @@ export default function CustomSpecsStep({
   // Counted with the SAME function the proposal renders with, so the number under the box is what
   // the sheet will actually print — blank lines included, collapsed runs excluded.
   const specLineCount = normalizeSpecLines(customSpec?.specText).length
-  const specFull = specLineCount >= MAX_SPEC_LINES
+  // THE CAP IS MEASURED, NOT ASSUMED. `specCapacity` is what the live proposal beside this step
+  // reports it can still print — empty room inside the SPECIFICATIONS box plus room left on the
+  // page, in line heights. The old flat 14 was a worst-case guess that never moved, so a rep who
+  // deleted ADDITIONAL NOTES to make room was still refused at 14 with a third of the sheet blank.
+  // MAX_SPEC_LINES stays as the floor: never capped tighter than before, whatever is measured.
+  const specMax = Math.max(MAX_SPEC_LINES, Number(specCapacity) || 0)
+  const specFull = specLineCount >= specMax
 
   // Item Description format: "{Sign Type} WITH {Mounting} FOR {Company}" — the mounting is part
   // of what the customer is buying, so it belongs in the line-item text. Types without a
@@ -412,13 +418,13 @@ export default function CustomSpecsStep({
           onChange={(e) => {
             const nextText = e.target.value
             const nextLines = normalizeSpecLines(nextText).length
-            if (nextLines > MAX_SPEC_LINES && nextLines > specLineCount) return
+            if (nextLines > specMax && nextLines > specLineCount) return
             setCustomSpec({ ...customSpec, specText: nextText })
           }} />
         <span className="muted" style={{ fontSize: 12, color: specFull ? 'var(--danger)' : undefined }}>
           {specFull
-            ? `Specification is full — ${specLineCount} of ${MAX_SPEC_LINES} lines. Remove a line to add another; the proposal cannot print more than this.`
-            : `${specLineCount} of ${MAX_SPEC_LINES} lines used. Blank lines count — they print on the proposal.`}
+            ? `Specification is full — ${specLineCount} of ${specMax} lines. The sheet beside this step has no room left; remove a line here, or remove ADDITIONAL NOTES on the proposal to free more.`
+            : `${specLineCount} of ${specMax} lines used. Blank lines count — they print on the proposal.`}
         </span>
       </div>
       <div className="step-section">5. Special requirements</div>

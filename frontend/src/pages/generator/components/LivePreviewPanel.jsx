@@ -8,6 +8,7 @@ export default function LivePreviewPanel({
   previewKey, onBack, onSaveAndReturn, saving,
   mode, template, answers, customSpec, info, artworkPath, onArtworkFile, logo, aiResult,
   paymentLink, approval, proposalNotes, specialRequirements, savedState, sideViews, signBox, onSideViews, onSave,
+  onSpecCapacity,
 }) {
   return (
     <aside className="wiz-live">
@@ -36,6 +37,7 @@ export default function LivePreviewPanel({
         signBox={signBox}
         onSideViews={onSideViews}
         onSave={onSave}
+        onSpecCapacity={onSpecCapacity}
       />
     </aside>
   )

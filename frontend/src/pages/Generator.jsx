@@ -11,6 +11,7 @@ import { SIDE_VIEWS, pickSideView } from '../generator/sideviews'
 import { resolveSignTypeName } from '../generator/faCatalog'
 import { T } from '../generator/catalog'
 import { rasterizePdf } from '../generator/pdfRaster'
+import { MAX_SPEC_LINES } from '../generator/proposal'
 import { fileUrl } from '../api/client'
 import { MAX_PRICE, FLOWS, PART_KEYS, makeCustomTpl, legacyPartFromGd, matchSignType, resolveTplByName, itemSigned } from '../generator/parts'
 import { isCloudDoc, cloudRaster, cropToBox, urlToDataUrl } from '../generator/artwork'
@@ -538,6 +539,13 @@ export default function Generator() {
   // request from this session — autosave, uploads, checkpoints — would 404 against the old one.
   // So the URL is replaced in the same breath as the state. `replace` and not `push`: Back should
   // return to the quotes list the rep came from, not to a URL that no longer resolves.
+  // How many SPECIFICATION lines the sheet beside the wizard can still print, measured by the live
+  // proposal itself and handed to the Edit-specs step as its cap. The wizard used to enforce a flat
+  // 14 regardless of what the sheet looked like, so removing ADDITIONAL NOTES bought the rep room
+  // they were then forbidden to use. Starts at the old constant so the step is never capped LOWER
+  // than before while the first measurement lands.
+  const [specCapacity, setSpecCapacity] = useState(MAX_SPEC_LINES)
+
   const [editSpecs, setEditSpecs] = useState(false)
   const saveQuoteSpecs = async (form) => {
     const renamedTo = form.quote_id && form.quote_id !== quoteId ? form.quote_id : null
@@ -969,7 +977,7 @@ export default function Generator() {
             setNewTypeName={setNewTypeName} newTypeSpec={newTypeSpec} setNewTypeSpec={setNewTypeSpec}
             customDimsStatus={customDimsStatus} setCustomDim={setCustomDim}
             setCustomApplication={setCustomApplication} special={special} setSpecial={setSpecial}
-            onSpecialLifted={persistSpecial} ready={!loading}
+            onSpecialLifted={persistSpecial} ready={!loading} specCapacity={specCapacity}
             saveNext={saveNext} saving={saving} />
         )}
 
@@ -1016,6 +1024,7 @@ export default function Generator() {
            proposalNotes={proposalNotes}
            specialRequirements={special}
            savedState={livePreviewState()}
+           onSpecCapacity={setSpecCapacity}
            sideViews={sideViews}
            signBox={signBox}
            onSideViews={setSideViews}

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { toCanvas } from 'html-to-image'
 import { jsPDF } from 'jspdf'
-import { buildSpecLines, money, esc, normalizeSpecLines, MAX_SPEC_LINES } from '../generator/proposal'
+import { buildSpecLines, money, esc, normalizeSpecLines, MAX_SPEC_LINES, SPEC_HARD_CEILING } from '../generator/proposal'
 import { resolveSignTypeName, faLeafExtras } from '../generator/faCatalog'
 import { T } from '../generator/catalog'
 import { parseDims } from '../generator/questions'
@@ -100,7 +100,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   //   wrapper already kills pointer events). We use it only to hide the "click any text to edit"
   //   hint, which is a lie in that context. Editing still happens in the Generator wizard.
   partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, signPageCount = null, readOnly = false,
-  pageActions = null }, fwdRef) {
+  // onSpecCapacity: called with how many SPECIFICATION lines this sheet can still print, measured
+  //   on the live DOM. The wizard's Edit-specs step uses it as its cap instead of a constant, so
+  //   removing ADDITIONAL NOTES (or quoting a type with no side view) actually buys typing room.
+  pageActions = null, onSpecCapacity = null }, fwdRef) {
   // approval lock: while the quote is locked and the price unapproved, nothing goes out
   const exportBlocked = !!(approval?.locked && !approval?.approved)
   const pageRef = useRef(null)
@@ -664,7 +667,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const lines = (mode === 'custom'
       ? normalizeSpecLines(customSpec?.specText)
       : buildSpecLines(tpl, answers, aiResult).flatMap((l) => normalizeSpecLines(l))
-    ).slice(0, MAX_SPEC_LINES)   // hard page ceiling; the wizard stops the rep before this bites
+    ).slice(0, SPEC_HARD_CEILING)   // sanity bound only — the real page limit is measured below
     // Bullet ONLY the face-colour and return/trim-colour lines (the two with swatches); the rest stay
     // plain. Strip any existing bullet/indent first so colour rows don't end up double-bulleted.
     return lines.map((l) => {
@@ -681,6 +684,50 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       return esc(clean)
     }).join('<br>')
   }, [mode, tpl, answers, customSpec, aiResult])
+
+  // HOW MANY SPEC LINES ACTUALLY FIT — measured on this sheet, reported up to the wizard.
+  //
+  // The old answer was the constant 14, which was a worst-case guess: it assumed ADDITIONAL NOTES
+  // present, a side view present and extra line items present. Remove the notes block to buy room
+  // — the one thing the rep can actually do about it — and the cap did not move, so the room they
+  // paid for was unusable. "Why am I capped at 14 with a third of the page empty" was the correct
+  // question, and the answer was that nothing was measuring.
+  //
+  // Two pieces of genuine headroom, both read off the live DOM:
+  //   INSIDE the SPECIFICATIONS box — it is `flex: 1 1 auto`, so it is usually already TALLER than
+  //     its text; that slack prints as blank space today and is free lines.
+  //   BELOW the page content — contentBottom() is the same measurement the typing guard uses, so
+  //     the number cannot disagree with what the sheet lets the rep type.
+  // One line of the block is held back so the last permitted line is one that actually prints,
+  // matching the beforeinput guard's own "stop at the line that would cross" rule.
+  //
+  // MAX_SPEC_LINES is the FLOOR: the cap never falls below what reps could type before this,
+  // whatever a measurement says on some layout nobody has hit yet.
+  const specLineCount = useMemo(() => (specHTML ? specHTML.split(/<br\s*\/?>/i).length : 0), [specHTML])
+  useEffect(() => {
+    if (!onSpecCapacity) return
+    const page = pageRef.current
+    if (!page) return
+    const measure = () => {
+      const el = page.querySelector('[data-key="specBody"]')
+      if (!el) return
+      const lh = lineOf(el) || 17
+      const cs = getComputedStyle(el)
+      const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0)
+      const roomInsideBlock = Math.max(0, el.clientHeight - pad - specLineCount * lh)
+      const roomBelowContent = Math.max(0, PAGE_H - contentBottom())
+      const spare = Math.floor((roomInsideBlock + roomBelowContent) / lh) - 1   // keep one line back
+      onSpecCapacity(Math.max(MAX_SPEC_LINES, specLineCount + Math.max(0, spare)))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(page)
+    // Same reason the over-page watcher polls: the page height is FIXED, so content growing inside
+    // it fires no resize. Without the tick, removing the notes block would not widen the cap until
+    // something else happened to re-render.
+    const t = setInterval(measure, 800)
+    return () => { ro.disconnect(); clearInterval(t) }
+  }, [specLineCount, hideNotes, onSpecCapacity]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // WHICH SIGN TYPE this proposal's spec text describes. In custom mode `tpl` is null, so the
   // old `tpl?.n` was always null here and the "type changed -> rebuild the spec" guard below
