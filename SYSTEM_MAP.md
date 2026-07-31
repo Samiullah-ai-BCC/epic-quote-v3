@@ -299,3 +299,49 @@ it under the wrong heading, silently. Adding a column means editing BOTH files i
 - `react-draggable` (via `react-resizable`) references `process.env.DRAGGABLE_DEBUG`. `process`
   does not exist in the browser, so it throws on every drag start unless vite.config.js `define`s
   that expression. Symptom: dragging does nothing at all, with an empty console.
+
+## QUOTE IDENTITY FIELDS (job, proposal ID, company, client, contact, email, address)
+SOURCE OF TRUTH: the **quotes row**. Write surfaces: `QuoteRow.jsx` (grid inline edit) and
+`EditQuoteSpecsModal.jsx` (Estimator, "Edit quote specs"). Both PUT `/api/quotes/{quote}`;
+`QuoteController::update` is the only validator that counts.
+Read surfaces:
+- `Proposal.jsx` header blocks `infoLeft` (company / client / contact / address) and `infoRight`
+  (proposal ID / date / job) — on every page A/B/C of a multi-sign quote.
+- `AllQuotes` grid row, dashboard tiles, CSV export, `AirtableQuoteSync`.
+- `linkTitle` in `Generator.jsx` — the payment link's product title carries the company name.
+
+**PROPOSAL ID = `quotes.quote_id` = the ROUTE KEY** (`Quote::getRouteKeyName`). Consequences that
+have already bitten once each:
+- Renaming it changes the page's own URL. The Estimator must `navigate(..., { replace: true })` in
+  the same breath, or every later request in that session (autosave, uploads, checkpoints) 404s
+  against an ID that no longer exists.
+- Anything sequenced AFTER the rename must address the NEW id. The `generated_data` mirror write
+  below was ordered after `updateQuote` and 404'd, reporting a failure for a save that had already
+  half-landed.
+- Uniqueness is a DB constraint AND a server check; the modal only mirrors it. A client-side check
+  can never be the gate — two reps can take the same ID between keystroke and save.
+- It cannot reach values already MINTED from it: checkpoint labels (`{quote_id}-rev{seq}`) and the
+  Shopify payment-link product title keep the old string. The modal names both rather than blocking
+  the edit. Child tables are safe — they FK on the numeric `quotes.id`, never on this string.
+
+**JOB NAME EXISTS TWICE AND `generated_data` WINS.** `useQuoteData` hydrates it as
+`generatedData.job_name || quote.job_name`, so writing only the quote row looks correct until the
+next load — and a Proposal ID rename makes that "next load" immediate, so the new job name vanished
+on the spot. Any writer of `job_name` must update BOTH. The other five fields have no second copy.
+
+**COMPANY NAME IS THE QUOTE'S SNAPSHOT, NOT THE COMPANY RECORD.** `quotes.company_name` is copied
+at intake; the `companies` row is shared by other quotes. Editing here must never rename the
+company for everyone else — only the quote is PUT, `company_id` is left alone.
+
+**THE HEADER IS WRITE-ONCE, SO IT NEEDS `setBlock`.** `initial` in `Proposal.jsx` is memoised on
+`[]` — the mount-time snapshot — and `EBlock` ignores every later `html` prop. `infoLeftHTML` /
+`infoRightHTML` are therefore hoisted OUT of `initial` and re-applied by an effect, the same shape
+SPECIFICATIONS and ADDITIONAL NOTES already use. Without it the fields save correctly and the sheet
+standing next to them keeps printing the old values.
+
+NOT reached by this edit (known, deliberate): ITEM DESCRIPTION still reads `... FOR {company}` from
+its own saved copy — see the ITEM DESCRIPTION node, which owns that string and its ownership rule.
+Executable ripple map: none yet — no e2e suite exists in this repo. Verified live instead: edit →
+sheet updates without remount → reload → grid row → duplicate-ID rejection → values restored.
+Incident history: shipped inside commit `0db9095`, whose message describes a different feature — a
+concurrent session ran `git add -A` mid-edit. The code is this node's; the message is not.
