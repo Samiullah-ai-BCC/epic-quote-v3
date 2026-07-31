@@ -39,10 +39,6 @@ export default function ArtworkStep({
       </>)}
       <input ref={artInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={onArtwork} />
       {artErr && <p style={{ color: '#ff6b6b', fontSize: 13, marginTop: 8 }}>{artErr}</p>}
-      <div className="field" style={{ marginTop: 18 }}>
-        <label>Notes for the proposal (anything special not already on the drawing)</label>
-        <textarea rows={3} value={proposalNotes} onChange={(e) => setProposalNotes(e.target.value)} placeholder="e.g. install timeline, special finish, access notes…" />
-      </div>
       <div className="foot">
         <span />{/* Back moved to the top-left bar (#4) */}
         <button className="ghost" onClick={() => { setArtworkPath(null); toPreview() }}>Skip artwork</button>

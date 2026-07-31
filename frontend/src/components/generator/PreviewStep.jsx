@@ -59,7 +59,7 @@ export default function PreviewStep({
       {onEditSpecs && (
         <button className="ghost sm" style={{ width: '100%' }} onClick={onEditSpecs}
           title="Edit the job name, proposal ID, company, client, contact and address saved against this quote">
-          ✎ Edit quote specs
+          ✎ Edit customer details
         </button>
       )}
       {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
