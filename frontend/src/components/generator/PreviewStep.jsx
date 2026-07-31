@@ -2,7 +2,9 @@
 // the Done / Add-page / Undo-delete toolbar. Every callback (savePart, addPage, deletePage,
 // the capture collectors, savePaymentLink…) is defined in Generator() and passed in — this
 // component threads them into each <Proposal> without owning any state.
+import { Fragment } from 'react'
 import { partLetter } from '../../generator/parts'
+import { pageSequence, hasBlankPage } from '../../pages/generator/hooks/usePageCapture'
 import Proposal from '../Proposal'
 import ClientDocPage from './ClientDocPage'
 
@@ -14,11 +16,27 @@ export default function PreviewStep({
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage,
   specialRequirements, commitPartClientDoc, docBusy, docErr,
+  addBlankPage, removeBlankPage, onEditSpecs,
 }) {
-  // Any client document at all switches the downloads onto the multi-sheet path, even for a
-  // single-sign quote — otherwise Proposal would export its own DOM alone and the attached
-  // document would be missing from the PDF the customer receives.
-  const anyClientDoc = parts.some((p) => !!p.client_doc)
+  // The document's real sheet order — a page's blank page, then the page. Built by the SAME
+  // function capturePagesExport walks, so what the picker lists, what the preview stacks and what
+  // the PDF contains are one sequence in one order. That shared source is the only thing that
+  // stops the three drifting apart.
+  const sequence = pageSequence(parts)
+  const signLabel = (part, n) => `Page ${partLetter(n)} — ${tplForPart(part)?.n || 'Sign'}`
+  // Any blank page at all puts the download on the multi-sheet path, even for a one-sign quote:
+  // otherwise Proposal exports its own DOM alone and the added sheet is missing from the file the
+  // customer receives. Switching the existing multipager on is also what gives "blank only /
+  // proposal only / both" for free, with no second export path to keep in step.
+  const multiSheet = sequence.length > 1
+  const labelFor = (entry) => (
+    entry.kind === 'blank'
+      ? `Blank page${parts.length > 1 ? ' ' + partLetter(entry.index) : ''}`
+      : (parts.length > 1 ? signLabel(entry.part, entry.index) : `Proposal — ${tplForPart(entry.part)?.n || 'Sign'}`)
+  )
+  // Picker labels are the sequence itself, in order, so a tick maps to a sheet by position (`seq`)
+  // with no second numbering scheme to keep aligned.
+  const docLabels = multiSheet ? sequence.map(labelFor) : null
   // Quote-level actions (Back / Done) live at the TOP of the FIRST page's
   // controls column — the old toolbar row above the sheet (plus the "Proposal" heading and the
   // .step panel chrome) was pure vertical waste on the one step where the sheet needs every
@@ -34,6 +52,16 @@ export default function PreviewStep({
           {cpBusy ? 'Saving…' : '✓ Done'}
         </button>
       </div>
+      {/* The preview step hides WizardHeader (it takes ~90px the sheet needs), so the only
+          "Edit quote specs" entry point on the step where the rep reads the proposal header is
+          here. Quote-level like Back/Done, so it lives with them on page A and is not repeated
+          down the column. */}
+      {onEditSpecs && (
+        <button className="ghost sm" style={{ width: '100%' }} onClick={onEditSpecs}
+          title="Edit the job name, proposal ID, company, client, contact and address saved against this quote">
+          ✎ Edit quote specs
+        </button>
+      )}
       {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
     </>
   )
@@ -47,6 +75,31 @@ export default function PreviewStep({
     <button className="ghost sm" disabled={saving} style={{ width: '100%' }}
       title="Add another sign to this quote — one client, one combined total"
       onClick={addPage}>＋ Add sign page</button>
+  )
+  // Sits beside "+ Add sign page" and reads the same way, but puts THIS page's blank page in front
+  // of it instead of adding another sign at the end. The blank page is the client-document sheet —
+  // same sheet, same attach-a-file input it has always had. It used to be there whether the rep
+  // wanted it or not; now it arrives on this click and goes away on Remove.
+  //
+  // It is not a sign: no letter, no proposal ID suffix, no share of the total.
+  //
+  // Removal is refused while a document is attached. The button would otherwise be a one-click
+  // delete of the customer's own file with no confirmation — Remove on the sheet itself takes the
+  // file off first, which is the deliberate path.
+  const blankPageButton = (i, on, docAttached) => addBlankPage && (
+    on
+      ? (
+        <button className="ghost sm" disabled={saving || docAttached} style={{ width: '100%' }}
+          title={docAttached
+            ? 'Remove the attached document from the blank page first'
+            : `Remove the blank page in front of ${parts.length > 1 ? 'page ' + partLetter(i) : 'the proposal'}`}
+          onClick={() => removeBlankPage && removeBlankPage(i)}>－ Remove blank page</button>
+      )
+      : (
+        <button className="ghost sm" disabled={saving} style={{ width: '100%' }}
+          title={`Add a blank page in front of ${parts.length > 1 ? 'page ' + partLetter(i) : 'the proposal'} — printed with the quote, and the client's document can be attached to it`}
+          onClick={() => addBlankPage(i)}>＋ Add blank page</button>
+      )
   )
   return (
     <div>
@@ -67,6 +120,9 @@ export default function PreviewStep({
           // key includes letter + last-ness so a page REMOUNTS when those change (add/delete/
           // reorder) — its write-once proposal ID + price columns are recomputed correctly.
           const pageKey = `${p.__pid}|${multi ? partLetter(i) : 's'}|${isLast ? 'L' : '_'}`
+          // Whether THIS page carries a blank page. Same test the exporter uses, so the sheet a rep
+          // sees and the sheet the PDF contains can never disagree.
+          const blankOn = hasBlankPage(p)
           // Per-page actions render INSIDE the page's own controls column (Proposal pageActions):
           // as a flow row above the page they pushed the whole sheet down (the dead white band).
           // Living in the column they stay glued to THEIR page — after a reorder each row still
@@ -109,10 +165,40 @@ export default function PreviewStep({
                 </div>
               )}
               {addPageButton}
+              {blankPageButton(i, blankOn, !!p.client_doc)}
             </>
           )
           return (
-            <div key={pageKey} style={{ position: 'relative' }}>
+            <Fragment key={pageKey}>
+            {/* THE BLANK PAGE, in front of the sign it belongs to. Same client-document sheet as
+                before — same attach input, same capture handle — but opt-in, and above the
+                proposal instead of below it. The sheet order on screen is the sheet order in the
+                PDF because both read `pageSequence`.
+
+                Same width as the sheet beside it: the Proposal's own layout is
+                [sheet flex:1] + [220px controls column] + 16px gap, so the blank page has to give
+                those 236px back or it would render WIDER than the proposal under it. */}
+            {blankOn && (
+              <div style={{ maxWidth: 'calc(100% - 236px)' }}>
+                <ClientDocPage
+                  ref={(el) => { if (docRefs) docRefs.current[p.__pid] = el }}
+                  doc={p.client_doc || null}
+                  label={multi ? partLetter(i) : null}
+                  busy={docBusy === p.__pid || saving}
+                  errorText={docBusy === null ? docErr : ''}
+                  onPick={(file) => commitPartClientDoc && commitPartClientDoc(i, file)}
+                  onRemove={() => savePart(i, { client_doc: null })}
+                />
+              </div>
+            )}
+            <div style={{ position: 'relative' }}>
+              {/* captureAll is the version-history snapshot: it already carried the client-document
+                  sheets and still does, so a revision records everything the customer would see.
+                  capturePages/pageLabels are switched on by a blank page — that is the multipager,
+                  and it is what gives "blank only / proposal only / both" without a second code path.
+                  signPageCount says how many of those sheets are signs: runPDF needs it to find the
+                  last SIGN page for the clickable payment link, and counting pageLabels would count
+                  the blank pages too and pin the link to the wrong sheet. */}
               <Proposal
                 pageActions={pageActions}
                 ref={(el) => { pageRefs.current[p.__pid] = el; if (isLast) proposalRef.current = el }}
@@ -129,9 +215,10 @@ export default function PreviewStep({
                 quoteTotal={multi ? grandTotal : null}
                 collectImages={multi ? collectPartImages : null}
                 linkTitle={multi ? linkTitle : null}
-                captureAll={(multi || anyClientDoc) ? captureAllPages : null}
-                capturePages={(multi || anyClientDoc) ? capturePagesExport : null}
-                pageLabels={multi ? parts.map((part, n) => `Page ${partLetter(n)} — ${tplForPart(part)?.n || 'Sign'}`) : null}
+                captureAll={multiSheet ? captureAllPages : null}
+                capturePages={multiSheet ? capturePagesExport : null}
+                pageLabels={multiSheet ? docLabels : null}
+                signPageCount={parts.length}
                 canCreatePaymentLinks={canCreatePaymentLinks}
                 onPaymentLinkCreated={(url) => savePaymentLink(url)}
                 artworkPath={p.artwork_path}
@@ -148,24 +235,8 @@ export default function PreviewStep({
                 onSideViews={(sv) => savePart(i, { side_views: sv })}
                 onSave={(proposalState) => savePart(i, { proposal_state: proposalState })}
               />
-              {/* The client's own document, on its own sheet, directly under the sign page it has to
-                  be checked against. Present for EVERY page (blank until a file is attached) and on
-                  multi-sign quotes too — each sign carries its own. */}
-              {/* Same width as the sheet beside it: the Proposal's own layout is
-                  [sheet flex:1] + [220px controls column] + 16px gap, so the doc sheet has to give
-                  those 236px back or it would render WIDER than the proposal it sits under. */}
-              <div style={{ marginTop: 26, maxWidth: 'calc(100% - 236px)' }}>
-                <ClientDocPage
-                  ref={(el) => { if (docRefs) docRefs.current[p.__pid] = el }}
-                  doc={p.client_doc || null}
-                  label={multi ? partLetter(i) : null}
-                  busy={docBusy === p.__pid || saving}
-                  errorText={docBusy === null ? docErr : ''}
-                  onPick={(file) => commitPartClientDoc && commitPartClientDoc(i, file)}
-                  onRemove={() => savePart(i, { client_doc: null })}
-                />
-              </div>
             </div>
+            </Fragment>
           )
         })}
       </div>

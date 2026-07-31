@@ -99,7 +99,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // readOnly: rendered inside the All Quotes "View" modal — the doc is shown, not edited (the
   //   wrapper already kills pointer events). We use it only to hide the "click any text to edit"
   //   hint, which is a lie in that context. Editing still happens in the Generator wizard.
-  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, readOnly = false,
+  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, signPageCount = null, readOnly = false,
   pageActions = null }, fwdRef) {
   // approval lock: while the quote is locked and the price unapproved, nothing goes out
   const exportBlocked = !!(approval?.locked && !approval?.approved)
@@ -744,13 +744,27 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   const today = new Date()
   const dateStr =`${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`
 
+  // The two header blocks, hoisted OUT of `initial` for the same reason specHTML and notesHTML
+  // are: `initial` is memoised on `[]` — it is the mount-time snapshot and must stay that way, so
+  // anything that has to FOLLOW the record after mount cannot be read from it. Built here once and
+  // used in both places, so the sheet's header and the live re-sync can never drift into two
+  // different formats.
+  const infoLeftHTML = useMemo(
+    () => `<b>COMPANY NAME:</b> ${esc(info.company)}<br><b>CLIENT NAME:</b> ${esc(info.client)}<br><b>CONTACT:</b> ${esc(info.email || info.contact || '')}<br><b>ADDRESS:</b> ${esc(info.address)}`,
+    [info.company, info.client, info.email, info.contact, info.address],
+  )
+  const infoRightHTML = useMemo(
+    () => `<b>PROPOSAL ID:</b> ${esc(info.quoteId)}${partLabel ? '-' + partLabel : ''}<br><b>DATE:</b> ${dateStr}<br><b>JOB NAME:</b> ${esc(info.job)}`,
+    [info.quoteId, partLabel, dateStr, info.job],
+  )
+
   // default content per editable block; any saved proposal_state overrides it.
   const initial = useMemo(() => {
     const def = {
       contact: '101 E LUZERNE ST. PHILADELPHIA, PENNSYLVANIA 19124, US<br>www.epiccraftings.com<br>sales@epiccraftings.com<br>+1 (445) 444-0334',
       // CONTACT = one line, email first; the phone only appears when there is no email (#7)
-      infoLeft: `<b>COMPANY NAME:</b> ${esc(info.company)}<br><b>CLIENT NAME:</b> ${esc(info.client)}<br><b>CONTACT:</b> ${esc(info.email || info.contact || '')}<br><b>ADDRESS:</b> ${esc(info.address)}`,
-      infoRight: `<b>PROPOSAL ID:</b> ${esc(info.quoteId)}${partLabel ? '-' + partLabel : ''}<br><b>DATE:</b> ${dateStr}<br><b>JOB NAME:</b> ${esc(info.job)}`,
+      infoLeft: infoLeftHTML,
+      infoRight: infoRightHTML,
       itemDesc: esc(itemDesc),
       unitPrice: money(price),
       totalPrice: money(price * qty),
@@ -945,6 +959,24 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     setBlock('notes', notesHTML)   // innerHTML fires no 'input' event, so this cannot mark it dirty
     queueSave()
   }, [notesHTML]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── THE HEADER FOLLOWS THE QUOTE RECORD, LIVE ──────────────────────────────────────────────
+  // Same write-once problem as SPECIFICATIONS and ADDITIONAL NOTES above (see EBlock): the two
+  // header blocks are built in `initial` at mount and every later `html` prop is ignored. Editing
+  // the company, client, contact, address, job name or PROPOSAL ID from "Edit quote specs" saved
+  // correctly to the quote row and showed on the grid and the dashboard, while the sheet standing
+  // right there kept printing the old values until something happened to remount it. `setBlock` is
+  // the honest channel.
+  // Ownership stands, as it does for the notes: these blocks are read-only on the sheet, but a
+  // historic hand-edit recorded in __dirty is still the rep's, and a header they typed must not be
+  // silently rewritten under them.
+  const infoSyncMounted = useRef(false)
+  useEffect(() => {
+    if (!infoSyncMounted.current) { infoSyncMounted.current = true; return }   // mount already wrote it
+    if (!dirtyRef.current.has('infoLeft')) setBlock('infoLeft', infoLeftHTML)
+    if (!dirtyRef.current.has('infoRight')) setBlock('infoRight', infoRightHTML)
+    queueSave()
+  }, [infoLeftHTML, infoRightHTML]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (!mounted.current) { mounted.current = true; return } queueSave() }, [layout, swatches, artBg, hideNotes]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1436,9 +1468,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       const pages = capturePages ? await capturePages(indices) : [await captureExport()]
       // Letters are per SIGN page: a single-sign quote that only has extra sheets because a client
       // document is attached is still "one sign", so it must not suddenly download as "… - A".
-      const multiPages = (pageLabels?.length || pages.filter((p) => p.kind !== 'doc').length) > 1
-      // A page's own CLIENT DOCUMENT sheets follow it in `pages` and share its index, so they are
-      // numbered within that letter ("- A (client doc 2)") instead of stealing the next letter.
+      // Letters describe SIGNS, so a quote is only "multi-page" for naming when it has more than
+      // one sign. `signPageCount` is that count, passed in: counting the batch would get it wrong
+      // whenever the rep downloads a subset, and a one-sign quote whose blank page is included
+      // must still download as "…" and "… (blank page)", never as "… - A" and "… - B".
+      const multiPages = (signPageCount || pages.filter((p) => p.kind === 'sign').length) > 1
+      // A page's own BLANK PAGE sheets share its index, so they are named within that letter
+      // ("- A (blank page 2)") instead of stealing the next letter.
       let docSeq = 0, docSeqFor = null
       pages.forEach((p, i) => {
         // Letter comes from the page's position in the QUOTE (p.index), not in this batch, so
@@ -1448,7 +1484,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         if (p.kind === 'doc') {
           if (docSeqFor !== p.index) { docSeqFor = p.index; docSeq = 0 }
           docSeq += 1
-          suffix += ` (client doc${docSeq > 1 ? ' ' + docSeq : ''})`
+          suffix += ` (blank page${docSeq > 1 ? ' ' + docSeq : ''})`
         }
         const a = document.createElement('a')
         a.download = `${exportName()}${suffix}.png`
@@ -1535,12 +1571,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         // included and sorts last — deselect it in the picker and the annotation would otherwise be
         // pinned over whatever page ended up last, i.e. a clickable payment link in the wrong place.
         //
-        // CLIENT DOCUMENT sheets are excluded from this arithmetic AND jumped over: they carry the
-        // index of the sign page they follow, so the file's last sheet is now routinely a customer
-        // drawing. Counting them would have moved the payment link onto that drawing (and on a
-        // single-sign quote with a document, made `payPageIncluded` false and dropped it entirely).
-        const signSheets = pages.filter((p) => p.kind !== 'doc')
-        const finalIndex = (pageLabels?.length || signSheets.length) - 1
+        // BLANK PAGE sheets are excluded from this arithmetic AND jumped over: they share the index
+        // of the sign page they belong to, and they are sheets in the FILE, not signs in the quote.
+        // Counting them would move the payment link onto the customer's own drawing (and on a
+        // single-sign quote, make `payPageIncluded` false and drop the link entirely).
+        const signSheets = pages.filter((p) => p.kind === 'sign')
+        // Count SIGN pages, never labels: pageLabels lists every sheet in the document (blank pages
+        // included) the moment one exists, and using its length here would make payPageIncluded
+        // false on a perfectly normal download — silently dropping the clickable payment link
+        // from the PDF.
+        const finalIndex = (signPageCount || pageLabels?.length || signSheets.length) - 1
         const lastSign = signSheets.length ? (signSheets[signSheets.length - 1].index ?? signSheets.length - 1) : -1
         const payPageIncluded = lastSign === finalIndex
         const a = (paymentLink && payPageIncluded) ? el.querySelector('[data-pay-link]') : null

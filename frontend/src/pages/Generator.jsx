@@ -23,6 +23,7 @@ import CustomSpecsStep from '../components/generator/CustomSpecsStep'
 import PreviewStep from '../components/generator/PreviewStep'
 import { computeDimSpec, computeApplicationSpec } from '../generator/specSync'
 import { ExitAskModal, DrawingModal } from '../components/generator/WizardModals'
+import EditQuoteSpecsModal from '../components/generator/EditQuoteSpecsModal'
 import WizardHeader from './generator/components/WizardHeader'
 import WizardProgressBar from './generator/components/WizardProgressBar'
 import LivePreviewPanel from './generator/components/LivePreviewPanel'
@@ -139,6 +140,13 @@ export default function Generator() {
     if (flowIndex < 0) return goto('preview')
     return flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo)
   }
+
+  // THE BLANK PAGE is a plain flag on the part — one bit beside the `client_doc` it governs, saved
+  // through savePart like every other per-page field. It deliberately mints nothing: no id, no
+  // record, no entry anywhere `parts` is counted, so it cannot take a letter, a PROPOSAL ID suffix
+  // or a place in the revision numbering. A page either has its blank page or it does not.
+  const addBlankPage = (i) => savePart(i, { blank_page: true })
+  const removeBlankPage = (i) => savePart(i, { blank_page: false })
 
   const { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts)
 
@@ -388,6 +396,53 @@ export default function Generator() {
     await putGenerated(quoteId, payload)
     qc.invalidateQueries({ queryKey: ['quotes'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
+  // EDIT QUOTE SPECS — the identity fields (job, proposal ID, company, client, contact, address)
+  // written straight to the quote row, which is what the proposal header, the quotes grid and the
+  // dashboard all read. One write, three surfaces; nothing is typed twice.
+  //
+  // The PROPOSAL ID is this quote's `quote_id`, and `quote_id` is the ROUTE KEY (Quote::
+  // getRouteKeyName). Renaming it therefore changes this page's own address, and every later
+  // request from this session — autosave, uploads, checkpoints — would 404 against the old one.
+  // So the URL is replaced in the same breath as the state. `replace` and not `push`: Back should
+  // return to the quotes list the rep came from, not to a URL that no longer resolves.
+  const [editSpecs, setEditSpecs] = useState(false)
+  const saveQuoteSpecs = async (form) => {
+    const renamedTo = form.quote_id && form.quote_id !== quoteId ? form.quote_id : null
+    // Errors are NOT swallowed: a duplicate Proposal ID answers 400 and the modal shows the
+    // server's own wording. Closing on a failed save would look like it worked.
+    const updated = await updateQuote(quoteId, form)
+    setQuote(updated)
+    // JOB NAME LIVES IN TWO PLACES AND generated_data WINS. useQuoteData hydrates it as
+    // `generatedData.job_name || quote.job_name` (the wizard writes its own copy on every save), so
+    // updating only the quote row looked right until the next load — the reload after a Proposal ID
+    // rename made that "next load" immediate and the new job name vanished on the spot. The other
+    // five fields have no second copy and need none of this. Verified live before and after.
+    if ((generatedDataRef.current || {}).job_name !== undefined
+        || (updated.job_name || '') !== ((generatedDataRef.current || {}).job_name || '')) {
+      const payload = { ...(generatedDataRef.current || {}), job_name: updated.job_name || '' }
+      generatedDataRef.current = payload
+      setGeneratedData(payload)
+      // ADDRESSED BY THE NEW ID, not by `quoteId`. The rename has already landed by this line, so
+      // the old string no longer resolves and this write 404s — which is precisely what happened
+      // the first time: the quote row saved, the mirror did not, and the modal reported a failure
+      // for a change that had in fact half-succeeded.
+      await putGenerated(updated.quote_id || quoteId, payload)
+    }
+    setClient((c) => ({
+      ...c,
+      company_name: updated.company_name || '', client_name: updated.client_name || '',
+      contact: updated.contact || '', email: updated.email || '',
+      address: updated.address || '', job_name: updated.job_name || '',
+    }))
+    // The grid and the dashboard are react-query caches, not local state — the same invalidation
+    // every other write here uses. Without it the rep sees the new name in the Estimator and the
+    // old one on the dashboard until a hard reload, which is exactly the double-entry this feature
+    // exists to remove.
+    qc.invalidateQueries({ queryKey: ['quotes'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+    if (renamedTo) navigate(`/quotes/${renamedTo}/generate`, { replace: true })
   }
 
   // --- step handlers ---
@@ -709,13 +764,32 @@ export default function Generator() {
         <ExitAskModal admin={admin} saving={saving} saveAndReturn={saveAndReturn}
           quoteId={quoteId} qc={qc} navigate={navigate} onClose={() => setExitAsk(false)} />
       )}
+      {/* Seeded from the quote row, not from `client`: `client` is the wizard's scratch buffer and
+          holds no quote_id, and the whole point of the form is to show what is SAVED against this
+          record. Keyed by quote_id so a rename re-seeds it cleanly if reopened. */}
+      {editSpecs && (
+        <EditQuoteSpecsModal key={quoteId}
+          current={{
+            quote_id: quoteId,
+            job_name: quote?.job_name || client.job_name || '',
+            company_name: quote?.company_name || client.company_name || '',
+            client_name: quote?.client_name || client.client_name || '',
+            contact: quote?.contact || client.contact || '',
+            email: quote?.email || client.email || '',
+            address: quote?.address || client.address || '',
+          }}
+          paymentLink={paymentLink}
+          onSave={saveQuoteSpecs}
+          onClose={() => setEditSpecs(false)} />
+      )}
       {/* The preview step gets the WHOLE viewport for the sheet + its controls: the page title
           ("Custom Quote Creator … — company") and the step progress bar carry no information the
           rep needs while polishing the proposal, and their ~90px came straight out of the page. */}
       {step !== 'preview' && (
         <>
           <WizardHeader mode={mode} quoteId={quoteId} company={quote?.company_name}
-            customerPdf={quote?.customer_pdf} onViewDrawing={() => setShowDrawing(true)} />
+            customerPdf={quote?.customer_pdf} onViewDrawing={() => setShowDrawing(true)}
+            onEditSpecs={() => setEditSpecs(true)} />
           {/* An off-pipeline step (the per-page artwork editor) has no index; show the bar full
               rather than blank, since it is opened FROM the finished preview. */}
           <WizardProgressBar flow={flow} currentIndex={flowIndex < 0 ? flow.length - 1 : flowIndex} />
@@ -779,7 +853,9 @@ export default function Generator() {
             specialRequirements={special}
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
             pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
-            editPart={editPart} editArtwork={editArtwork} deletePage={deletePage} />
+            addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
+            editPart={editPart} editArtwork={editArtwork} deletePage={deletePage}
+            onEditSpecs={() => setEditSpecs(true)} />
         )}
        </div>
 
