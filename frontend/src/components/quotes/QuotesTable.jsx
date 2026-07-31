@@ -29,7 +29,8 @@ const COLS = [
   { key: 'order', show: 'order', def: 80, label: 'Order', title: 'Customer placed the order — date is stamped automatically' },
   { key: 'status', always: true, def: 150, label: 'Status', sort: 'status' },
   { key: 'files', show: 'files', def: 110, label: 'Files' },
-  { key: 'actions', always: true, def: 250 },
+  { key: 'actions', always: true, def: 250 },   // real floor is computed per role — see actionsMin
+
 ]
 
 export default function QuotesTable({
@@ -40,7 +41,19 @@ export default function QuotesTable({
 }) {
   const { widths, setWidth } = useColumnWidths()
   const visible = COLS.filter((c) => c.always || columns.has(c.show))
-  const widthOf = (c) => widths[c.key] ?? c.def
+  // THE ACTIONS COLUMN MAY NEVER CLIP ITS OWN BUTTONS. Cells in this grid are
+  // `overflow:hidden; text-overflow:ellipsis`, which is right for text and wrong for controls: at
+  // the 250px default an admin row measured View 53 + Edit 47 + History 67 + Delete 60 + gaps =
+  // 271px, so DELETE was silently replaced by an "…" and admins reported the button as missing.
+  // It was never removed from the markup — it was cut off by ten pixels of column.
+  // The floor is per-role because the row renders a different set of buttons for each: View is
+  // always there, Edit unless the grid is read-only, History and Delete for admins only. A flat
+  // floor would leave a rep staring at 150px of empty pinned column.
+  const actionsMin = 100 + (readOnly ? 0 : 52) + (admin ? 133 : 0)
+  const widthOf = (c) => {
+    const w = widths[c.key] ?? c.def
+    return c.key === 'actions' ? Math.max(w, actionsMin) : w
+  }
   // The table is given the EXACT sum of its columns. Left to `max-content` the browser computes
   // a wider intrinsic size (buttons and nowrap headers push it out), then spreads the surplus
   // across every column — so a column dragged to 70px rendered at 122px and no narrow width
