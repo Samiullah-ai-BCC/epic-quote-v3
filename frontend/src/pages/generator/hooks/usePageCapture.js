@@ -2,35 +2,62 @@ import { useRef } from 'react'
 
 // THE DOCUMENT'S SHEET ORDER — the one place that decides what sits where.
 //
-// A sign page can carry a BLANK PAGE: the client-document sheet, the one with the "attach the
-// client's document" input on it. It is the same sheet it has always been; what changed is that
-// it is now OPT-IN (the rep clicks "＋ Add blank page") and that it sits IN FRONT of its sign
-// rather than under it.
+// A BLANK PAGE is the client-document sheet — the one with the "attach the client's document"
+// input on it. It is INDEPENDENT of the sign pages: its own record, its own id, its own place in
+// the document. It used to be a flag ON a part, which capped the quote at one blank page per sign
+// and welded it to that sign forever; a rep who wanted two documents in front of page A, or the
+// same sheet moved behind page B, had no way to say so.
 //
-// Opt-in via `blank_page` on the part. `client_doc` counts too, and that is not belt-and-braces:
-// every quote written before the button existed has a document attached with no flag beside it,
-// and dropping those sheets out of the preview and out of the PDF would be silent data loss on
-// live quotes.
+// A blank page is NOT a sign: no letter, no PROPOSAL ID suffix, no share of the total, no entry
+// anywhere `parts` is counted. Its only positional fact is `at` — how many SIGN pages sit in front
+// of it. `at: 0` is the top of the document; `at: parts.length` is the very end. Several blanks can
+// share one `at`; their array order breaks the tie, and that is what ↑/↓ reorders.
+export const BLANK_AT_END = (parts) => (parts || []).length
+
+// Legacy quotes stored the blank page as `blank_page`/`client_doc` ON the part. Those must keep
+// rendering and keep exporting — dropping them would be silent data loss on live quotes — so they
+// are read forward into the independent shape, in place, every time the document is built. The
+// derived id is stable (it is the part's own id), so refs and ↑/↓ work on a legacy blank exactly
+// like a new one; the first blank-page action of the session writes the normalized list back.
 export const hasBlankPage = (part) => !!(part?.blank_page || part?.client_doc)
 
+export function normalizeBlankPages(parts, blankPages) {
+  if (Array.isArray(blankPages)) return blankPages
+  return (parts || []).flatMap((part, index) => (
+    hasBlankPage(part) ? [{ __bid: `b_legacy_${part.__pid}`, client_doc: part.client_doc || null, at: index }] : []
+  ))
+}
+
 /**
- * Sheets in printed order: a part's blank page, then the part.
+ * Sheets in printed order: every blank page whose `at` is this slot, then the sign in that slot;
+ * blanks with `at === parts.length` close the document.
  *
- * Entries are { kind: 'blank'|'sign', part, index, seq }, where
- *   index = the part's position in `parts` — i.e. the page's LETTER, and
+ * Entries are { kind: 'blank'|'sign', part, blank, index, seq }, where
+ *   index = the SIGN's position in `parts` — i.e. the page's LETTER (a blank borrows the index of
+ *           the sign it sits in front of purely so exported sheets keep a sensible neighbour;
+ *           it never takes that sign's letter), and
  *   seq   = the sheet's position in the whole document — what the page-picker lists.
  *
  * The two are deliberately separate and must not be conflated. The letter is a fact about the
  * SIGNS; the picker and the PDF count SHEETS. Once a blank page exists they diverge, and reading
  * one for the other is what would letter a sheet wrongly or drop the payment link onto the wrong
- * page. A blank shares its sign's `index` (it belongs to that page) but never takes its letter.
+ * page.
  */
-export function pageSequence(parts) {
+export function pageSequence(parts, blankPages) {
+  const list = normalizeBlankPages(parts, blankPages)
+  const all = parts || []
   const seq = []
-  for (const [index, part] of (parts || []).entries()) {
-    if (hasBlankPage(part)) seq.push({ kind: 'blank', part, index, seq: seq.length })
-    seq.push({ kind: 'sign', part, index, seq: seq.length })
+  const pushBlanksAt = (slot) => {
+    for (const blank of list) {
+      if (Number(blank.at) !== slot) continue
+      seq.push({ kind: 'blank', blank, part: all[Math.min(slot, all.length - 1)] || null, index: Math.min(slot, Math.max(all.length - 1, 0)), seq: seq.length })
+    }
   }
+  for (const [index, part] of all.entries()) {
+    pushBlanksAt(index)
+    seq.push({ kind: 'sign', part, blank: null, index, seq: seq.length })
+  }
+  pushBlanksAt(all.length)
   return seq
 }
 
@@ -38,12 +65,13 @@ export function pageSequence(parts) {
 // product images), the version-history checkpoint (one image PER page, browsed as a carousel),
 // and the multi-page PDF/PNG download. Every page's Proposal instance is kept in `pageRefs`,
 // keyed by its stable part id, so these can pull from EVERY sign in page order.
-export function usePageCapture(parts) {
+export function usePageCapture(parts, blankPages) {
   const pageRefs = useRef({})
-  // The BLANK PAGE (client-document sheet) belonging to each sign page, keyed by the same part id.
-  // Its capture handle returns an ARRAY (a customer PDF is often several sheets), and it is
-  // emitted DIRECTLY BEFORE its own sign page everywhere below — the order is the feature, not a
-  // detail, so it lives in exactly one place: pageSequence.
+  // The BLANK PAGES (client-document sheets), keyed by their OWN id — they are independent sheets,
+  // not a property of a sign, so they cannot be keyed by a part id: two blanks in front of the same
+  // sign would collide on one key and the exporter would capture one sheet twice. Each handle
+  // returns an ARRAY (a customer PDF is often several sheets). WHERE each sheet lands is decided in
+  // exactly one place — pageSequence — so the preview, the picker and the PDF cannot disagree.
   const docRefs = useRef({})
   const proposalRef = useRef(null)   // LAST-page Proposal, for capturing the version snapshot image
   const multiPreviewRef = useRef(null)   // wraps all stacked pages — captured whole for the version image
@@ -65,9 +93,9 @@ export function usePageCapture(parts) {
   // carousel (one page at a time, ‹ › between pages) instead of a scroll-forever stack.
   const captureAllPages = async () => {
     const snapshots = []
-    for (const entry of pageSequence(parts)) {
+    for (const entry of pageSequence(parts, blankPages)) {
       if (entry.kind === 'blank') {
-        const docHandle = docRefs.current[entry.part.__pid]
+        const docHandle = docRefs.current[entry.blank.__bid]
         if (docHandle?.hasDoc?.()) {
           try { snapshots.push(...(await docHandle.captureSnapshot())) } catch { /* skip a bad sheet */ }
         }
@@ -89,11 +117,11 @@ export function usePageCapture(parts) {
   const capturePagesExport = async (indices = null) => {
     const wanted = Array.isArray(indices) ? new Set(indices) : null
     const exports = []
-    for (const entry of pageSequence(parts)) {
+    for (const entry of pageSequence(parts, blankPages)) {
       if (wanted && !wanted.has(entry.seq)) continue
 
       if (entry.kind === 'blank') {
-        const docHandle = docRefs.current[entry.part.__pid]
+        const docHandle = docRefs.current[entry.blank.__bid]
         if (docHandle?.hasDoc?.()) {
           // kind:'doc' matters downstream: these sheets are not signs, so they must never be
           // lettered and never counted when finding the last sign page.

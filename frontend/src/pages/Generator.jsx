@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { updateQuote, putGenerated, uploadArtwork, uploadCustomerFile, uploadExtraFile, generateSpecs, createCheckpoint } from '../api/quotes'
@@ -28,7 +28,7 @@ import WizardHeader from './generator/components/WizardHeader'
 import WizardProgressBar from './generator/components/WizardProgressBar'
 import LivePreviewPanel from './generator/components/LivePreviewPanel'
 import { useQuoteData } from './generator/hooks/useQuoteData'
-import { usePageCapture } from './generator/hooks/usePageCapture'
+import { usePageCapture, normalizeBlankPages } from './generator/hooks/usePageCapture'
 import { useLivePreview } from './generator/hooks/useLivePreview'
 
 export default function Generator() {
@@ -141,14 +141,77 @@ export default function Generator() {
     return flowIndex > 0 ? goto(flow[flowIndex - 1]) : navigate(exitTo)
   }
 
-  // THE BLANK PAGE is a plain flag on the part — one bit beside the `client_doc` it governs, saved
-  // through savePart like every other per-page field. It deliberately mints nothing: no id, no
-  // record, no entry anywhere `parts` is counted, so it cannot take a letter, a PROPOSAL ID suffix
-  // or a place in the revision numbering. A page either has its blank page or it does not.
-  const addBlankPage = (i) => savePart(i, { blank_page: true })
-  const removeBlankPage = (i) => savePart(i, { blank_page: false })
+  // BLANK PAGES (the client-document sheets) are INDEPENDENT sheets, not a property of a sign.
+  // They used to be a `blank_page` flag on the part, which capped a quote at one blank page per
+  // sign and welded it to that sign for life: two documents in front of page A was impossible, and
+  // moving one behind page B meant re-attaching the file. They are now their own list on
+  // generated_data, each with its own id, its own attached document, and one positional fact —
+  // `at`, the number of SIGN pages in front of it. Several may share one `at`; array order breaks
+  // the tie, which is what ↑/↓ reorders.
+  //
+  // They still mint nothing that belongs to signs: no letter, no PROPOSAL ID suffix, no share of
+  // the total, no entry anywhere `parts` is counted.
+  //
+  // Legacy quotes (flag on the part) are read forward by normalizeBlankPages on every render, so
+  // they keep rendering and keep exporting; the first action below writes the normalized list back.
+  const blankPages = useMemo(
+    () => normalizeBlankPages(parts, generatedData?.blank_pages),
+    [parts, generatedData?.blank_pages],
+  )
+  const blankPagesRef = useRef(blankPages); blankPagesRef.current = blankPages
 
-  const { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts)
+  // One writer for the list — every blank-page action funnels through here, so persistence,
+  // the ref sync and the cache invalidation cannot drift between them.
+  const writeBlankPages = async (nextBlanks) => {
+    const payload = { ...(generatedDataRef.current || {}), blank_pages: nextBlanks }
+    blankPagesRef.current = nextBlanks
+    generatedDataRef.current = payload
+    setGeneratedData(payload)
+    await putGenerated(quoteId, payload)
+    qc.invalidateQueries({ queryKey: ['quotes'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
+  // New blank pages land at the TOP of the document (`at: 0`) — a fixed, predictable landing spot
+  // the rep then drags into place with ↑/↓, rather than a guess about which sign it belongs to.
+  // There is no cap: a quote can carry as many as the job needs.
+  const addBlankPage = () => writeBlankPages([
+    ...blankPagesRef.current,
+    { __bid: `b${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, client_doc: null, at: 0 },
+  ])
+
+  const removeBlankPage = (bid) => writeBlankPages(blankPagesRef.current.filter((b) => b.__bid !== bid))
+
+  const patchBlankPage = (bid, patch) => writeBlankPages(
+    blankPagesRef.current.map((b) => (b.__bid === bid ? { ...b, ...patch } : b)),
+  )
+
+  // ↑/↓ moves a blank page ONE SHEET at a time through the whole document. Two things can be true
+  // of the sheet in front of it: another blank page in the same slot (then they swap in the array,
+  // `at` unchanged), or a sign page (then it steps over that sign, `at` ±1). Doing it in that order
+  // is what lets a blank travel past every sheet in the document — clamping at 0 and at
+  // parts.length, the two ends of the document.
+  const moveBlankPage = (bid, dir) => {
+    const list = [...blankPagesRef.current]
+    const pos = list.findIndex((b) => b.__bid === bid)
+    if (pos < 0) return
+    const blank = list[pos]
+    const at = Number(blank.at) || 0
+    const sameSlot = list.filter((b) => Number(b.at) === at)
+    const orderInSlot = sameSlot.indexOf(blank)
+    const neighbour = sameSlot[orderInSlot + dir]
+    if (neighbour) {
+      const neighbourPos = list.indexOf(neighbour)
+      ;[list[pos], list[neighbourPos]] = [list[neighbourPos], list[pos]]
+      return writeBlankPages(list)
+    }
+    const nextAt = at + dir
+    if (nextAt < 0 || nextAt > partsRef.current.length) return
+    list[pos] = { ...blank, at: nextAt }
+    return writeBlankPages(list)
+  }
+
+  const { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts, blankPages)
 
   // Persist the shared payment link (top-level, one per quote) without touching parts or hooks.
   const savePaymentLink = async (url) => {
@@ -297,14 +360,34 @@ export default function Generator() {
     setTypePicking(false); setTypeGroup(null)
   }
 
+  // A blank page's position is a SLOT NUMBER ("after this many signs"), so inserting or deleting a
+  // sign moves the slots underneath it. Without this every add/delete/duplicate would silently slide
+  // every blank page below it onto the wrong sheet — and a blank sitting at the end (at ===
+  // parts.length) would fall out of range entirely and stop rendering.
+  //
+  //   insertedAt: a sign appeared at this index — blanks at or after it step down one.
+  //   deletedAt:  a sign at this index went away — blanks after it step up one.
+  //
+  // The end of the document stays the end: a blank parked after the last sign is re-pinned to the
+  // new last slot rather than being left in front of the page that was just appended.
+  const shiftBlanksForSignChange = (list, { insertedAt = null, deletedAt = null }, nextPartCount) => (
+    (list || []).map((blank) => {
+      let at = Number(blank.at) || 0
+      if (insertedAt !== null && at >= insertedAt) at += 1
+      if (deletedAt !== null && at > deletedAt) at -= 1
+      return { ...blank, at: Math.max(0, Math.min(at, nextPartCount)) }
+    })
+  )
+
   // "+ Add page": save the current part, append a fresh blank part, and re-enter the wizard at the
   // sign-type/specs step for it. Company/client are shared, so those steps are skipped.
   const addPage = async () => {
     await saveProgress()   // fold the active part's live hooks in first
     const nextParts = [...partsRef.current, { __pid: `p${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }]
     const newIndex = nextParts.length - 1
-    const payload = { ...(generatedDataRef.current || {}), parts: nextParts }
-    partsRef.current = nextParts; generatedDataRef.current = payload
+    const nextBlanks = shiftBlanksForSignChange(blankPagesRef.current, { insertedAt: nextParts.length - 1 }, nextParts.length)
+    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, blank_pages: nextBlanks }
+    partsRef.current = nextParts; generatedDataRef.current = payload; blankPagesRef.current = nextBlanks
     setParts(nextParts)
     setGeneratedData(payload)
     setActivePart(newIndex)
@@ -332,20 +415,24 @@ export default function Generator() {
   // __pid is regenerated for the same reason — pageRefs/docRefs are keyed by it, and two pages
   // sharing one key would make the exporter capture one sheet twice.
   //
-  // client_doc is copied too: the blank page in front of a page is part of what the rep sees, and
-  // "duplicate this page" that dropped the attached document would be a surprise. The value is a
-  // stored path, so both pages point at the same uploaded file — replacing it on one page uploads a
-  // new file and repoints only that page.
+  // BLANK PAGES ARE NOT COPIED. They are independent sheets with their own place in the document,
+  // not a property of the sign they happen to sit in front of, so duplicating a sign duplicates the
+  // SIGN only. A rep who wants a second copy of a client document adds a blank page and attaches it
+  // — one click, and it can then sit anywhere, which copying-with-the-sign could never give.
+  // Any legacy `client_doc`/`blank_page` still stored on the part is stripped from the copy for the
+  // same reason (and so the copy cannot resurrect a sheet the rep already moved away).
   const duplicatePage = async (index) => {
     await saveProgress()   // fold the active page's live hooks in first, or the copy misses them
     const source = partsRef.current[index]
     if (!source) return
     const copy = JSON.parse(JSON.stringify(source))
     copy.__pid = `p${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    delete copy.client_doc; delete copy.blank_page
     const nextParts = [...partsRef.current]
     nextParts.splice(index + 1, 0, copy)
-    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, ...legacyPartFromGd(nextParts[0] || {}) }
-    partsRef.current = nextParts; generatedDataRef.current = payload
+    const nextBlanks = shiftBlanksForSignChange(blankPagesRef.current, { insertedAt: index + 1 }, nextParts.length)
+    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, blank_pages: nextBlanks, ...legacyPartFromGd(nextParts[0] || {}) }
+    partsRef.current = nextParts; generatedDataRef.current = payload; blankPagesRef.current = nextBlanks
     setParts(nextParts)
     setGeneratedData(payload)
     // The wizard's scratch buffer follows the page the rep was on. If that page moved down one slot
@@ -382,8 +469,9 @@ export default function Generator() {
     if (partsRef.current.length <= 1) return
     const removedPart = partsRef.current[index]                       // keep it so the delete can be undone
     const nextParts = partsRef.current.filter((_, idx) => idx !== index)
-    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, ...legacyPartFromGd(nextParts[0] || {}) }
-    partsRef.current = nextParts; generatedDataRef.current = payload
+    const nextBlanks = shiftBlanksForSignChange(blankPagesRef.current, { deletedAt: index }, nextParts.length)
+    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, blank_pages: nextBlanks, ...legacyPartFromGd(nextParts[0] || {}) }
+    partsRef.current = nextParts; generatedDataRef.current = payload; blankPagesRef.current = nextBlanks
     setParts(nextParts)
     setGeneratedData(payload)
     const newActive = Math.min(activePart, nextParts.length - 1)
@@ -404,8 +492,9 @@ export default function Generator() {
     const { part, index } = deletedPage
     const updatedParts = [...partsRef.current]
     updatedParts.splice(Math.min(index, updatedParts.length), 0, part)
-    const payload = { ...(generatedDataRef.current || {}), parts: updatedParts, ...legacyPartFromGd(updatedParts[0] || {}) }
-    partsRef.current = updatedParts; generatedDataRef.current = payload
+    const nextBlanks = shiftBlanksForSignChange(blankPagesRef.current, { insertedAt: Math.min(index, updatedParts.length - 1) }, updatedParts.length)
+    const payload = { ...(generatedDataRef.current || {}), parts: updatedParts, blank_pages: nextBlanks, ...legacyPartFromGd(updatedParts[0] || {}) }
+    partsRef.current = updatedParts; generatedDataRef.current = payload; blankPagesRef.current = nextBlanks
     setParts(updatedParts)
     setGeneratedData(payload)
     setActivePart(index)
@@ -533,15 +622,17 @@ export default function Generator() {
   // Stored through the extra-file endpoint on purpose: it must NOT touch `quote.customer_pdf`, which
   // is the quote's primary intake drawing and feeds the AI spec read, the artwork fallback and the
   // View modal's carousel. A per-page attachment overwriting that would rewrite the quote's history.
-  const [clientDocBusy, setClientDocBusy] = useState(null)   // part id currently uploading
+  const [clientDocBusy, setClientDocBusy] = useState(null)   // blank-page id currently uploading
   const [clientDocErr, setClientDocErr] = useState('')
-  const commitPartClientDoc = async (index, file) => {
+  // The document belongs to the BLANK PAGE, not to a sign — that is what lets the sheet keep its
+  // file while it is moved between sign pages, and what lets two blank pages sit in the same slot
+  // carrying different documents.
+  const commitPartClientDoc = async (bid, file) => {
     if (!file) return
-    const partId = partsRef.current[index]?.__pid || null
-    setClientDocBusy(partId); setClientDocErr('')
+    setClientDocBusy(bid); setClientDocErr('')
     try {
       const path = await uploadExtraFile(quoteId, file)
-      await savePart(index, { client_doc: path })
+      await patchBlankPage(bid, { client_doc: path })
     } catch (err) {
       // The preview step has no artwork-error strip, so this has to surface ON the sheet — a failed
       // upload that only logged would look exactly like a successful one that rendered nothing.
@@ -895,7 +986,8 @@ export default function Generator() {
             specialRequirements={special}
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
             pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
-            addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
+            blankPages={blankPages} addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
+            moveBlankPage={moveBlankPage} patchBlankPage={patchBlankPage}
             editPart={editPart} editArtwork={editArtwork} deletePage={deletePage} duplicatePage={duplicatePage}
             onEditSpecs={() => setEditSpecs(true)} />
         )}

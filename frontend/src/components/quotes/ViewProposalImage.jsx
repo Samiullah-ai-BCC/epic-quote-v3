@@ -3,6 +3,7 @@ import { getRevisions, getGenerated } from '../../api/quotes'
 import Proposal from '../Proposal'
 import ClientDocPage from '../generator/ClientDocPage'
 import { resolveTplByName, itemSigned } from '../../generator/parts'
+import { normalizeBlankPages } from '../../pages/generator/hooks/usePageCapture'
 
 // The PROPOSAL itself at the top of the View modal (#7): the latest version image when one
 // exists, else the real proposal rendered live from the saved state (read-only) — so View
@@ -76,6 +77,16 @@ export default function ViewProposalImage({ quote }) {
     const multi = parts.length > 1
     const i = Math.min(page, parts.length - 1)
     const p = parts[i]
+    // Blank pages are independent sheets with their own place in the document, so View shows the
+    // ones that sit at THIS page's slot (and, on the last page, the ones parked at the end).
+    // normalizeBlankPages reads legacy quotes — where the sheet was a flag on the part — forward
+    // into the same shape, so nothing attached before this change disappears from the one screen
+    // people check a quote on. Read-only here: attaching/replacing happens in the wizard.
+    const blanks = normalizeBlankPages(parts, gd.blank_pages)
+    const blanksHere = blanks.filter((b) => {
+      const at = Number(b.at) || 0
+      return at === i || (i === parts.length - 1 && at >= parts.length)
+    })
     return (
       <div className="mb-3">
         {multi && (
@@ -112,11 +123,11 @@ export default function ViewProposalImage({ quote }) {
           {/* The client's own document belongs to the page, so View must show it too — otherwise the
               one screen people check a quote on is the one screen that hides half of it. Read-only
               here: attaching/replacing happens in the wizard. */}
-          {p.client_doc && (
-            <div style={{ marginTop: 26 }}>
-              <ClientDocPage readOnly doc={p.client_doc} label={multi ? String.fromCharCode(65 + i) : null} />
+          {blanksHere.map((blank, n) => (
+            <div key={blank.__bid} style={{ marginTop: 26 }}>
+              <ClientDocPage readOnly doc={blank.client_doc} label={blanksHere.length > 1 ? String(n + 1) : null} />
             </div>
-          )}
+          ))}
           </div>
         </div>
       </div>
