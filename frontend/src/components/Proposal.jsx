@@ -466,17 +466,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // page edge AND this watcher raises the red banner telling the rep to trim.
   const PAGE_H = 1056
   const [overBy, setOverBy] = useState(0)   // px of content clipped past the page bottom (0 = fits)
-  useEffect(() => {
-    const el = pageRef.current
-    if (!el) return
-    // scrollHeight = what the content WANTS; offsetHeight is pinned at PAGE_H by the clamp
-    const check = () => setOverBy(Math.max(0, el.scrollHeight - PAGE_H - 2))
-    check()
-    const ro = new ResizeObserver(check)
-    ro.observe(el)
-    const t = setInterval(check, 800)   // scrollHeight changes don't fire ResizeObserver (height is fixed)
-    return () => { ro.disconnect(); clearInterval(t) }
-  }, [])
+  // The watcher itself lives below contentBottom(), because that is the honest measurement — see
+  // the note there. It used to read el.scrollHeight, which is why the red banner could shout
+  // "0.3 inches is being cut off" at a sheet with a visibly empty line left in ADDITIONAL NOTES.
 
   // THE PAGE LIMIT IS ENFORCED, NOT ANNOUNCED. A red banner still let the rep keep typing past
   // the bottom edge, and everything past it is clipped by overflow:hidden — so the words existed
@@ -528,6 +520,33 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   }
   // The PAGE is full when one more line of THIS block would push the lowest content past 1056.
   const pageIsFull = (el) => (contentBottom() + lineOf(el) > PAGE_H) || blockIsFull(el)
+
+  // THE BANNER AND THE GUARD MUST MEASURE THE SAME PAGE. This watcher used to read
+  // `pageRef.scrollHeight`, while the typing guard above reads contentBottom() — two different
+  // answers to one question, and the rep saw both at once: "about 0.3″ of content is past the
+  // bottom edge" printed over a sheet with an empty line still sitting in ADDITIONAL NOTES.
+  //
+  // scrollHeight is the wrong instrument here for the same reason it was wrong for the guard.
+  // It counts ABSOLUTELY-POSITIONED descendants — the draggable swatch chips, the artwork
+  // dimension arrows, the screen-only ⊗ removers — which live inside fixed boxes and cannot push
+  // the printed page one pixel taller. A chip nudged low, or an overlay whose box ends a few px
+  // past its parent, inflated scrollHeight and raised a red banner about content that prints
+  // perfectly. It also counts them at DOM scale rather than page scale.
+  //
+  // contentBottom() answers the question actually being asked: where does the lowest IN-FLOW
+  // section end, in page coordinates. Same instrument as the guard, so the banner can no longer
+  // contradict what the sheet lets the rep type — and the room the guard says is there is room
+  // the banner agrees is there.
+  useEffect(() => {
+    const el = pageRef.current
+    if (!el) return
+    const check = () => setOverBy(Math.max(0, contentBottom() - PAGE_H))
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    const t = setInterval(check, 800)   // the page height is fixed, so growth inside it fires no resize
+    return () => { ro.disconnect(); clearInterval(t) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Measured height of the SIDE VIEW box — it stretches to the bottom of the specs row, so its
   // real height depends on how tall the left column is. The diagram's move/resize clamp uses
