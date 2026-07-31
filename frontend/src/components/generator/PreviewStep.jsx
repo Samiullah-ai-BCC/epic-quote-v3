@@ -14,7 +14,7 @@ export default function PreviewStep({
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
   canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
-  savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage,
+  savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
   specialRequirements, commitPartClientDoc, docBusy, docErr,
   addBlankPage, removeBlankPage, onEditSpecs,
 }) {
@@ -165,6 +165,16 @@ export default function PreviewStep({
                 </div>
               )}
               {addPageButton}
+              {/* Sits under "+ Add sign page" and is its shortcut: same result (one more sign page)
+                  but pre-filled from THIS page instead of empty, and landing directly after it
+                  rather than at the end. The rep stays on the preview — nothing to re-walk, because
+                  every spec is already copied. Edits to the copy are the ordinary per-page edits:
+                  the ✎ / 🖼 / ↑↓ / 🗑 row beside the copy edits the copy alone. */}
+              {duplicatePage && (
+                <button className="ghost sm" disabled={saving} style={{ width: '100%' }}
+                  title={`Duplicate ${multi ? 'page ' + partLetter(i) : 'this page'} — an identical sign page is inserted right after it, ready to edit`}
+                  onClick={() => duplicatePage(i)}>⧉ Duplicate page{multi ? ' ' + partLetter(i) : ''}</button>
+              )}
               {blankPageButton(i, blankOn, !!p.client_doc)}
             </>
           )

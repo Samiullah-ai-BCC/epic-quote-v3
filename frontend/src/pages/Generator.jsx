@@ -315,6 +315,48 @@ export default function Generator() {
     startPipeline(mode === 'custom' ? 'customspecs' : 'signtype')
   }
 
+  // "⧉ Duplicate page": copy ONE page whole — specs, artwork, side views, sign box, the saved
+  // proposal_state (spec body, line items, discounts, swatches, layout nudges, hidden blocks) — and
+  // insert the copy directly after the page it came from. The copy is a normal page from that
+  // moment on: every button beside it (Edit specs / Edit artwork / Move / Delete / blank page) acts
+  // on the COPY alone, because all of them close over the index of the freshly-mapped render.
+  //
+  // WHY a deep clone and not `{ ...part }`: proposal_state, answers, side_views and sign_box are
+  // nested objects. A shallow copy would leave the two pages sharing them, so editing a line item
+  // or nudging a swatch on the copy would silently rewrite the original as well — the #15
+  // cross-contamination failure, in a new place.
+  //
+  // Everything that identifies a page by POSITION is deliberately NOT copied: the letter (A/B/…),
+  // the "PROPOSAL ID: …-X" suffix and the last-page total/downloads/payment block are all
+  // index-derived, so the copy re-derives them on mount, exactly as movePart relies on.
+  // __pid is regenerated for the same reason — pageRefs/docRefs are keyed by it, and two pages
+  // sharing one key would make the exporter capture one sheet twice.
+  //
+  // client_doc is copied too: the blank page in front of a page is part of what the rep sees, and
+  // "duplicate this page" that dropped the attached document would be a surprise. The value is a
+  // stored path, so both pages point at the same uploaded file — replacing it on one page uploads a
+  // new file and repoints only that page.
+  const duplicatePage = async (index) => {
+    await saveProgress()   // fold the active page's live hooks in first, or the copy misses them
+    const source = partsRef.current[index]
+    if (!source) return
+    const copy = JSON.parse(JSON.stringify(source))
+    copy.__pid = `p${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const nextParts = [...partsRef.current]
+    nextParts.splice(index + 1, 0, copy)
+    const payload = { ...(generatedDataRef.current || {}), parts: nextParts, ...legacyPartFromGd(nextParts[0] || {}) }
+    partsRef.current = nextParts; generatedDataRef.current = payload
+    setParts(nextParts)
+    setGeneratedData(payload)
+    // The wizard's scratch buffer follows the page the rep was on. If that page moved down one slot
+    // by the insert, the active index moves with it, so a later saveProgress still writes back to
+    // the SAME sign and not to the copy sitting in its old slot.
+    if (activePart > index) setActivePart(activePart + 1)
+    await putGenerated(quoteId, payload)
+    qc.invalidateQueries({ queryKey: ['quotes'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
   // #9 — open the full wizard spec editor (sign type picker, dims, price, spec text) for ONE page:
   // make it the active part, load it into the hooks, and jump to the spec step. Returns STRAIGHT to
   // the preview when done (#12): changing a spec is not a reason to re-walk the artwork step.
@@ -854,7 +896,7 @@ export default function Generator() {
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
             pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
             addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
-            editPart={editPart} editArtwork={editArtwork} deletePage={deletePage}
+            editPart={editPart} editArtwork={editArtwork} deletePage={deletePage} duplicatePage={duplicatePage}
             onEditSpecs={() => setEditSpecs(true)} />
         )}
        </div>
