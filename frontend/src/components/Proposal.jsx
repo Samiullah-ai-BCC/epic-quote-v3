@@ -1725,6 +1725,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           style={{
             width: 816, height: PAGE_H, overflow: 'hidden', background: '#fff', color: '#111',
             fontFamily: "'Roboto', Arial, sans-serif", fontSize: 12, textTransform: 'uppercase',
+            // THE SHEET FILLS ITSELF. As a plain block the sections simply stacked and whatever
+            // stuck out past 1056 was clipped — which is how a page could sit 12px over the edge
+            // (the red banner firing) while the SPECIFICATIONS box beside it held 137px of blank
+            // space. Nothing was arranging the page; it was falling where it fell.
+            // As a flex column the ONE flexible row — specs + package/side-view — absorbs the
+            // arithmetic: it grows into leftover room and shrinks when the sheet is tight, so the
+            // footer lands on the page instead of a few pixels under it. Fixed sections (header,
+            // item table, footer) are untouched, and the inner minHeights still stop the side view
+            // and spec body from being squashed, so a genuinely over-full page still says so.
+            display: 'flex', flexDirection: 'column',
             boxSizing: 'border-box', paddingBottom: 14, position: 'relative',
             border: '1px solid var(--border, #d8dee8)',   // sheet edge — replaces the grey mat
             transformOrigin: 'top left', transform: `scale(${scale})`,
@@ -1822,7 +1832,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               column's right border, so it's continuous no matter which column ends up taller.
               Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
               the sheet — full-width specs instead of the 240px sidebar. */}
-          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
+          {/* THE flexible row of the sheet (see the page's flex note): it takes the height left
+              between the item table and the footer. `minHeight: 0` is what actually lets it shrink
+              — without it a flex item refuses to go below its content size and the row would push
+              the footer off the page exactly as before. */}
+          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777', flex: '1 1 auto', minHeight: 0 }}>
             {/* flex column: SPECIFICATIONS stretches to absorb whatever height the right column
                 forces on the grid row, so ADDITIONAL NOTES always hugs the BOTTOM of the box
                 instead of floating mid-column with a void under it (regression after the notes
