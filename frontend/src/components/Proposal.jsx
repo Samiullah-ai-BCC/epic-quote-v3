@@ -566,9 +566,25 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // A new table row is taller than a line of text, so it needs its own headroom to be honest:
   // reporting "there is room" and then clipping the row is the same bug in another costume.
   const ROW_H = 26
+  // "Page is full" while the rep is looking at a large blank area is a message that reads as a bug
+  // even when the refusal is correct. It usually IS correct: the white space is almost always the
+  // inside of the SPECIFICATIONS box, and that box only looks empty because its neighbour column
+  // (PACKAGE INCLUDES + SIDE VIEW) is the taller of the two — the box is stretched to match, not
+  // free. Shortening the spec text therefore buys nothing; shrinking the side view does.
+  // So the message names the shortfall and the column that is actually holding the height.
   const refuseIfFull = (what) => {
-    if (contentBottom() + ROW_H <= PAGE_H) return false
-    flash(`Page is full — ${what} would fall off the sheet. Remove or shorten something first.`)
+    const short = Math.ceil(contentBottom() + ROW_H - PAGE_H)
+    if (short <= 0) return false
+    const grid = pageRef.current?.querySelector('[data-key="specBody"]')?.closest('div[style*="grid"]')
+    const cols = grid ? [...grid.children] : []
+    // Which column is setting the row's height — the one whose content is tallest. Its owner is
+    // the only place trimming actually shortens the page.
+    const need = (col) => [...(col?.children || [])].reduce((n, c) => n + c.scrollHeight, 0)
+    const sideViewDrives = cols.length > 1 && need(cols[1]) >= need(cols[0])
+    const remedy = sideViewDrives
+      ? 'The blank area inside SPECIFICATIONS is not free — the SIDE VIEW column is what sets that height. Shrink the side view (or remove it) to get the room.'
+      : 'Remove a specification line, or remove ADDITIONAL NOTES, to get the room.'
+    flash(`No room for ${what} — the sheet is ${short}px short. ${remedy}`)
     return true
   }
   useEffect(() => {
@@ -1725,16 +1741,14 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           style={{
             width: 816, height: PAGE_H, overflow: 'hidden', background: '#fff', color: '#111',
             fontFamily: "'Roboto', Arial, sans-serif", fontSize: 12, textTransform: 'uppercase',
-            // THE SHEET FILLS ITSELF. As a plain block the sections simply stacked and whatever
-            // stuck out past 1056 was clipped — which is how a page could sit 12px over the edge
-            // (the red banner firing) while the SPECIFICATIONS box beside it held 137px of blank
-            // space. Nothing was arranging the page; it was falling where it fell.
-            // As a flex column the ONE flexible row — specs + package/side-view — absorbs the
-            // arithmetic: it grows into leftover room and shrinks when the sheet is tight, so the
-            // footer lands on the page instead of a few pixels under it. Fixed sections (header,
-            // item table, footer) are untouched, and the inner minHeights still stop the side view
-            // and spec body from being squashed, so a genuinely over-full page still says so.
-            display: 'flex', flexDirection: 'column',
+            // PLAIN BLOCK, DELIBERATELY. Making this a flex column so the specs row could absorb
+            // leftover height was a mistake with a long tail: the row then ALWAYS stretched to the
+            // page bottom, so contentBottom() — which is what the typing guard, the add-a-row guard
+            // and the red banner all measure — read "content ends at 1056" on every page, however
+            // empty. Every add was refused with "Page is full" under half a sheet of white space.
+            // The sections stack; the guards measure where they actually end. A page whose content
+            // genuinely runs past 1056 is reported by the banner, which is the honest answer — it
+            // is not the layout's job to hide an over-full sheet by stretching to meet it.
             boxSizing: 'border-box', paddingBottom: 14, position: 'relative',
             border: '1px solid var(--border, #d8dee8)',   // sheet edge — replaces the grey mat
             transformOrigin: 'top left', transform: `scale(${scale})`,
@@ -1832,19 +1846,9 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               column's right border, so it's continuous no matter which column ends up taller.
               Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
               the sheet — full-width specs instead of the 240px sidebar. */}
-          {/* THE flexible row of the sheet (see the page's flex note): it takes whatever height is
-              left between the item table and the footer.
-              GROW ONLY — `1 0 auto`, never `1 1 auto`. Letting it SHRINK produced the ragged bottom
-              edge: the frame (this div) shrank to the space available while the grid's auto-sized
-              row kept its content height, so the columns ran 18px past their own border and the
-              box's bottom line cut straight through ADDITIONAL NOTES. A frame that shrinks below
-              its contents does not make the page fit, it only makes the page LIE about fitting —
-              the honest signal for a genuinely over-full sheet is the red banner, which measures
-              the real content bottom.
-              `gridTemplateRows: 1fr` is the other half: when the row DOES grow into spare room, the
-              row must fill the taller box, or the columns keep their content height and leave a
-              white strip inside the bottom of the frame. */}
-          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', gridTemplateRows: '1fr', border: '1px solid #777', flex: '1 0 auto' }}>
+          {/* Sized by its own contents, like every other section. It was briefly made to stretch
+              into the page's leftover height; see the page div's note for why that is gone. */}
+          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777' }}>
             {/* flex column: SPECIFICATIONS stretches to absorb whatever height the right column
                 forces on the grid row, so ADDITIONAL NOTES always hugs the BOTTOM of the box
                 instead of floating mid-column with a void under it (regression after the notes

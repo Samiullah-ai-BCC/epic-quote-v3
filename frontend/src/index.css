@@ -381,14 +381,6 @@ td input:focus, td select:focus { background: var(--navy-900); }
   #proposal-print-root { transform: none !important; box-shadow: none !important; zoom: var(--pz, 1) !important; }
   .adj-ui { display: none !important; }
 }
-/* THE SHEET'S FIXED FURNITURE MUST NOT BE SQUEEZED.
-   #proposal-print-root is a flex column so the specs / side-view row can absorb whatever height is
-   left over (see Proposal.jsx). But flex items default to flex-shrink:1, so the moment that row
-   asked for more than the page had, the browser paid for it by compressing everything else —
-   measured: the header lost 9px and the ARTWORK box lost 18px, silently cropping the sign image
-   the whole quote is about. Those sections are sized deliberately; only the specs row flexes. */
-#proposal-print-root > * { flex-shrink: 0; }
-
 .tmpl-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .spec-dump { background: var(--navy-900); border: 1px solid var(--border); border-radius: 10px; padding: 15px; font-size: 12px; overflow: auto; max-height: 380px; color: var(--text-dim); line-height: 1.5; }
 
