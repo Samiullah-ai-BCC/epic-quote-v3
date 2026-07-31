@@ -2200,23 +2200,29 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   + Line item
                 </button>
 
-                {/* Discount lives on the LAST page only — it subtracts from the combined quote
-                    total, which the last page carries (same rule as downloads/payment). */}
-                {isLast && (
-                  <button
-                    type="button"
-                    className="ghost"
-                    style={{
-                      width: '100%',
-                      color: '#00A86B',
-                      borderColor: '#00A86B'
-                    }}
-                    title="Give the customer a discount (its amount is SUBTRACTED from the quote total)"
-                    onClick={addDiscount}
-                  >
-                    − Discount
-                  </button>
-                )}
+                {/* Discount used to be LAST-PAGE ONLY, on the reasoning that the combined quote
+                    total lives there. That reasoning was about where the total is DISPLAYED, not
+                    where it is COMPUTED — and a real quote discounts one sign, not the bundle.
+                    The arithmetic already worked per page and needed no change: a discount row is
+                    just an item with `kind: 'discount'`, stored in that page's own
+                    proposal_state.__items, and BOTH totals walk every page's items —
+                    Generator.partAmount() on the front end and QuoteController::partTotal() on the
+                    back end, each summing itemSigned() over the part it belongs to. So a discount
+                    added on page 2 subtracts from the quote total exactly like one added on the
+                    last page; the only thing the gate did was refuse to let the rep type it. */}
+                <button
+                  type="button"
+                  className="ghost"
+                  style={{
+                    width: '100%',
+                    color: '#00A86B',
+                    borderColor: '#00A86B'
+                  }}
+                  title="Give the customer a discount on THIS sign (its amount is SUBTRACTED from the quote total)"
+                  onClick={addDiscount}
+                >
+                  − Discount
+                </button>
               </div>
             </div>
 
