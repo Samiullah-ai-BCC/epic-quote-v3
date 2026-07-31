@@ -65,6 +65,7 @@ export default function QuotesTable({
                 <ResizableTh
                   key={c.key}
                   width={widthOf(c)}
+                  className={c.key === 'actions' ? 'col-pinned-right' : undefined}
                   onResize={(w) => setWidth(c.key, w)}
                   title={c.title || (sortable ? 'Click to sort' : undefined)}
                   onClick={sortable ? () => sort.toggle(c.sort) : undefined}

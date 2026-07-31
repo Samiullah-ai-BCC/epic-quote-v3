@@ -681,6 +681,43 @@ button.chip.ai { background: #8b6fe6; border-color: #8b6fe6; color: #fff; }
 /* react-resizable ships its own absolutely-positioned handle art; ours replaces it wholesale */
 .grid-wrap table.resizable-grid .react-resizable { position: relative; }
 
+/* ── THE ACTIONS COLUMN IS PINNED TO THE RIGHT EDGE ───────────────────────────────────────
+   View / Edit / History / Delete sit in the LAST column of a grid ~2000px wide, so acting on a
+   quote meant dragging the horizontal scrollbar all the way right, every single time, and
+   dragging back to read which row you were on. Pinned, the buttons are always where the eye
+   already is and the row underneath still scrolls normally.
+
+   Four things this needs, each of which silently breaks it if missed:
+   • The cell must be OPAQUE. `background` on a <td> is normally optional; here the other
+     columns slide UNDER this one, and a transparent cell shows them through as a smear.
+   • `right: 0` resolves against .grid-wrap (the scroll container), which already exists and
+     already carries the horizontal scrollbar. No new wrapper — and none may be added between
+     <main> and .fill-page either (see the LAYOUT / SCROLL CHAIN invariant).
+   • The header cell is sticky in BOTH axes (top from .grid-wrap thead th, right from here), so
+     it needs a z-index above both — otherwise the top-right corner cell is overrun by whichever
+     neighbour scrolls past it.
+   • `overflow: hidden` on the cell (set above, so a long label cannot widen a column) does NOT
+     break stickiness — it clips the cell's own content, which is what we want.
+
+   The selected-row tint is re-applied as a background IMAGE on top of the opaque colour: the
+   row's own translucent `bg-[rgba(249,166,0,0.07)]` paints on the <tr>, which this cell now
+   covers, so a selected row would otherwise lose its highlight for exactly one column. */
+.grid-wrap table.resizable-grid th.col-pinned-right,
+.grid-wrap table.resizable-grid td.col-pinned-right {
+  position: sticky;
+  right: 0;
+  background-color: var(--navy-700, #fff);
+  box-shadow: -7px 0 9px -7px rgba(15, 23, 42, .28);
+}
+.grid-wrap table.resizable-grid td.col-pinned-right { z-index: 4; }
+.grid-wrap table.resizable-grid thead th.col-pinned-right {
+  z-index: 7;                       /* above the sticky header (5) AND the pinned body cells (4) */
+  background-color: var(--navy-800, #eef2f8);
+}
+.grid-wrap table.resizable-grid tbody tr.is-selected td.col-pinned-right {
+  background-image: linear-gradient(rgba(249, 166, 0, .07), rgba(249, 166, 0, .07));
+}
+
 /* ---- Proposal blocks: real bullet/number lists -------------------------------------------
    Tailwind's preflight sets `ol,ul,menu { list-style: none }` and zeroes every element's
    padding. Inside the proposal's editable blocks that had two effects: bullets vanished, and

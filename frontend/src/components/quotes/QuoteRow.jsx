@@ -9,7 +9,9 @@ export default function QuoteRow({
   onToggleSel, onView, onEdit, onHistory, onDelete, onArt,
 }) {
   return (
-    <tr className={selected ? 'bg-[rgba(249,166,0,0.07)]' : undefined}>
+    // `is-selected` mirrors the tint class for CSS that cannot use it: the pinned actions cell
+    // paints its own opaque background over the row and has to re-apply the highlight itself.
+    <tr className={selected ? 'is-selected bg-[rgba(249,166,0,0.07)]' : undefined}>
       <td>{!readOnly && <input type="checkbox" checked={selected} className="w-auto" onChange={() => onToggleSel(q.quote_id)} />}</td>
       <td className="muted text-[11px]">{i + 1}</td>
       <td><b>{q.quote_id}</b>{q.is_test && <span className="pill pill-amber ml-1.5 text-[10px]">TEST</span>}{q.rush === 'Super Rush' && <span className="pill pill-coral ml-1.5 text-[10px]">SUPER RUSH</span>}{q.rush === 'Rush' && <span className="pill pill-amber ml-1.5 text-[10px]">RUSH</span>}</td>
@@ -93,7 +95,9 @@ export default function QuoteRow({
         )}{' '}
         {q.crunched_artwork && <a href={fileUrl(q.crunched_artwork)} target="_blank" rel="noreferrer">Crunch</a>}
       </td>}
-      <td className="whitespace-nowrap">
+      {/* Pinned to the right edge — see .col-pinned-right. Stays the LAST <td>, so the COLS order
+          in QuotesTable still matches this row cell-for-cell. */}
+      <td className="whitespace-nowrap col-pinned-right">
         <button className="ghost sm" onClick={() => onView(q)}>View</button>{' '}
         {!readOnly && <><button className="ghost sm" onClick={() => onEdit(q)}>Edit</button>{' '}</>}
         {admin && <><button className="ghost sm" title="Field-level change history (who changed what, when)" onClick={() => onHistory(q.quote_id)}>History</button>{' '}</>}

@@ -115,9 +115,15 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   const pick = (file) => { if (file && onPick) onPick(file) }
 
   return (
+    // ALIGNED WITH THE PROPOSAL SHEET, NOT MERELY THE SAME SIZE. Proposal.jsx renders its page
+    // inside `.proposal-fit` at `width: 816 * scale; margin: 0 auto` — CENTERED in its column. This
+    // sheet was the right 816×1056 at the right scale but sat hard left, so the moment the column
+    // grew wider than 816px (any normal desktop) the two pages stood at different offsets and read
+    // as two different documents in one stack. Each sheet below therefore gets the same width box,
+    // the same auto margins, and the same 1px edge + border-box sizing as the proposal page.
     <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
       {sheets.map((src, n) => (
-        <div key={n} style={{ height: PAGE_H * scale, overflow: 'hidden' }}>
+        <div key={n} style={{ width: PAGE_W * scale, height: PAGE_H * scale, overflow: 'hidden', margin: '0 auto' }}>
           <div
             ref={(el) => { sheetRefs.current[n] = el }}
             style={{
@@ -125,6 +131,8 @@ const ClientDocPage = forwardRef(function ClientDocPage({
               transform: `scale(${scale})`, transformOrigin: 'top left',
               display: 'flex', flexDirection: 'column', position: 'relative',
               fontFamily: 'Roboto, Arial, sans-serif',
+              boxSizing: 'border-box',
+              border: '1px solid var(--border, #d8dee8)',
             }}
           >
             <div style={{ padding: '18px 40px 8px', fontSize: 11, letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid #777', display: 'flex', justifyContent: 'space-between' }}>
