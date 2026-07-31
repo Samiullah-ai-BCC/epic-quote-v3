@@ -1832,11 +1832,19 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               column's right border, so it's continuous no matter which column ends up taller.
               Template B (monument/pylon, tpl.mono) carries neither a package nor a side view in
               the sheet — full-width specs instead of the 240px sidebar. */}
-          {/* THE flexible row of the sheet (see the page's flex note): it takes the height left
-              between the item table and the footer. `minHeight: 0` is what actually lets it shrink
-              — without it a flex item refuses to go below its content size and the row would push
-              the footer off the page exactly as before. */}
-          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', border: '1px solid #777', flex: '1 1 auto', minHeight: 0 }}>
+          {/* THE flexible row of the sheet (see the page's flex note): it takes whatever height is
+              left between the item table and the footer.
+              GROW ONLY — `1 0 auto`, never `1 1 auto`. Letting it SHRINK produced the ragged bottom
+              edge: the frame (this div) shrank to the space available while the grid's auto-sized
+              row kept its content height, so the columns ran 18px past their own border and the
+              box's bottom line cut straight through ADDITIONAL NOTES. A frame that shrinks below
+              its contents does not make the page fit, it only makes the page LIE about fitting —
+              the honest signal for a genuinely over-full sheet is the red banner, which measures
+              the real content bottom.
+              `gridTemplateRows: 1fr` is the other half: when the row DOES grow into spare room, the
+              row must fill the taller box, or the columns keep their content height and leave a
+              white strip inside the bottom of the frame. */}
+          <div style={{ margin: '5px 40px 0', display: 'grid', gridTemplateColumns: isMonoType ? '1fr' : '1fr 240px', gridTemplateRows: '1fr', border: '1px solid #777', flex: '1 0 auto' }}>
             {/* flex column: SPECIFICATIONS stretches to absorb whatever height the right column
                 forces on the grid row, so ADDITIONAL NOTES always hugs the BOTTOM of the box
                 instead of floating mid-column with a void under it (regression after the notes
