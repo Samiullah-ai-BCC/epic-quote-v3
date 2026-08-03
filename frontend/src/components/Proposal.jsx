@@ -120,16 +120,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     listCatalog('side_view').then(setSvLib).catch(() => {})
   }, [pickingSV])
   const [selId, setSelId] = useState(null)                          // selected adjustable image
-  // persisted geometry per image — package/side-view tiles are dropped from the seed: they're
-  // algorithmically laid out from the CURRENT set/count on every load (pkgDefX/fitCenterH/autoCrop),
-  // never hand-tuned per tile, so an old saved entry here is always just a STALE snapshot of
-  // whatever the fit logic used to compute — freezing it means every improvement to that logic
-  // (bigger tiles, tighter autoCrop) is invisible on any quote that already has one saved. Re-deriving
-  // fresh on every load is strictly better than permanently pinning last session's numbers.
+  // Package tiles are derived from the current package set. Side-view geometry is different:
+  // moving/resizing a diagram is an intentional user edit, so restore its saved `sv2-*` frame.
   const [layout, setLayout] = useState(() => {
-    const L = { ...(savedState?.__layout || {}) }
-    Object.keys(L).forEach((k) => { if (k.startsWith('pkg-') || k.startsWith('sv2-')) delete L[k] })
-    return L
+    const restored = { ...(savedState?.__layout || {}) }
+    Object.keys(restored).forEach((key) => { if (key.startsWith('pkg-')) delete restored[key] })
+    return restored
   })
   // The artwork's saved frame is only valid for the FILE it was fit to. When the rep replaces
   // the artwork (re-upload), the old frame's aspect/crop window is meaningless for the new image
@@ -954,6 +950,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => { saveTimer.current = null; flushRef.current(); flash('Saved') }, 600)
   }
+  // The quote-level Done button must not leave the last drag/resize sitting in this debounce.
+  // It calls this handle before checkpointing, so the current page state reaches its part first.
+  const flushSave = async () => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    if (onSave) await onSave(captureState())
+  }
 
   // ONE removal path for a colour chip, shared by the × button and the Delete key, so the two can
   // never drift. The dismissed-set line is the reason this is not two call sites: an auto- chip
@@ -1520,7 +1522,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     const c = await render({ scale: HD_SCALE })
     return { url: c.toDataURL('image/png'), w: c.width, h: c.height }
   }
-  useImperativeHandle(fwdRef, () => ({ captureCleanImage, captureSnapshot, captureExport }))
+  useImperativeHandle(fwdRef, () => ({ captureCleanImage, captureSnapshot, captureExport, flushSave }))
 
   // load a dataURL into an <img> (for stitching); resolves null on failure
   const loadImg = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src })

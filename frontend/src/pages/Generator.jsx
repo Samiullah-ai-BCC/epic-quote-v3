@@ -224,6 +224,9 @@ export default function Generator() {
   }
   const [checkpointBusy, setCheckpointBusy] = useState('')
   const [checkpointMessage, setCheckpointMessage] = useState('')
+  // Preview edits save directly to their part. Track those requests so Done can drain them before
+  // writing the final current-page snapshot and cannot lose a race to an older in-flight request.
+  const pendingPartSaves = useRef(new Set())
 
   const saveAndReturn = async () => { await saveProgress(); navigate(exitTo) }   // #4 (top-bar action)
 
@@ -232,7 +235,17 @@ export default function Generator() {
   const saveCheckpoint = async () => {
     setCheckpointBusy('1'); setCheckpointMessage('')
     try {
-      await saveProgress()   // ensure the latest edits are recorded as changes before the checkpoint
+      if (step === 'preview') {
+        // Never fold the wizard scratch hooks here: preview side-view edits already live on each
+        // part, while the hooks still contain the pre-edit selection and used to overwrite it.
+        await Promise.all([...pendingPartSaves.current])
+        const pages = partsRef.current.map((part) => pageRefs.current[part.__pid]).filter(Boolean)
+        // Sequential on purpose: every page save starts from the result of the previous one. Parallel
+        // whole-payload writes can arrive out of order and let an older page erase a newer page.
+        for (const page of pages) await page.flushSave?.()
+      } else {
+        await saveProgress()
+      }
       let checkpointImage = null
       try { checkpointImage = await captureAllPages() } catch { /* image optional */ }   // whole quote (all signs)
       const checkpoint = await createCheckpoint(quoteId, checkpointImage)
@@ -303,7 +316,9 @@ export default function Generator() {
     partsRef.current = nextParts; generatedDataRef.current = payload
     setParts(nextParts)
     setGeneratedData(payload)
-    await putGenerated(quoteId, payload)
+    const request = putGenerated(quoteId, payload)
+    pendingPartSaves.current.add(request)
+    try { await request } finally { pendingPartSaves.current.delete(request) }
     qc.invalidateQueries({ queryKey: ['quotes'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
   }
