@@ -139,6 +139,11 @@ together.
 whenever the stored type and stored diagram drift apart (a quote re-typed in an earlier session):
 the app then reads its own stale auto-pick as a deliberate human choice and refuses to update it.
 
+The selected diagram and its canvas geometry have separate ownership. `side_views` follows the
+resolved leaf as above; a rep's moved/resized `sv2-*` frame lives in `proposal_state.__layout` and
+must be restored on reopen. Package `pkg-*` frames remain derived and are intentionally re-laid out.
+On the final preview, side-view changes save directly through `savePart`; quote-level Done must flush
+those page handles and must not call `saveProgress`, whose wizard scratch state can be older.
 The rule must not depend on knowing the previous selection.
 
 **`customTypeSel` MUST be restored when a part loads** (`resolveSignTypeName`). It is not saved by
