@@ -25,7 +25,17 @@ class QuoteController extends Controller
     // GET /api/quotes — list with search + status filter, scoped to non-admins (#40,#41,#52)
     public function index(Request $request): JsonResponse
     {
-        $q = Quote::query()->visibleTo($request->user());
+        $user = $request->user();
+        $q = Quote::query();
+
+        // Rod and Ed's All Quotes tab is a private book: assigned and representative-less rows
+        // must not leak into it. Keep this stricter policy local to INDEX; direct quote access and
+        // other workflows retain the established visibleTo()/isVisibleTo() behavior.
+        if ($user->restrictsQuoteListingToOwnRepresentative()) {
+            $q->where('sales_rep', $user->full_name);
+        } else {
+            $q->visibleTo($user);
+        }
 
         $status = $request->query('status');
         if ($status === '__pending__') {
@@ -37,7 +47,7 @@ class QuoteController extends Controller
         // "Assigned to" filter: ?assigned=me → quotes assigned to the current user,
         // ?assigned=<name> → that person's quotes (Airtable's "Assign to" view)
         if ($assigned = trim((string) $request->query('assigned', ''))) {
-            $q->where('assigned_to', $assigned === 'me' ? $request->user()->full_name : $assigned);
+            $q->where('assigned_to', $assigned === 'me' ? $user->full_name : $assigned);
         }
 
         // Quote-source filter (?source=Email …)

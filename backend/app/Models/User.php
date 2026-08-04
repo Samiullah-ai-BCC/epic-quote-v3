@@ -91,6 +91,12 @@ class User extends Authenticatable
             : null;
     }
 
+    /** Rod and Ed have a deliberately private All Quotes listing. */
+    public function restrictsQuoteListingToOwnRepresentative(): bool
+    {
+        return $this->defaultSalesRepresentative() !== null;
+    }
+
     // Managers/account managers/viewers see the whole book of business;
     // quote makers and sales reps see their own quotes only.
     public function seesAllQuotes(): bool

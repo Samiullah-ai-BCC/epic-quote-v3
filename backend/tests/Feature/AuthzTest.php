@@ -23,6 +23,52 @@ it('shows a repless (shared) quote to everyone', function () {
     $this->getJson("/api/quotes/{$quote->quote_id}")->assertOk();
 });
 
+it('shows Rod only his own representative rows in All Quotes', function () {
+    $rod = makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet']);
+    $own = makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => '']);
+    makeQuote(['sales_rep' => 'ED', 'assigned_to' => 'Rod Muffet']);
+    makeQuote(['sales_rep' => '', 'assigned_to' => 'Rod Muffet']);
+    makeQuote(['sales_rep' => null, 'assigned_to' => '']);
+
+    login($rod);
+    $rows = $this->getJson('/api/quotes')->assertOk()->json();
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['quote_id'])->toBe($own->quote_id);
+});
+
+it('shows Ed only his own representative rows in All Quotes, case-insensitively', function () {
+    $ed = makeUser(['username' => 'Ed', 'full_name' => 'ED']);
+    $own = makeQuote(['sales_rep' => 'ED']);
+    makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => 'ED']);
+    makeQuote(['sales_rep' => '']);
+
+    login($ed);
+    $rows = $this->getJson('/api/quotes')->assertOk()->json();
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['quote_id'])->toBe($own->quote_id);
+});
+
+it('keeps the existing shared and assigned list visibility for other sales reps', function () {
+    $rep = makeUser(['username' => 'another-rep', 'full_name' => 'Another Rep']);
+    makeQuote(['sales_rep' => '', 'assigned_to' => '']);
+    makeQuote(['sales_rep' => 'Somebody Else', 'assigned_to' => 'Another Rep']);
+    makeQuote(['sales_rep' => 'Somebody Else', 'assigned_to' => '']);
+
+    login($rep);
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(2);
+});
+
+it('keeps administrator visibility across every representative in All Quotes', function () {
+    makeQuote(['sales_rep' => 'Rod Muffet']);
+    makeQuote(['sales_rep' => 'ED']);
+    makeQuote(['sales_rep' => '']);
+
+    login(makeUser(['username' => 'manager-admin', 'role' => 'admin']));
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(3);
+});
+
 // one login per test — the sanctum guard caches the first authenticated user for the
 // lifetime of the test app, so a second login() inside the same test silently no-ops
 it('blocks quote deletion for ordinary reps', function () {

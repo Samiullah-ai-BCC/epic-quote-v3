@@ -305,6 +305,13 @@ it under the wrong heading, silently. Adding a column means editing BOTH files i
   does not exist in the browser, so it throws on every drag start unless vite.config.js `define`s
   that expression. Symptom: dragging does nothing at all, with an empty console.
 
+### Rod / Ed All Quotes privacy
+`QuoteController::index` applies `User::restrictsQuoteListingToOwnRepresentative()` before every
+optional search, status, assignment, company, source, rush, or date filter. For usernames `rod` and
+`ed` this base query is strictly `sales_rep = user.full_name`: filters may narrow it but never widen
+it. Do not put this rule into `Quote::visibleTo()` or `isVisibleTo()`; those scopes also protect
+direct quote/revision access, where assigned and shared workflows intentionally remain available.
+
 ## QUOTE IDENTITY FIELDS (job, proposal ID, company, client, contact, email, address)
 SOURCE OF TRUTH: the **quotes row**. Write surfaces: `QuoteRow.jsx` (grid inline edit) and
 `EditQuoteSpecsModal.jsx` (Estimator, "Edit quote specs"). Both PUT `/api/quotes/{quote}`;
