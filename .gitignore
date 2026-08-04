@@ -47,3 +47,5 @@ auditor/*
 # local agent configs — may contain API keys, never commit
 .codex/
 .claude/settings.local.json
+
+docs/quote-generation-executive-demo-script.md
