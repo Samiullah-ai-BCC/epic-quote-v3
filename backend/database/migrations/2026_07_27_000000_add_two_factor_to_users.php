@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Two-factor authentication columns.
  *
- * Nullable throughout and 2FA is OPT-IN: an account with a null secret logs in exactly as it
- * always has. Nobody is locked out by this migration running, which matters because it lands on
- * a live production database that people are using today.
+ * Nullable throughout because an account is temporarily empty during first-login setup and after
+ * an administrator performs a lost-phone reset. Authentication policy is enforced in the login
+ * flow and middleware; nullable storage does not mean a password-only session is allowed.
  *
  * `two_factor_confirmed_at` is what makes 2FA live for an account — a secret alone does NOT
  * enable it. The gap between "secret generated" and "first code verified" is where a rep with a

@@ -10,14 +10,15 @@ Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login'])
 // Second factor. Throttled hard: this is the endpoint a stolen password would be brute-forced
 // against, and a 6-digit code is only 10^6 possibilities.
 Route::post('/two-factor/challenge', [App\Http\Controllers\Api\AuthController::class, 'twoFactorChallenge'])->middleware('throttle:6,1');
+Route::post('/two-factor/setup/confirm', [App\Http\Controllers\Api\AuthController::class, 'confirmTwoFactorSetup'])->middleware('throttle:6,1');
 Route::post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout'])->middleware('auth:sanctum');
-Route::get('/me', [App\Http\Controllers\Api\AuthController::class, 'me'])->middleware('auth:sanctum');
+Route::get('/me', [App\Http\Controllers\Api\AuthController::class, 'me'])->middleware(['auth:sanctum', 'two-factor.required']);
 
 // Shopify webhook — public (Shopify has no bearer token) but HMAC-verified inside the controller
 Route::post('/shopify/webhook/orders-paid', [App\Http\Controllers\Api\ShopifyWebhookController::class, 'ordersPaid']);
 
 // Protected routes
-Route::middleware(['auth:sanctum', 'readonly.guard'])->group(function () {
+Route::middleware(['auth:sanctum', 'two-factor.required', 'readonly.guard'])->group(function () {
     Route::get('/constants', [App\Http\Controllers\Api\AuthController::class, 'constants']);
 
     // Two-factor: managing your OWN second factor. Blocked inside an impersonated session —

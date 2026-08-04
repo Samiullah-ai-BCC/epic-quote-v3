@@ -10,6 +10,7 @@ use App\Support\Totp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -43,11 +44,28 @@ class AuthController extends Controller
         if ($user->hasTwoFactor()) {
             return response()->json([
                 'two_factor_required' => true,
-                'challenge' => encrypt(['uid' => $user->id, 'exp' => now()->addMinutes(5)->timestamp]),
+                'challenge' => $this->challengeFor($user, 'login'),
             ]);
         }
 
-        return response()->json($this->issueSession($user));
+        // Mandatory first-login enrolment. Tokens minted under the old optional policy must die
+        // now, or they would become usable again as soon as this account confirms its factor.
+        $user->tokens()->delete();
+        $secret = Totp::generateSecret();
+        $codes = collect(range(1, 8))->map(fn () => Str::upper(Str::random(5).'-'.Str::random(5)))->all();
+        $user->forceFill([
+            'two_factor_secret' => $secret,
+            'two_factor_recovery_codes' => $codes,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        return response()->json([
+            'two_factor_setup_required' => true,
+            'challenge' => $this->challengeFor($user, 'setup'),
+            'secret' => $secret,
+            'otpauth_url' => Totp::uri($secret, $user->email ?: $user->username, (string) config('organization.totp_issuer')),
+            'recovery_codes' => $codes,
+        ]);
     }
 
     /**
@@ -67,7 +85,7 @@ class AuthController extends Controller
         } catch (\Throwable) {
             return response()->json(['message' => 'This sign-in attempt is no longer valid. Please log in again.'], 422);
         }
-        if (!is_array($payload) || ($payload['exp'] ?? 0) < now()->timestamp) {
+        if (!is_array($payload) || ($payload['purpose'] ?? null) !== 'login' || ($payload['exp'] ?? 0) < now()->timestamp) {
             return response()->json(['message' => 'This sign-in attempt has expired. Please log in again.'], 422);
         }
 
@@ -94,6 +112,48 @@ class AuthController extends Controller
         }
 
         return response()->json(['message' => 'That code is not valid.'], 422);
+    }
+
+    /** Confirm mandatory first-login setup, then mint this account's first valid session. */
+    public function confirmTwoFactorSetup(Request $request): JsonResponse
+    {
+        $request->validate([
+            'challenge' => 'required|string',
+            'code' => 'required|string',
+        ]);
+
+        try {
+            $payload = decrypt($request->input('challenge'));
+        } catch (\Throwable) {
+            return response()->json(['message' => 'This setup attempt is no longer valid. Please sign in again.'], 422);
+        }
+
+        if (!is_array($payload) || ($payload['purpose'] ?? null) !== 'setup' || ($payload['exp'] ?? 0) < now()->timestamp) {
+            return response()->json(['message' => 'This setup attempt has expired. Please sign in again.'], 422);
+        }
+
+        $user = User::find($payload['uid'] ?? null);
+        if (!$user || $user->hasTwoFactor() || empty($user->two_factor_secret)) {
+            return response()->json(['message' => 'This setup attempt is no longer valid. Please sign in again.'], 422);
+        }
+
+        if (!Totp::verify((string) $user->two_factor_secret, (string) $request->input('code'))) {
+            return response()->json(['message' => 'That code is not valid. Check your phone\'s clock and try the current code.'], 422);
+        }
+
+        $user->forceFill(['two_factor_confirmed_at' => now()])->save();
+        ActivityLog::record($user->id, 'two_factor_enabled', "{$user->username} completed mandatory two-factor setup");
+
+        return response()->json($this->issueSession($user));
+    }
+
+    private function challengeFor(User $user, string $purpose): string
+    {
+        return encrypt([
+            'uid' => $user->id,
+            'purpose' => $purpose,
+            'exp' => now()->addMinutes(5)->timestamp,
+        ]);
     }
 
     /** Stamp the login and mint the API token — the one place a session is created. */

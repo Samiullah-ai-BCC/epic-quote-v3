@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Support\Totp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -80,27 +79,12 @@ class TwoFactorController extends Controller
         return response()->json(['enabled' => true]);
     }
 
-    /**
-     * Turn 2FA off. Requires the account password: a walk-up attacker on an unlocked laptop
-     * should not be able to strip the second factor with one click.
-     */
+    /** Organization policy is mandatory; only an admin recovery reset may clear 2FA. */
     public function disable(Request $request): JsonResponse
     {
-        $request->validate(['password' => 'required|string']);
-        $u = $request->user();
-
-        if (!Hash::check($request->input('password'), $u->password)) {
-            return response()->json(['message' => 'Password is incorrect.'], 422);
-        }
-
-        $u->forceFill([
-            'two_factor_secret' => null,
-            'two_factor_recovery_codes' => null,
-            'two_factor_confirmed_at' => null,
-        ])->save();
-        ActivityLog::record($u->id, 'two_factor_disabled', "{$u->username} disabled two-factor authentication");
-
-        return response()->json(['enabled' => false]);
+        return response()->json([
+            'message' => 'Two-factor authentication is required for every account and cannot be turned off.',
+        ], 403);
     }
 
     /**
@@ -114,6 +98,7 @@ class TwoFactorController extends Controller
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ])->save();
+        $user->tokens()->delete();
 
         ActivityLog::record($request->user()->id, 'two_factor_reset', "reset two-factor for {$user->username}");
 

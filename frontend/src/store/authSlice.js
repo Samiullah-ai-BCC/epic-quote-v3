@@ -18,6 +18,7 @@ export const login = createAsyncThunk('auth/login', async ({ username, password 
     // the reducer must not treat this as a session, or the app would route to the dashboard with
     // no token and immediately 401.
     if (data.two_factor_required) return { twoFactorRequired: true, challenge: data.challenge }
+    if (data.two_factor_setup_required) return { twoFactorSetupRequired: true, ...data }
     localStorage.setItem('token', data.token)
     return data
   } catch (err) {
@@ -42,6 +43,12 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 // Second step of a 2FA sign-in: challenge + code -> a real session.
 export const twoFactorChallenge = createAsyncThunk('auth/twoFactorChallenge', async ({ challenge, code }) => {
   const { data } = await client.post('/two-factor/challenge', { challenge, code })
+  localStorage.setItem('token', data.token)
+  return data
+})
+
+export const confirmTwoFactorSetup = createAsyncThunk('auth/confirmTwoFactorSetup', async ({ challenge, code }) => {
+  const { data } = await client.post('/two-factor/setup/confirm', { challenge, code })
   localStorage.setItem('token', data.token)
   return data
 })
@@ -90,12 +97,17 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(login.fulfilled, (state, { payload }) => {
-        if (payload.twoFactorRequired) return   // no session yet — the code step decides
+        if (payload.twoFactorRequired || payload.twoFactorSetupRequired) return
         state.user = payload.user
         state.token = payload.token
         state.impersonator = null
       })
       .addCase(twoFactorChallenge.fulfilled, (state, { payload }) => {
+        state.user = payload.user
+        state.token = payload.token
+        state.impersonator = null
+      })
+      .addCase(confirmTwoFactorSetup.fulfilled, (state, { payload }) => {
         state.user = payload.user
         state.token = payload.token
         state.impersonator = null

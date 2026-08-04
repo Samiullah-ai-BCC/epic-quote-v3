@@ -6,12 +6,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { login, twoFactorChallenge, selectUser } from '../store/authSlice'
+import { login, twoFactorChallenge, confirmTwoFactorSetup, selectUser } from '../store/authSlice'
 import { EASE } from '../components/ui/motion'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import BlueprintPanel from '../components/login/BlueprintPanel'
+import LoginTwoFactorSetup from '../components/login/LoginTwoFactorSetup'
 
 /* Estimator sign-in — internal team entry. The public app went light, but this
    page stays premium dark, so its surfaces use explicit dark classes. */
@@ -44,11 +45,13 @@ export default function Login() {
   const [challenge, setChallenge] = useState('')
   const [code, setCode] = useState('')
   const [verifying, setVerifying] = useState(false)
+  const [setup, setSetup] = useState(null)
 
   const onSubmit = async ({ username, password }) => {
     setError(''); setInfo('')
     try {
       const res = await dispatch(login({ username, password })).unwrap()
+      if (res?.twoFactorSetupRequired) { setSetup(res); return }
       if (res?.twoFactorRequired) { setChallenge(res.challenge); return }   // ask for the code
       navigate('/dashboard')
     } catch (err) {
@@ -81,6 +84,20 @@ export default function Login() {
     }
   }
 
+  const submitSetupCode = async (setupCode) => {
+    setError(''); setVerifying(true)
+    try {
+      await dispatch(confirmTwoFactorSetup({ challenge: setup.challenge, code: setupCode })).unwrap()
+      navigate('/dashboard')
+    } catch (err) {
+      const msg = err.response?.data?.message || 'That code is not valid.'
+      setError(msg)
+      if (/no longer valid|expired/i.test(msg)) setSetup(null)
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const fieldError = errors.username?.message || errors.password?.message
 
   return (
@@ -99,7 +116,15 @@ export default function Login() {
             <img src="/quote-logo-t.png" alt="Epic Craftings" className="h-[78px] block mb-4" />
             <div className="text-[13px] text-[#7f93b5] mb-6">Sign in to continue</div>
 
-            {challenge ? (
+            {setup ? (
+              <LoginTwoFactorSetup
+                setup={setup}
+                busy={verifying}
+                error={error}
+                onConfirm={submitSetupCode}
+                onBack={() => { setSetup(null); setError('') }}
+              />
+            ) : challenge ? (
               /* Second factor. Replaces the credential form entirely — leaving the password
                  fields on screen invites re-submitting them and losing the challenge. */
               <form onSubmit={submitCode}>

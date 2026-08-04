@@ -280,6 +280,11 @@ files are attacker-influenced.
 Login resolves username first, then case-insensitive email. 2FA turns a correct password into a
 short-lived CHALLENGE, never a token. Impersonation is a token *named* `impersonation` — never a
 Sanctum ability, because normal tokens carry `*` and `tokenCan()` would match every session.
+2FA is mandatory: an unenrolled password login begins purpose-bound setup and creates no session
+until a valid TOTP is confirmed. `RequireTwoFactor` rejects old unenrolled bearer tokens on every
+protected route; setup start and admin reset revoke existing tokens so they cannot revive later.
+The only exception is an audited `impersonation` token, because the administrator already proved
+their own second factor and the target user did not perform a login.
 
 ## COMPANY AUTOFILL — SOURCE OF TRUTH: `companySuggest` + `AddQuoteModal.onCompanyChange`
 Suggestions are ranked exact → starts-with → contains. Alphabetical ordering with a LIMIT hid the

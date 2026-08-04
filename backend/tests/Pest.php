@@ -15,6 +15,15 @@ pest()->extend(Tests\TestCase::class)
 // the request walks the same auth path production does).
 function login(App\Models\User $user): App\Models\User
 {
+    // Protected routes require confirmed 2FA in production. Test helpers must create the same
+    // kind of valid session instead of silently bypassing the policy with a raw Sanctum token.
+    if (!$user->hasTwoFactor()) {
+        $user->forceFill([
+            'two_factor_secret' => App\Support\Totp::generateSecret(),
+            'two_factor_recovery_codes' => ['TESTA-CODEA', 'TESTB-CODEB'],
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+    }
     test()->withHeader('Authorization', 'Bearer '.$user->createToken('test')->plainTextToken);
     return $user;
 }

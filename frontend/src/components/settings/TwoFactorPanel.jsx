@@ -3,7 +3,6 @@ import QRCode from 'qrcode'
 import client from '../../api/client'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Label } from '../ui/label'
 
 /* Two-factor setup for YOUR OWN account.
 
@@ -19,7 +18,6 @@ export default function TwoFactorPanel() {
   const [setup, setSetup] = useState(null)        // {secret, otpauth_url, recovery_codes}
   const [qr, setQr] = useState('')
   const [code, setCode] = useState('')
-  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
@@ -56,18 +54,6 @@ export default function TwoFactorPanel() {
     } finally { setBusy(false) }
   }
 
-  const disable = async () => {
-    setError(''); setBusy(true)
-    try {
-      await client.delete('/two-factor', { data: { password } })
-      setDone('Two-factor authentication is off.')
-      setPassword('')
-      await load()
-    } catch (e) {
-      setError(e.response?.data?.message || 'Could not turn it off.')
-    } finally { setBusy(false) }
-  }
-
   if (!status) return null
 
   return (
@@ -83,7 +69,7 @@ export default function TwoFactorPanel() {
           status.enabled
             ? 'text-emerald-700 border-emerald-300 bg-emerald-50'
             : 'text-amber-700 border-amber-300 bg-amber-50'}`}>
-          {status.enabled ? 'On' : 'Off'}
+          {status.enabled ? 'Required · On' : 'Setup required'}
         </span>
       </div>
 
@@ -96,12 +82,9 @@ export default function TwoFactorPanel() {
           <p className="text-xs text-muted-foreground mb-2">
             {status.recovery_codes_remaining} recovery code{status.recovery_codes_remaining === 1 ? '' : 's'} left.
           </p>
-          <Label className="text-xs font-semibold">Confirm your password to turn it off</Label>
-          <div className="flex gap-2 mt-1.5">
-            <Input type="password" value={password} autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)} placeholder="Your password" className="max-w-[240px]" />
-            <Button variant="outline" disabled={busy || !password} onClick={disable}>Turn off</Button>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Two-factor authentication is required by organization policy. If you lose your phone and recovery codes, ask an administrator to reset it.
+          </p>
         </div>
       )}
 

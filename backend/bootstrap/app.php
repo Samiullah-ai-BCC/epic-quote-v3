@@ -54,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'readonly.guard' => \App\Http\Middleware\BlockViewerWrites::class,
             'not.impersonating' => \App\Http\Middleware\BlockWhileImpersonating::class,
+            'two-factor.required' => \App\Http\Middleware\RequireTwoFactor::class,
         ]);
 
         // baseline security headers on every API response (+ strip X-Powered-By)

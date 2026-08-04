@@ -37,13 +37,37 @@ function enrol(User $u): string
 
 // ---------------------------------------------------------------- 2FA: login flow
 
-it('logs in normally when 2FA is off', function () {
-    makeUser(['username' => 'plain', 'password' => bcrypt('secret')]);
+it('withholds a session and starts mandatory setup when 2FA is not enrolled', function () {
+    $u = makeUser(['username' => 'plain', 'password' => bcrypt('secret')]);
+    $oldToken = $u->createToken('old-session')->plainTextToken;
 
-    $this->postJson('/api/login', ['username' => 'plain', 'password' => 'secret'])
+    $response = $this->postJson('/api/login', ['username' => 'plain', 'password' => 'secret'])
         ->assertOk()
-        ->assertJsonStructure(['token', 'user'])
-        ->assertJsonMissing(['two_factor_required' => true]);
+        ->assertJsonStructure(['challenge', 'secret', 'otpauth_url', 'recovery_codes'])
+        ->assertJson(['two_factor_setup_required' => true]);
+
+    expect($response->json('token'))->toBeNull()
+        ->and($u->fresh()->hasTwoFactor())->toBeFalse()
+        ->and($u->tokens()->count())->toBe(0); // the old token cannot revive after setup
+
+    $this->withHeader('Authorization', 'Bearer '.$oldToken)->getJson('/api/me')->assertStatus(401);
+});
+
+it('creates the first session only after mandatory setup is confirmed', function () {
+    $u = makeUser(['username' => 'first-login', 'password' => bcrypt('secret')]);
+    $setup = $this->postJson('/api/login', ['username' => 'first-login', 'password' => 'secret'])->assertOk();
+
+    $this->postJson('/api/two-factor/setup/confirm', [
+        'challenge' => $setup->json('challenge'),
+        'code' => '000000',
+    ])->assertStatus(422);
+    expect($u->fresh()->hasTwoFactor())->toBeFalse();
+
+    $this->postJson('/api/two-factor/setup/confirm', [
+        'challenge' => $setup->json('challenge'),
+        'code' => Totp::codeAt($setup->json('secret'), intdiv(time(), 30)),
+    ])->assertOk()->assertJsonStructure(['token', 'user']);
+    expect($u->fresh()->hasTwoFactor())->toBeTrue();
 });
 
 it('withholds the token and returns a challenge when 2FA is on', function () {
@@ -105,28 +129,21 @@ it('refuses a tampered or expired challenge', function () {
 
 // ---------------------------------------------------------------- 2FA: enrolment
 
-it('only activates 2FA after a code is confirmed', function () {
-    $u = login(makeUser(['password' => bcrypt('secret')]));
+it('does not let a setup challenge bypass the normal login challenge endpoint', function () {
+    makeUser(['username' => 'purpose-bound', 'password' => bcrypt('secret')]);
+    $setup = $this->postJson('/api/login', ['username' => 'purpose-bound', 'password' => 'secret'])->assertOk();
 
-    $secret = $this->postJson('/api/two-factor/enable')->assertOk()->json('secret');
-    expect($u->fresh()->hasTwoFactor())->toBeFalse();          // secret stored, NOT live yet
-
-    $this->postJson('/api/two-factor/confirm', ['code' => '000000'])->assertStatus(422);
-    expect($u->fresh()->hasTwoFactor())->toBeFalse();
-
-    $this->postJson('/api/two-factor/confirm', ['code' => Totp::codeAt($secret, intdiv(time(), 30))])->assertOk();
-    expect($u->fresh()->hasTwoFactor())->toBeTrue();
+    $this->postJson('/api/two-factor/challenge', [
+        'challenge' => $setup->json('challenge'),
+        'code' => Totp::codeAt($setup->json('secret'), intdiv(time(), 30)),
+    ])->assertStatus(422);
 });
 
-it('requires the password to disable 2FA', function () {
+it('refuses to disable mandatory 2FA', function () {
     $u = login(makeUser(['password' => bcrypt('secret')]));
-    enrol($u);
 
-    $this->deleteJson('/api/two-factor', ['password' => 'wrong'])->assertStatus(422);
+    $this->deleteJson('/api/two-factor', ['password' => 'secret'])->assertStatus(403);
     expect($u->fresh()->hasTwoFactor())->toBeTrue();
-
-    $this->deleteJson('/api/two-factor', ['password' => 'secret'])->assertOk();
-    expect($u->fresh()->hasTwoFactor())->toBeFalse();
 });
 
 it('never exposes the secret or recovery codes through the user API', function () {
@@ -142,10 +159,12 @@ it('never exposes the secret or recovery codes through the user API', function (
 it('lets an admin reset a locked-out user\'s 2FA', function () {
     $victim = makeUser();
     enrol($victim);
+    $victim->createToken('active-session');
     login(admin());
 
     $this->postJson("/api/users/{$victim->id}/two-factor/reset")->assertOk();
-    expect($victim->fresh()->hasTwoFactor())->toBeFalse();
+    expect($victim->fresh()->hasTwoFactor())->toBeFalse()
+        ->and($victim->tokens()->count())->toBe(0);
 });
 
 // ---------------------------------------------------------------- company email domains
@@ -336,7 +355,7 @@ it('refuses to let a sales rep approve a price', function () {
     $rep   = makeUser(['role' => 'sales_rep']);
     $quote = makeQuote(['created_by' => $rep->id, 'price_approved' => false]);
 
-    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    login($rep);
     $this->patchJson("/api/quotes/{$quote->quote_id}", ['price_approved' => true])
         ->assertStatus(403);
 
@@ -347,7 +366,7 @@ it('refuses to let a sales rep unlock a quote', function () {
     $rep   = makeUser(['role' => 'sales_rep']);
     $quote = makeQuote(['created_by' => $rep->id, 'approval_locked' => true]);
 
-    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    login($rep);
     $this->patchJson("/api/quotes/{$quote->quote_id}", ['approval_locked' => false])
         ->assertStatus(403);
 
@@ -358,7 +377,7 @@ it('still lets a manager approve, and stamps who did it', function () {
     $mgr   = makeUser(['role' => 'manager', 'full_name' => 'Dana Lane']);
     $quote = makeQuote(['price_approved' => false]);
 
-    $this->withHeader('Authorization', 'Bearer '.$mgr->createToken('test')->plainTextToken);
+    login($mgr);
     $this->patchJson("/api/quotes/{$quote->quote_id}", ['price_approved' => true])->assertOk();
 
     $quote->refresh();
@@ -375,7 +394,7 @@ it('lets a sales rep save a quote that merely re-sends the unchanged approval fl
         'created_by' => $rep->id, 'price_approved' => false, 'approval_locked' => true,
     ]);
 
-    $this->withHeader('Authorization', 'Bearer '.$rep->createToken('test')->plainTextToken);
+    login($rep);
     $this->patchJson("/api/quotes/{$quote->quote_id}", [
         'price_approved'  => false,      // unchanged
         'approval_locked' => true,       // unchanged
