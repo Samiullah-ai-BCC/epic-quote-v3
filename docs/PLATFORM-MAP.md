@@ -22,7 +22,7 @@ Accounts are seeded on every deploy. Two privilege levels only:
 
 Primary admin (seeded): username `sami.ullah`, email `sami.ullah@bluecascade.org`. Its password comes from `SEED_ADMIN_PASSWORD`, or is generated and printed once on first seed — no password is committed any more, and reseeding never overwrites an existing one. Set/reset any login with `php artisan app:ensure-admin --username=…` (prompts).
 
-Seeded people: rod + ed (reps), sami (manager, no admin powers despite the "Awaiting Sir Sami Response" status existing), and admins alishan, faraz, musavir, khola, khansa, usmanaltaf. Their passwords come from environment variables; if unset, a random one is printed once at boot.
+Seeded people: rod + ed (reps), sami (manager, no admin powers despite the "Awaiting Sir Sami Response" status existing), and admins alishan, faraz, mussawer, khola, khansa, usmanaltaf. Their passwords come from environment variables; if unset, a random one is printed once at boot.
 
 Only two names count as real sales reps for assignment and reports: **Rod Muffet** and **ED**.
 
