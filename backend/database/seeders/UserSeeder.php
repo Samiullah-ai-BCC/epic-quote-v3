@@ -39,7 +39,7 @@ class UserSeeder extends Seeder
             ['sami',       'Sir Sami',      User::ROLE_MANAGER,   '',                               'SEED_SAMI_PASSWORD'],
             ['alishan',    'Ali Shan',      User::ROLE_ADMIN,     'alishan@bluecascade.org',        'SEED_ALISHAN_PASSWORD'],
             ['faraz',      'Faraz Awan',    User::ROLE_ADMIN,     'faraz@epiccraftings.com',        'SEED_FARAZ_PASSWORD'],
-            ['musavir',    'Musavir',       User::ROLE_ADMIN,     'mussawer@bluecascade.org',       'SEED_MUSAVIR_PASSWORD'],
+            ['mussawer',    'mussawer',       User::ROLE_ADMIN,     'mussawer@bluecascade.org',       'SEED_MUSSAWER_PASSWORD'],
             ['khola',      'Khola',         User::ROLE_ADMIN,     'khola@bluecascade.org',          'SEED_KHOLA_PASSWORD'],
             ['khansa',     'Khansa',        User::ROLE_ADMIN,     'khansa.ikram@bluecascade.org',   'SEED_KHANSA_PASSWORD'],
             ['usmanaltaf', 'Usman Altaf',   User::ROLE_ADMIN,     'usmanaltaf@epiccrafting.com',    'SEED_USMANALTAF_PASSWORD'],
