@@ -18,7 +18,8 @@ import { T } from '../../../generator/catalog'
 export function useQuoteData(quoteId, searchParams, wizardSetters) {
   const {
     setTemplate, setAnswers, setAiResult, setCustomSpec, setCustomTypeSel, setArtworkPath, setSignBox,
-    setSideViews, setPaymentLink, setProposalNotes, setAutoAi, setLogoUrl,
+    setSideViews, setPaymentLink, setPaymentLinkKind, setPaymentLinkVisible,
+    setProposalNotes, setAutoAi, setLogoUrl,
   } = wizardSetters
 
   const [quote, setQuote] = useState(null)
@@ -88,6 +89,11 @@ export function useQuoteData(quoteId, searchParams, wizardSetters) {
         else if (loadedQuote.customer_pdf && /\.(png|jpe?g|gif|webp|svg)$/i.test(loadedQuote.customer_pdf)) setArtworkPath(loadedQuote.customer_pdf)
         if (firstPart.side_views) setSideViews(firstPart.side_views)
         if (loadedGeneratedData.payment_link) setPaymentLink(loadedGeneratedData.payment_link)   // payment link is shared (one link per quote)
+        setPaymentLinkKind?.(['full', 'deposit', 'balance'].includes(loadedGeneratedData.payment_link_kind)
+          ? loadedGeneratedData.payment_link_kind
+          : null)
+        // Missing means legacy-visible. Only an explicit false hides an existing link.
+        setPaymentLinkVisible?.(loadedGeneratedData.payment_link_visible !== false)
         setProposalNotes(firstPart.proposal_notes || '')
         getLogo().then((l) => setLogoUrl(l.logo)).catch(() => { })
 

@@ -9,6 +9,7 @@ import { itemSigned, resolveTplByName } from '../generator/parts'
 import { sanitizeHtml } from '../utils/sanitizeHtml'
 import client, { fileUrl } from '../api/client'
 import { attachCheckpointImage } from '../api/quotes'
+import { paymentTotalsMode } from '../generator/paymentDisplay'
 import { listCatalog } from '../api/catalog'
 import AdjImg from './proposal/AdjImg'
 import AdjDim from './proposal/AdjDim'
@@ -82,7 +83,7 @@ const HD_SCALE = 3   // capture DPI factor for PNG/PDF downloads (~288dpi on a L
 // 0.96MB / 1.46MB for those pages — no better where it counts, and lossy. Nothing about the
 // capture resolution (HD_SCALE) changes either way.
 
-function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, proposalNotes, specialRequirements = '', sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, mainView, signBox,
+function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, paymentLinkKind = null, paymentLinkVisible = true, proposalNotes, specialRequirements = '', sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, onPaymentLinkHidden, mainView, signBox,
   // --- multi-page (multi-sign) quote props ---
   // partLabel: 'A'/'B'/… shown after the PROPOSAL ID, or null for a single-sign quote.
   // multi: this quote has >1 part → per-part prices are hidden (Sami's rule: the customer only
@@ -659,6 +660,8 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // The figure the TOTALS block shows: the whole-quote sum on a multi-page quote, else this
   // proposal's own total. Deposits, the ≤$500 rule and payment all key off this.
   const totalsAmount = quoteTotal != null ? quoteTotal : grandTotal
+  const totalsMode = paymentTotalsMode(paymentLinkKind, totalsAmount)
+  const visiblePaymentLink = paymentLinkVisible && paymentLink && /^https?:\/\//i.test(paymentLink)
   // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
   // they were never actually needed: a rep types the final dollar figure directly). `kind`
   // distinguishes the two: 'discount' subtracts in itemSigned() above instead of adding.
@@ -1595,7 +1598,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     try {
       // flush any pending edit FIRST so it's recorded as a change before the checkpoint is minted
       // server-side (otherwise the last edit would land in the NEXT rev, not this payment's rev).
-      try { if (onSave) await onSave(captureState()) } catch { /* non-blocking */ }
+      if (onSave) {
+        try { await onSave(captureState()) }
+        catch {
+          flash('Could not save the latest quote changes. No payment link was created.')
+          return
+        }
+      }
 
       // one clean image per sign on a multi-sign quote (parent-collected), else just this page
       const images = collectImages ? await collectImages() : [await captureCleanImage()]
@@ -1603,16 +1612,31 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
         kind, images, title: linkTitle || undefined,
         contact: info.contact || '', email: info.email || '',
       })
-      setPlResult({ url: data.url, kind })
-      // put the link on the proposal's pay button (preview + PDF) and persist it (#5)
-      if (onPaymentLinkCreated && data.url) onPaymentLinkCreated(data.url)
+      setPlResult({ url: data.url, kind: data.kind || kind })
+      // Put the link on the proposal and persist its display kind. Shopify has already created the
+      // product at this point, so a quote-save failure is reported honestly instead of claiming
+      // that link creation itself failed.
+      let displaySaveFailed = false
+      if (onPaymentLinkCreated && data.url) {
+        try { await onPaymentLinkCreated(data.url, data.kind || kind) }
+        catch { displaySaveFailed = true }
+      }
+
+      // Parent state is persisted before the checkpoint image is attached, but React may batch
+      // that render until this event finishes. Two frames guarantee the captured revision shows
+      // the new totals mode and CTA instead of the previous payment selection.
+      if (!displaySaveFailed) {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      }
 
       // the payment minted a version checkpoint ({quote_id}-rev{n}); attach the FULL proposal image
       // (whole quote when multi-sign) so the history shows exactly what went out. Best-effort.
       if (data.checkpoint?.id) {
         try { await attachCheckpointImage(quoteId, data.checkpoint.id, captureAll ? await captureAll() : await captureSnapshot()) } catch { /* image is a nice-to-have */ }
       }
-      flash('Payment link created ✓ — saved as ' + (data.checkpoint?.label || 'a new version'))
+      flash(displaySaveFailed
+        ? 'Payment link created, but it could not be added to the quote. Copy the link below.'
+        : 'Payment link created ✓ — saved as ' + (data.checkpoint?.label || 'a new version'))
     } catch (e) {
       flash(e?.response?.data?.error || 'Could not create the payment link.')
     } finally { setPlBusy('') }
@@ -1992,11 +2016,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             {isLast && (
             <div data-price-block>
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: 6 }}>
-                  {/* not hand-editable — same money-correctness reasoning as UNIT/TOTAL PRICE above */}
-                  <span>SUBTOTAL</span>{E('subtotal', undefined, { readOnly: true })}
-                </div>
-                {totalsAmount > 500 && <>
+                {totalsMode !== 'balance' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: totalsMode === 'deposit' ? 6 : 0 }}>
+                    {/* not hand-editable — same money-correctness reasoning as UNIT/TOTAL PRICE above */}
+                    <span>SUBTOTAL</span>{E('subtotal', undefined, { readOnly: true })}
+                  </div>
+                )}
+                {totalsMode === 'deposit' && <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 6 }}>
                     <span>50% DEPOSIT DUE NOW</span>{E('dep1', undefined, { readOnly: true })}
                   </div>
@@ -2004,11 +2030,16 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     <span>50% DUE ON SHIPMENT</span>{E('dep2', undefined, { readOnly: true })}
                   </div>
                 </>}
+                {totalsMode === 'balance' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800 }}>
+                    <span>50% REMAINING</span>{E('dep2', undefined, { readOnly: true })}
+                  </div>
+                )}
               </div>
               {/* The pay CTA appears ONLY once a real payment link exists — never a placeholder
                   before one is created, and it simply re-points when a link is re-created. No
                   link → nothing renders (a dead "Click here to make payment" misleads the customer). */}
-              {(paymentLink && /^https?:\/\//i.test(paymentLink)) && (
+              {visiblePaymentLink && (
                 <a data-pay-link href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
               )}
             </div>
@@ -2337,6 +2368,24 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Remaining Balance (50%)'}</button>}
             {totalsAmount > 0 && totalsAmount <= 500 && <span className="muted" style={{ fontSize: 12 }}>≤ $500 → full payment only</span>}
+            {visiblePaymentLink && onPaymentLinkHidden && (
+              <button className="ghost" style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
+                disabled={!!plBusy}
+                title="Hide this payment button from the proposal and downloads; keep the Shopify link and ledger record"
+                onClick={async () => {
+                  if (!window.confirm('Remove this payment link from the quote preview and downloads?\n\nThe Shopify link and payment ledger record will remain available.')) return
+                  setPlBusy('hide')
+                  try {
+                    await onPaymentLinkHidden()
+                    setPlResult(null)
+                    flash('Payment link removed from the quote. Shopify and the ledger were not changed.')
+                  } catch (e) {
+                    flash(e?.response?.data?.error || 'Could not remove the payment link from the quote.')
+                  } finally { setPlBusy('') }
+                }}>
+                {plBusy === 'hide' ? 'Removing…' : 'Remove from Quote'}
+              </button>
+            )}
           </div>
           {plResult && (
             <div style={{ marginTop: 10, fontSize: 13 }}>

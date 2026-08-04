@@ -13,7 +13,8 @@ export default function PreviewStep({
   setExitAsk, deletedPage, undoDeletePage, deleteTimer, setDeletedPage,
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
-  canCreatePaymentLinks, savePaymentLink, logo, paymentLink, quote,
+  canCreatePaymentLinks, savePaymentLink, hidePaymentLink, logo, paymentLink,
+  paymentLinkKind, paymentLinkVisible, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
   specialRequirements, commitPartClientDoc, docBusy, docErr,
   blankPages, addBlankPage, removeBlankPage, moveBlankPage, patchBlankPage, onEditSpecs,
@@ -252,12 +253,15 @@ export default function PreviewStep({
                 pageLabels={multiSheet ? docLabels : null}
                 signPageCount={parts.length}
                 canCreatePaymentLinks={canCreatePaymentLinks}
-                onPaymentLinkCreated={(url) => savePaymentLink(url)}
+                onPaymentLinkCreated={(url, kind) => savePaymentLink(url, kind)}
+                onPaymentLinkHidden={hidePaymentLink}
                 artworkPath={p.artwork_path}
                 onArtworkFile={commitPartArtworkFile ? (f) => commitPartArtworkFile(i, f) : undefined}
                 logo={logo}
                 aiResult={p.ai}
                 paymentLink={paymentLink}
+                paymentLinkKind={paymentLinkKind}
+                paymentLinkVisible={paymentLinkVisible}
                 approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
                 proposalNotes={p.proposal_notes}
                 specialRequirements={specialRequirements || quote?.special_requirements || ''}

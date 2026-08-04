@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 // whenever wizard data changes. Remounting on a debounced key keeps two guarantees: fresh
 // wizard data always flows in, and typing INSIDE the preview never gets clobbered (edits
 // auto-save to proposal_state, which the remount restores dirty-first).
-export function useLivePreview({ mode, parts, activePart, answers, client, customSpec, template, sideViews, artworkPath, proposalNotes, paymentLink, aiResult }) {
+export function useLivePreview({ mode, parts, activePart, answers, client, customSpec, template, sideViews, artworkPath, proposalNotes, paymentLink, paymentLinkKind, paymentLinkVisible, aiResult }) {
   const [previewKey, setPreviewKey] = useState(0)
-  const previewSig = JSON.stringify([answers, client, customSpec, template?.n, sideViews, artworkPath, proposalNotes, paymentLink, aiResult?.fullSpec])
+  const previewSig = JSON.stringify([answers, client, customSpec, template?.n, sideViews, artworkPath, proposalNotes, paymentLink, paymentLinkKind, paymentLinkVisible, aiResult?.fullSpec])
   const prevSig = useRef(previewSig)
   useEffect(() => {
     if (prevSig.current === previewSig) return

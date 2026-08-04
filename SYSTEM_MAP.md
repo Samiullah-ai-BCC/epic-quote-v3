@@ -138,6 +138,7 @@ together.
 **Do NOT reintroduce a "does it match the PREVIOUS config?" test.** That was tried and it fails
 whenever the stored type and stored diagram drift apart (a quote re-typed in an earlier session):
 the app then reads its own stale auto-pick as a deliberate human choice and refuses to update it.
+
 The rule must not depend on knowing the previous selection.
 
 **`customTypeSel` MUST be restored when a part loads** (`resolveSignTypeName`). It is not saved by
@@ -311,6 +312,19 @@ optional search, status, assignment, company, source, rush, or date filter. For 
 `ed` this base query is strictly `sales_rep = user.full_name`: filters may narrow it but never widen
 it. Do not put this rule into `Quote::visibleTo()` or `isVisibleTo()`; those scopes also protect
 direct quote/revision access, where assigned and shared workflows intentionally remain available.
+
+## PAYMENT-LINK PROPOSAL DISPLAY — SOURCE OF TRUTH: `generated_data.payment_link*`
+`payment_link` remains the Shopify URL consumed by the proposal CTA and PDF annotation.
+`payment_link_kind` (`full`, `deposit`, `balance`) controls the customer-facing totals rows, and
+`payment_link_visible` controls only whether the CTA appears in preview/PDF/PNG. An explicit false
+hides it; a missing value keeps legacy quotes visible. Hiding must never delete or void the private
+`payment_links` ledger row or alter the Shopify product.
+
+Writers: `Generator.savePaymentLink` (URL + kind + visible) and `Generator.hidePaymentLink`
+(visibility only). Hydration: `useQuoteData`. Renderers: `Proposal` in the final/live preview and
+`ViewProposalImage` in All Quotes. PDF/PNG use the same rendered Proposal DOM, so no export-only
+display branch may be introduced. Legacy quotes without a kind retain the prior split-above-$500
+layout. Generating a new link always restores visibility.
 
 ## QUOTE IDENTITY FIELDS (job, proposal ID, company, client, contact, email, address)
 SOURCE OF TRUTH: the **quotes row**. Write surfaces: `QuoteRow.jsx` (grid inline edit) and

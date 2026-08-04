@@ -56,6 +56,8 @@ export default function Generator() {
   const [cropping, setCropping] = useState(false)   // #5 big-canvas crop editor open?
   const [signBox, setSignBox] = useState(null)      // bounding box of the sign on the artwork (fractions) for precise dim arrows
   const [paymentLink, setPaymentLink] = useState('')
+  const [paymentLinkKind, setPaymentLinkKind] = useState(null)
+  const [paymentLinkVisible, setPaymentLinkVisible] = useState(true)
   const [sideViews, setSideViews] = useState([])   // chosen side-view keys
   const [customSpec, setCustomSpec] = useState(null)
   const [logo, setLogoUrl] = useState(null)
@@ -95,7 +97,8 @@ export default function Generator() {
     client, setClient, special, setSpecial,
   } = useQuoteData(quoteId, searchParams, {
     setTemplate, setAnswers, setAiResult, setCustomSpec, setCustomTypeSel, setArtworkPath, setSignBox,
-    setSideViews, setPaymentLink, setProposalNotes, setAutoAi, setLogoUrl,
+    setSideViews, setPaymentLink, setPaymentLinkKind, setPaymentLinkVisible,
+    setProposalNotes, setAutoAi, setLogoUrl,
   })
 
   // A requirement LIFTED out of the spec text must reach the database immediately. The spec text
@@ -114,7 +117,7 @@ export default function Generator() {
 
   const { previewKey, livePreviewState } = useLivePreview({
     mode, parts, activePart, answers, client, customSpec, template, sideViews,
-    artworkPath, proposalNotes, paymentLink, aiResult,
+    artworkPath, proposalNotes, paymentLink, paymentLinkKind, paymentLinkVisible, aiResult,
   })
   const livePreview = !loading && !loadError && step && step !== 'preview'
   const aiSuggestedName = aiResult && aiResult.signType ? (matchSignType(aiResult.signType)?.n || null) : null
@@ -214,13 +217,24 @@ export default function Generator() {
 
   const { pageRefs, docRefs, proposalRef, multiPreviewRef, collectPartImages, captureAllPages, capturePagesExport } = usePageCapture(parts, blankPages)
 
-  // Persist the shared payment link (top-level, one per quote) without touching parts or hooks.
-  const savePaymentLink = async (url) => {
-    setPaymentLink(url)
-    const payload = { ...(generatedDataRef.current || {}), payment_link: url }
+  // Payment display metadata is additive: the working URL stays exactly where every existing
+  // consumer expects it, while kind + visibility drive only the customer-facing proposal.
+  const savePaymentLink = async (url, kind) => {
+    const patch = { payment_link: url, payment_link_kind: kind, payment_link_visible: true }
+    await putGenerated(quoteId, patch)
+    const payload = { ...(generatedDataRef.current || {}), ...patch }
     generatedDataRef.current = payload
     setGeneratedData(payload)
-    await putGenerated(quoteId, payload)
+    setPaymentLink(url)
+    setPaymentLinkKind(kind)
+    setPaymentLinkVisible(true)
+  }
+  const hidePaymentLink = async () => {
+    await putGenerated(quoteId, { payment_link_visible: false })
+    const payload = { ...(generatedDataRef.current || {}), payment_link_visible: false }
+    generatedDataRef.current = payload
+    setGeneratedData(payload)
+    setPaymentLinkVisible(false)
   }
   const [checkpointBusy, setCheckpointBusy] = useState('')
   const [checkpointMessage, setCheckpointMessage] = useState('')
@@ -278,7 +292,7 @@ export default function Generator() {
   }
 
   // Keys in `extra` that belong to the whole quote, not one part.
-  const SHARED_KEYS = ['payment_link', 'job_name']
+  const SHARED_KEYS = ['payment_link', 'payment_link_kind', 'payment_link_visible', 'job_name']
 
   const saveProgress = async (extra = {}) => {
     // fold the live wizard hooks (+ any part-level extra) into the active part; leave the rest as-is
@@ -292,6 +306,8 @@ export default function Generator() {
       quote_type: mode,
       job_name: client.job_name,
       payment_link: paymentLink,
+      payment_link_kind: paymentLinkKind,
+      payment_link_visible: paymentLinkVisible,
       parts: nextParts,
       // Top-level mirror of the FIRST part — the backend's price fallback and readers that
       // haven't moved to `parts` yet (payment link, quick view) still see a valid single sign.
@@ -1004,7 +1020,9 @@ export default function Generator() {
             grandTotal={grandTotal} tplForPart={tplForPart} client={client} quoteId={quoteId}
             collectPartImages={collectPartImages} linkTitle={linkTitle} captureAllPages={captureAllPages}
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
-            savePaymentLink={savePaymentLink} logo={logo} paymentLink={paymentLink} quote={quote}
+            savePaymentLink={savePaymentLink} hidePaymentLink={hidePaymentLink}
+            logo={logo} paymentLink={paymentLink} paymentLinkKind={paymentLinkKind}
+            paymentLinkVisible={paymentLinkVisible} quote={quote}
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
             specialRequirements={special}
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
@@ -1035,6 +1053,8 @@ export default function Generator() {
            logo={logo}
            aiResult={aiResult}
            paymentLink={paymentLink}
+           paymentLinkKind={paymentLinkKind}
+           paymentLinkVisible={paymentLinkVisible}
            approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
            proposalNotes={proposalNotes}
            specialRequirements={special}

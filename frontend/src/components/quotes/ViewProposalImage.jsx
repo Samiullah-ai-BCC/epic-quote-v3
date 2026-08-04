@@ -113,6 +113,8 @@ export default function ViewProposalImage({ quote }) {
             savedState={p.proposal_state}
             sideViews={p.side_views || []}
             paymentLink={gd.payment_link}
+            paymentLinkKind={gd.payment_link_kind}
+            paymentLinkVisible={gd.payment_link_visible !== false}
             proposalNotes={p.proposal_notes}
             specialRequirements={quote.special_requirements || ''}
             partLabel={multi ? String.fromCharCode(65 + i) : null}
