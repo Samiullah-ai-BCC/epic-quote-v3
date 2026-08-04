@@ -41,3 +41,33 @@ it('accepts a quote with only a company name and a job name', function () use ($
     $this->postJson('/api/quotes', ['quote_id' => $id(), 'company_name' => 'Signarama', 'job_name' => 'Channel letters'])
         ->assertCreated();
 });
+
+it('automatically assigns Rod as representative on quotes Rod creates', function () use ($id) {
+    login(makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet']));
+
+    $response = $this->postJson('/api/quotes', [
+        'quote_id' => $id(), 'company_name' => 'Rod Client', 'job_name' => 'Channel letters',
+    ])->assertCreated();
+
+    expect($response->json('sales_rep'))->toBe('Rod Muffet');
+});
+
+it('automatically assigns Ed case-insensitively on quotes Ed creates', function () use ($id) {
+    login(makeUser(['username' => 'Ed', 'full_name' => 'ED']));
+
+    $response = $this->postJson('/api/quotes', [
+        'quote_id' => $id(), 'company_name' => 'Ed Client', 'job_name' => 'Monument sign',
+    ])->assertCreated();
+
+    expect($response->json('sales_rep'))->toBe('ED');
+});
+
+it('keeps blank representative behavior unchanged for every other creator', function () use ($id) {
+    login(makeUser(['username' => 'another-rep', 'full_name' => 'Another Rep']));
+
+    $response = $this->postJson('/api/quotes', [
+        'quote_id' => $id(), 'company_name' => 'Shared Client', 'job_name' => 'Window vinyl',
+    ])->assertCreated();
+
+    expect($response->json('sales_rep'))->toBe('');
+});

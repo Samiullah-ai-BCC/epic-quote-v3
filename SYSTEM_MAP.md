@@ -309,6 +309,11 @@ it under the wrong heading, silently. Adding a column means editing BOTH files i
 SOURCE OF TRUTH: the **quotes row**. Write surfaces: `QuoteRow.jsx` (grid inline edit) and
 `EditQuoteSpecsModal.jsx` (Estimator, "Edit quote specs"). Both PUT `/api/quotes/{quote}`;
 `QuoteController::update` is the only validator that counts.
+Creator-owned representative defaults are separate from company-history autofill:
+`User::defaultSalesRepresentative()` maps usernames `rod`/`ed` (case-insensitive) to that user's
+canonical `full_name`; `QuoteController::store` enforces it when intake omits the field, while
+`AddQuoteModal` preselects the same value from `user.default_sales_rep`. Other users and existing
+quotes retain the prior blank/editable behavior.
 Read surfaces:
 - `Proposal.jsx` header blocks `infoLeft` (company / client / contact / address) and `infoRight`
   (proposal ID / date / job) — on every page A/B/C of a multi-sign quote.

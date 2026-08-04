@@ -169,6 +169,12 @@ class QuoteController extends Controller
         // the customer's paperwork IS the current address.
         $updateCompanyAddr = $request->boolean('update_company_address');
 
+        // Rod/Ed-created quotes must never accidentally become repless because a client omitted
+        // the field. This is the same canonical full name used by quote visibility.
+        if ($salesRep === '' && $user->defaultSalesRepresentative() !== null) {
+            $salesRep = $user->defaultSalesRepresentative();
+        }
+
         // Non-admins may leave the rep blank (N/A → shared quote) or own it themselves,
         // but can never assign it to somebody else.
         if (!$user->isAdmin() && $salesRep !== '') {

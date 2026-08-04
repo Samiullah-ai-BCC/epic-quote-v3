@@ -80,6 +80,17 @@ class User extends Authenticatable
         return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_MANAGER], true);
     }
 
+    /**
+     * Rod and Ed own the quotes they create by default. Return the account's canonical full name,
+     * not a second hardcoded spelling: quote visibility compares sales_rep to this same value.
+     */
+    public function defaultSalesRepresentative(): ?string
+    {
+        return in_array(strtolower(trim((string) $this->username)), ['rod', 'ed'], true)
+            ? trim((string) $this->full_name)
+            : null;
+    }
+
     // Managers/account managers/viewers see the whole book of business;
     // quote makers and sales reps see their own quotes only.
     public function seesAllQuotes(): bool
@@ -110,6 +121,7 @@ class User extends Authenticatable
             'role'       => $this->role,
             'can_create_payment_links' => $this->canCreatePaymentLinks(),
             'two_factor_enabled' => $this->hasTwoFactor(),
+            'default_sales_rep' => $this->defaultSalesRepresentative(),
             'last_login' => $this->last_login?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

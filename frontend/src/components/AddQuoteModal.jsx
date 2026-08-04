@@ -40,11 +40,13 @@ export default function AddQuoteModal({ onClose }) {
   const [autofilling, setAutofilling] = useState(false)
   const [revealed, setRevealed] = useState(false) // party fields show only after AI reads
   const [repOther, setRepOther] = useState(false)  // typing a custom sales rep
+  const defaultSalesRep = user?.default_sales_rep || ''
+  const formDefaults = { ...EMPTY, sales_rep: defaultSalesRep }
 
   const {
     register, handleSubmit, control, reset, watch, getValues, setValue,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(quoteSchema), defaultValues: EMPTY })
+  } = useForm({ resolver: zodResolver(quoteSchema), defaultValues: formDefaults })
   const salesRep = watch('sales_rep')
   const specText = watch('special_requirements')
 
@@ -193,7 +195,7 @@ export default function AddQuoteModal({ onClose }) {
   const sources = constants?.quote_sources || []
   const firstError = Object.values(errors)[0]?.message || serverError
 
-  const back = () => { setChoice(null); setRevealed(false); setFiles([]); reset(EMPTY) }
+  const back = () => { setChoice(null); setRevealed(false); setFiles([]); reset(formDefaults) }
 
   const partyFields = (
     <PartyFields control={control} register={register} setValue={setValue} choice={choice}
