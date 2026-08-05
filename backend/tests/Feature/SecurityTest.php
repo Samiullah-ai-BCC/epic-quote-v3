@@ -403,3 +403,110 @@ it('lets a sales rep save a quote that merely re-sends the unchanged approval fl
 
     expect($quote->fresh()->client_name)->toBe('Edited By Rep');
 });
+
+/* ── Email-delivered sign-in codes (Rod, 2026-08-05) ─────────────────────────────────────────
+   The account keeps its authenticator secret and recovery codes: mail is the one factor here
+   that can fail for reasons the person cannot see, and this is the login path. */
+
+it('emails a code to an email-channel account and accepts it', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $u = makeUser(['username' => 'rod', 'email' => 'rod@epiccraftings.com', 'password' => bcrypt('secret')]);
+    $u->forceFill([
+        'two_factor_secret' => App\Support\Totp::generateSecret(),
+        'two_factor_confirmed_at' => now(),
+        'two_factor_channel' => 'email',
+    ])->save();
+
+    $login = $this->postJson('/api/login', ['username' => 'rod', 'password' => 'secret'])->assertOk()->json();
+    expect($login['two_factor_required'])->toBeTrue()
+        ->and($login['channel'])->toBe('email')
+        ->and($login['sent_to'])->toBe('r***@epiccraftings.com');   // masked, never the full address
+
+    Illuminate\Support\Facades\Mail::assertSentCount(1);
+
+    // The code is never echoed by the API — it only exists in the message and as a hash.
+    expect($login)->not->toHaveKey('code');
+    $u->refresh();
+    expect($u->two_factor_email_code)->not->toBeEmpty()
+        ->and($u->two_factor_email_code)->not->toMatch('/^\d{6}$/');   // stored hashed
+});
+
+it('does not email anything for an authenticator account', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $u = makeUser(['password' => bcrypt('secret')]);
+    $u->forceFill(['two_factor_secret' => App\Support\Totp::generateSecret(), 'two_factor_confirmed_at' => now()])->save();
+
+    $login = $this->postJson('/api/login', ['username' => $u->username, 'password' => 'secret'])->assertOk()->json();
+    expect($login['channel'])->toBe('totp')->and($login)->not->toHaveKey('sent_to');
+    Illuminate\Support\Facades\Mail::assertNothingSent();
+});
+
+it('rejects a wrong emailed code and burns it after five attempts', function () {
+    $u = makeUser(['email' => 'rod@epiccraftings.com']);
+    $u->forceFill([
+        'two_factor_secret' => App\Support\Totp::generateSecret(),
+        'two_factor_confirmed_at' => now(),
+        'two_factor_channel' => 'email',
+        'two_factor_email_code' => Illuminate\Support\Facades\Hash::make('123456'),
+        'two_factor_email_expires_at' => now()->addMinutes(10),
+    ])->save();
+
+    for ($i = 0; $i < 5; $i++) {
+        expect(App\Support\EmailOtp::verify($u->fresh(), '000000'))->toBeFalse();
+    }
+    // The real code no longer works: the attempts are spent and the code is gone.
+    expect(App\Support\EmailOtp::verify($u->fresh(), '123456'))->toBeFalse()
+        ->and($u->fresh()->two_factor_email_code)->toBeNull();
+});
+
+it('refuses an expired emailed code', function () {
+    $u = makeUser(['email' => 'rod@epiccraftings.com']);
+    $u->forceFill([
+        'two_factor_email_code' => Illuminate\Support\Facades\Hash::make('123456'),
+        'two_factor_email_expires_at' => now()->subMinute(),
+    ])->save();
+
+    expect(App\Support\EmailOtp::verify($u->fresh(), '123456'))->toBeFalse();
+});
+
+it('accepts an emailed code once and never again', function () {
+    $u = makeUser(['email' => 'rod@epiccraftings.com']);
+    $u->forceFill([
+        'two_factor_email_code' => Illuminate\Support\Facades\Hash::make('123456'),
+        'two_factor_email_expires_at' => now()->addMinutes(10),
+    ])->save();
+
+    expect(App\Support\EmailOtp::verify($u->fresh(), '123456'))->toBeTrue()
+        ->and(App\Support\EmailOtp::verify($u->fresh(), '123456'))->toBeFalse();
+});
+
+it('keeps the authenticator and recovery codes working on an email-channel account', function () {
+    // The point of this one: switching channel must not be able to lock the person out when mail
+    // breaks. Their existing factors stay valid.
+    $u = makeUser(['email' => 'rod@epiccraftings.com', 'password' => bcrypt('secret')]);
+    $u->forceFill([
+        'two_factor_secret' => App\Support\Totp::generateSecret(),
+        'two_factor_recovery_codes' => ['AAAAA-BBBBB'],
+        'two_factor_confirmed_at' => now(),
+        'two_factor_channel' => 'email',
+    ])->save();
+
+    Illuminate\Support\Facades\Mail::fake();
+    $challenge = $this->postJson('/api/login', ['username' => $u->username, 'password' => 'secret'])
+        ->assertOk()->json('challenge');
+
+    $this->postJson('/api/two-factor/challenge', ['challenge' => $challenge, 'code' => 'AAAAA-BBBBB'])
+        ->assertOk()->assertJsonStructure(['token']);
+});
+
+it('will not resend a code for an authenticator account', function () {
+    Illuminate\Support\Facades\Mail::fake();
+    $u = makeUser(['password' => bcrypt('secret')]);
+    $u->forceFill(['two_factor_secret' => App\Support\Totp::generateSecret(), 'two_factor_confirmed_at' => now()])->save();
+
+    $challenge = $this->postJson('/api/login', ['username' => $u->username, 'password' => 'secret'])
+        ->assertOk()->json('challenge');
+
+    $this->postJson('/api/two-factor/resend', ['challenge' => $challenge])->assertStatus(422);
+    Illuminate\Support\Facades\Mail::assertNothingSent();
+});

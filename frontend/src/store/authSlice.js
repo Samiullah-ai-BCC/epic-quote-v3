@@ -17,7 +17,10 @@ export const login = createAsyncThunk('auth/login', async ({ username, password 
     // 2FA: the server answers a correct password with a CHALLENGE, not a token. Store nothing —
     // the reducer must not treat this as a session, or the app would route to the dashboard with
     // no token and immediately 401.
-    if (data.two_factor_required) return { twoFactorRequired: true, challenge: data.challenge }
+    // `channel` decides what the code screen SAYS — an authenticator user told to check their
+    // email, or the reverse, simply cannot finish signing in. `sent_to` is already masked by
+    // the server; the full address never crosses the wire.
+    if (data.two_factor_required) return { twoFactorRequired: true, challenge: data.challenge, channel: data.channel || 'totp', sentTo: data.sent_to || '' }
     if (data.two_factor_setup_required) return { twoFactorSetupRequired: true, ...data }
     localStorage.setItem('token', data.token)
     return data
@@ -41,6 +44,13 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 })
 
 // Second step of a 2FA sign-in: challenge + code -> a real session.
+// Ask for another emailed code. The CHALLENGE is the authorisation — no username is sent, so this
+// cannot be used to make the server email somebody else.
+export const resendTwoFactorCode = createAsyncThunk('auth/resendTwoFactorCode', async ({ challenge }) => {
+  const { data } = await client.post('/two-factor/resend', { challenge })
+  return data
+})
+
 export const twoFactorChallenge = createAsyncThunk('auth/twoFactorChallenge', async ({ challenge, code }) => {
   const { data } = await client.post('/two-factor/challenge', { challenge, code })
   localStorage.setItem('token', data.token)

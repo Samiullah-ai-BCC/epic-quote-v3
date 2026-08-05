@@ -10,6 +10,9 @@ Route::post('/login', [App\Http\Controllers\Api\AuthController::class, 'login'])
 // Second factor. Throttled hard: this is the endpoint a stolen password would be brute-forced
 // against, and a 6-digit code is only 10^6 possibilities.
 Route::post('/two-factor/challenge', [App\Http\Controllers\Api\AuthController::class, 'twoFactorChallenge'])->middleware('throttle:6,1');
+// Resend is throttled HARDER than the challenge: a correct password should not be able to
+// pump somebody's inbox, and three a minute is more than a person waiting for one email needs.
+Route::post('/two-factor/resend', [App\Http\Controllers\Api\AuthController::class, 'resendTwoFactorCode'])->middleware('throttle:3,1');
 Route::post('/two-factor/setup/confirm', [App\Http\Controllers\Api\AuthController::class, 'confirmTwoFactorSetup'])->middleware('throttle:6,1');
 Route::post('/logout', [App\Http\Controllers\Api\AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/me', [App\Http\Controllers\Api\AuthController::class, 'me'])->middleware(['auth:sanctum', 'two-factor.required']);

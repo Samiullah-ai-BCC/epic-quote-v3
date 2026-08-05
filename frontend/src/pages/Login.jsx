@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Eye, EyeOff } from 'lucide-react'
-import { login, twoFactorChallenge, confirmTwoFactorSetup, selectUser } from '../store/authSlice'
+import { login, twoFactorChallenge, confirmTwoFactorSetup, resendTwoFactorCode, selectUser } from '../store/authSlice'
 import { EASE } from '../components/ui/motion'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -43,6 +43,12 @@ export default function Login() {
   // Set once the password is accepted but a second factor is still owed. Holding the challenge
   // in component state (never localStorage) means an abandoned half-login dies with the tab.
   const [challenge, setChallenge] = useState('')
+  // How this account receives its code, and where it went. Straight from the server: the screen
+  // must never guess, because telling an authenticator user to check their email (or the reverse)
+  // leaves them unable to finish signing in.
+  const [channel, setChannel] = useState('totp')
+  const [sentTo, setSentTo] = useState('')
+  const [resent, setResent] = useState('')
   const [code, setCode] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [setup, setSetup] = useState(null)
@@ -52,7 +58,10 @@ export default function Login() {
     try {
       const res = await dispatch(login({ username, password })).unwrap()
       if (res?.twoFactorSetupRequired) { setSetup(res); return }
-      if (res?.twoFactorRequired) { setChallenge(res.challenge); return }   // ask for the code
+      if (res?.twoFactorRequired) {
+        setChallenge(res.challenge); setChannel(res.channel || 'totp'); setSentTo(res.sentTo || '')
+        return   // ask for the code
+      }
       navigate('/dashboard')
     } catch (err) {
       if (err.response?.status === 429) {
@@ -136,7 +145,23 @@ export default function Login() {
                   className="h-[46px] mb-2 tracking-[0.3em] text-center bg-[#0a1220] border-[#25364f] text-side-ink placeholder:text-[#52688c] placeholder:tracking-normal focus-visible:border-gold focus-visible:ring-gold/15"
                 />
                 <div className="text-[12px] text-side-dim mb-4">
-                  Open your authenticator app and enter the current code. You can also use one of your recovery codes.
+                  {channel === 'email' ? (
+                    <>
+                      We emailed a code to <strong>{sentTo}</strong>. It expires in 10 minutes.{' '}
+                      <button type="button" className="underline"
+                        onClick={async () => {
+                          setError(''); setResent('')
+                          try {
+                            const r = await dispatch(resendTwoFactorCode({ challenge })).unwrap()
+                            setResent(`Sent again to ${r.sent_to || sentTo}.`)
+                          } catch { setError('Could not send another code. Try again in a minute.') }
+                        }}>Send another</button>
+                      {resent && <span className="text-gold"> {resent}</span>}
+                      <div className="mt-1">A recovery code also works here.</div>
+                    </>
+                  ) : (
+                    <>Open your authenticator app and enter the current code. You can also use one of your recovery codes.</>
+                  )}
                 </div>
 
                 {error && (

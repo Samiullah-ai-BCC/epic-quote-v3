@@ -400,3 +400,23 @@ Invariants:
   gated the same way, or a quote could be stranded in the Hidden tab.
 Executable proof: `backend/tests/Feature/AuthzTest.php` — 7 hidden-quote cases
 Incident history: requested 2026-08-05 (Rod and Ed park quotes they are not chasing)
+
+## two-factor channel (authenticator vs emailed code) — SOURCE OF TRUTH: `users.two_factor_channel`
+Set by: `php artisan users:two-factor-channel <user> <totp|email> [--dry-run]`
+Read by:
+- `AuthController::login` — mints and emails a code when the channel is `email`
+- `AuthController::twoFactorChallenge` — checks the emailed code FIRST, then TOTP, then recovery
+- `AuthController::resendTwoFactorCode` — POST /api/two-factor/resend (throttle 3/min)
+Code storage: `users.two_factor_email_code` (HASHED), `_expires_at` (10 min), `_attempts` (max 5)
+Surfaces: `frontend/src/pages/Login.jsx` (code screen text + "Send another"), `store/authSlice.js`
+Invariants:
+- Default is `totp`; every account not switched over keeps the authenticator flow byte for byte.
+- The TOTP secret and recovery codes STAY VALID on an email-channel account. Mail is the one factor
+  that fails for reasons the person cannot see (bounce, outage, spam filter) and this is the login
+  path — the fallback is what stops a mail problem becoming a lockout.
+- The code is never returned by any endpoint, only sent. `sent_to` is masked (r***@domain).
+- A channel of `email` on an account with no address falls back to TOTP (`usesEmailTwoFactor`).
+DEPENDS ON MAIL BEING CONFIGURED: `mail.default` is `log` by default, which writes the code to
+  storage/logs/laravel.log and delivers nothing. Production needs MAIL_* env vars.
+Executable proof: `backend/tests/Feature/SecurityTest.php` — 7 email-OTP cases
+Incident history: requested 2026-08-05 (Rod does not want an authenticator app)

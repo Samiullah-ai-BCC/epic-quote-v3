@@ -38,6 +38,7 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_secret',
         'two_factor_recovery_codes',
+        'two_factor_email_code',
     ];
 
     protected function casts(): array
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'two_factor_secret' => 'encrypted',
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
+            'two_factor_email_expires_at' => 'datetime',
             'can_create_payment_links' => 'boolean',
         ];
     }
@@ -57,6 +59,21 @@ class User extends Authenticatable
     public function hasTwoFactor(): bool
     {
         return $this->two_factor_confirmed_at !== null && !empty($this->two_factor_secret);
+    }
+
+    public const TWO_FACTOR_TOTP  = 'totp';
+    public const TWO_FACTOR_EMAIL = 'email';
+
+    /**
+     * Does this account receive its sign-in code by EMAIL instead of an authenticator app?
+     *
+     * Requires an address to send to. Without that guard a mis-set channel would send the code
+     * nowhere and leave the person staring at a code entry box no message can ever satisfy —
+     * so an account with no email silently keeps the authenticator flow.
+     */
+    public function usesEmailTwoFactor(): bool
+    {
+        return $this->two_factor_channel === self::TWO_FACTOR_EMAIL && !empty($this->email);
     }
 
     public function isAdmin(): bool

@@ -6,6 +6,7 @@ use App\Constants\AppConstants;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Support\EmailOtp;
 use App\Support\Totp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,10 +43,20 @@ class AuthController extends Controller
         // that can call the API before the second factor is proven. Accounts without 2FA are
         // untouched by this branch and log in exactly as before.
         if ($user->hasTwoFactor()) {
-            return response()->json([
+            // EMAIL-CHANNEL ACCOUNTS get their code now, as part of earning the challenge — the
+            // password has already been proven at this point, so this cannot be used by a stranger
+            // to spray mail at someone's inbox. Accounts on the authenticator keep the exact flow
+            // they had: no code is minted, nothing is sent, the branch below is not entered.
+            $sentTo = $user->usesEmailTwoFactor() ? EmailOtp::send($user) : null;
+
+            return response()->json(array_filter([
                 'two_factor_required' => true,
                 'challenge' => $this->challengeFor($user, 'login'),
-            ]);
+                'channel' => $user->usesEmailTwoFactor() ? 'email' : 'totp',
+                // Masked, so the screen can say WHERE the code went without printing a full
+                // address to whoever is sitting at that machine.
+                'sent_to' => $sentTo,
+            ], fn ($v) => $v !== null));
         }
 
         // Mandatory first-login enrolment. Tokens minted under the old optional policy must die
@@ -96,6 +107,15 @@ class AuthController extends Controller
 
         $code = trim((string) $request->input('code'));
 
+        // The emailed code is checked first for accounts on that channel. The authenticator and the
+        // recovery codes below REMAIN VALID for them, deliberately: mail is the one factor here
+        // that can fail for reasons the person cannot see or fix — a bounced address, an outage, a
+        // spam filter — and this is the login path, where the cost of being wrong is a locked-out
+        // rep on a Monday morning. Both are genuine second factors owned by the same account.
+        if ($user->usesEmailTwoFactor() && EmailOtp::verify($user, $code)) {
+            return response()->json($this->issueSession($user));
+        }
+
         if (Totp::verify((string) $user->two_factor_secret, $code)) {
             return response()->json($this->issueSession($user));
         }
@@ -112,6 +132,36 @@ class AuthController extends Controller
         }
 
         return response()->json(['message' => 'That code is not valid.'], 422);
+    }
+
+    /**
+     * POST /api/two-factor/resend — send another code to the same account.
+     *
+     * The CHALLENGE is the authorisation, not a username: it is an encrypted, expiring payload
+     * minted only after a correct password, so this endpoint cannot be used to make the system
+     * email a stranger. Throttled at the route on top of that.
+     */
+    public function resendTwoFactorCode(Request $request): JsonResponse
+    {
+        $request->validate(['challenge' => 'required|string']);
+
+        try {
+            $payload = decrypt($request->input('challenge'));
+        } catch (\Throwable) {
+            return response()->json(['message' => 'This sign-in attempt is no longer valid. Please log in again.'], 422);
+        }
+        if (!is_array($payload) || ($payload['purpose'] ?? null) !== 'login' || ($payload['exp'] ?? 0) < now()->timestamp) {
+            return response()->json(['message' => 'This sign-in attempt has expired. Please log in again.'], 422);
+        }
+
+        $user = User::find($payload['uid'] ?? null);
+        // Same answer whether the account is missing, has no 2FA, or is on the authenticator: this
+        // endpoint must not become a way to ask the server which accounts receive email codes.
+        if (!$user || !$user->hasTwoFactor() || !$user->usesEmailTwoFactor()) {
+            return response()->json(['message' => 'This sign-in attempt is no longer valid. Please log in again.'], 422);
+        }
+
+        return response()->json(['sent_to' => EmailOtp::send($user)]);
     }
 
     /** Confirm mandatory first-login setup, then mint this account's first valid session. */
