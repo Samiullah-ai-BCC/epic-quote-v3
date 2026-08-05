@@ -246,14 +246,45 @@ export default function CustomSpecsStep({
               mono: !!nextCat?.mono,
             })
           }
+          // Committing a free-typed name: it IS the sign type, so it goes straight into the Sign
+          // type field. No second box, no separate save button — asking for the same detail twice
+          // on one form is what this step is being cleaned of.
+          const commitTypedName = (raw) => {
+            const NAME = String(raw || '').trim().toUpperCase()
+            if (!NAME) return
+            saveCatalogItem('sign_type', NAME, {}).catch(() => {})   // best-effort; never blocks
+            setCustomSpec({
+              ...customSpec,
+              itemDesc: itemDescFor(NAME, ''),
+              // SEEDED, NEVER OVERWRITTEN. Section 4 is the one place the specification is written;
+              // naming a type must not discard text already typed there.
+              specText: String(customSpec?.specText || '').trim() ? customSpec.specText : `SIGN TYPE: ${NAME}`,
+            })
+            setCustomTypeSel(NAME)
+          }
+
           if (!typePicking) {
+            // '__new__' turns THIS field into the input. The rep types the name where the type is
+            // shown, which is the only place it was ever going to belong.
+            const typing = customTypeSel === '__new__'
             return (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', background: 'var(--navy-900)' }}>
-                  {customTypeSel && customTypeSel !== '__new__' ? customTypeSel : <span className="muted">— pick a sign type (prefills the spec) —</span>}
-                </div>
+                {typing ? (
+                  <input
+                    autoFocus
+                    style={{ flex: 1 }}
+                    placeholder="Type the sign type name, e.g. CHANNEL LETTERS WITH BACKER"
+                    defaultValue=""
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitTypedName(e.currentTarget.value) } }}
+                    onBlur={(e) => commitTypedName(e.currentTarget.value)}
+                  />
+                ) : (
+                  <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', background: 'var(--navy-900)' }}>
+                    {customTypeSel || <span className="muted">— pick a sign type (prefills the spec) —</span>}
+                  </div>
+                )}
                 <button type="button" className="ghost sm" onClick={() => { setTypePicking(true); setTypeGroup(null) }}>
-                  {customTypeSel ? 'Change' : 'Pick a type'}
+                  {customTypeSel && !typing ? 'Change' : 'Pick a type'}
                 </button>
               </div>
             )
@@ -344,49 +375,6 @@ export default function CustomSpecsStep({
               </select>
             </div>
           )}
-        </div>
-      )}
-      {/* Free-typed sign type: the NAME only.
-          This box used to carry a second field, "Its spec template", plus its own Save button —
-          and that template was the same thing as "4. Specification Text" further down the very
-          same form. The rep was asked for the specification twice, in two places, with the lower
-          one silently overwritten by whatever was typed up here. That duplicate is what was meant
-          to go; the ability to name a type the catalog does not carry stays, because without it a
-          one-off sign cannot be quoted at all.
-          The spec is now authored in exactly one place — section 4 below — and is seeded here only
-          when it is still empty, so naming a type can never clear text the rep has already written. */}
-      {customTypeSel === '__new__' && (
-        <div className="field" style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12 }}>
-          <label>New sign type name</label>
-          <input
-            placeholder="e.g. CHANNEL LETTERS WITH BACKER"
-            value={customSpec?.newTypeDraft || ''}
-            onChange={(e) => setCustomSpec({ ...customSpec, newTypeDraft: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
-          />
-          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-            Write its specification in <strong>4. Specification text</strong> below.
-          </div>
-          <button
-            className="ghost sm"
-            style={{ marginTop: 8 }}
-            disabled={!String(customSpec?.newTypeDraft || '').trim()}
-            onClick={() => {
-              const NAME = String(customSpec.newTypeDraft || '').trim().toUpperCase()
-              // Best-effort: the name joins the team catalog so it resolves on later quotes. A
-              // failure here must not block quoting — the type still works for THIS quote.
-              saveCatalogItem('sign_type', NAME, {}).catch(() => {})
-              setCustomSpec({
-                ...customSpec,
-                newTypeDraft: '',
-                itemDesc: itemDescFor(NAME, ''),
-                // Seed ONLY into an empty box. Overwriting here is exactly the behaviour that made
-                // the old two-field version lose work.
-                specText: String(customSpec?.specText || '').trim() ? customSpec.specText : `SIGN TYPE: ${NAME}`,
-              })
-              setCustomTypeSel(NAME)
-            }}
-          >Use this type</button>
         </div>
       )}
       <div className="field"><label>Item Description</label><input value={customSpec?.itemDesc || ''} onChange={(e) => setCustomSpec({ ...customSpec, itemDesc: e.target.value })} /></div>
