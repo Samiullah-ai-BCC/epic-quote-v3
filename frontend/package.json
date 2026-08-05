@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:payment-display": "node --test tests/paymentDisplay.test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --import ./tests/register-loader.mjs --test \"tests/*.test.mjs\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

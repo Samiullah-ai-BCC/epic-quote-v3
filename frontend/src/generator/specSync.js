@@ -57,10 +57,29 @@ export const syncSpecFromFields = (specText, cs) => {
   // (`RETURNS: [DEPTH]"`) came out as `RETURNS: 3" [DEPTH]"` — the depth landed but the
   // placeholder printed next to it on the proposal. `LETTER RETURNS:` is the same line under
   // another name in several FA templates and must be caught by the same rule.
+  //
+  // [ \t] AFTER THE COLON, NEVER \s — the same trap computeDimSpec above already documents, which
+  // this function was left carrying. `\s` matches newlines, so on an empty "RETURNS:" line the
+  // capture group swallowed the line break and `.*$` then matched the NEXT line: the depth was
+  // written one line down ("RETURNS:" blank, "4"" beneath it — reported from a live quote) and
+  // whatever that next line said was REPLACED. A spec that read
+  //     RETURNS:
+  //     MOUNTING: FLUSH/STUD MOUNT
+  // came out as RETURNS: / 4" with the mounting line gone from the customer's proposal.
+  // The prefix group has the same problem for names like "LETTER RETURNS:" and is fixed with it.
   if (p.h) {
-    s = s.replace(/^((?:[A-Z ]*\s)?RETURNS?\s*:\s*).*$/im, `$1${p.h}"`)
-         .replace(/^(LETTERS? THICKNESS\s*:\s*).*$/im, `$1${p.h}"`)
+    // Capture up to the COLON only and supply the separating space here. Capturing the existing
+    // spacing instead means a line written "RETURNS:" with nothing after it prints "RETURNS:2"".
+    s = s.replace(/^((?:[A-Z ]*[ \t])?RETURNS?[ \t]*:)[ \t]*.*$/im, `$1 ${p.h}"`)
+         .replace(/^(LETTERS? THICKNESS[ \t]*:)[ \t]*.*$/im, `$1 ${p.h}"`)
   }
+
+  // REPAIR, not just prevention: quotes saved while the rule above was broken still carry the
+  // split in their stored spec text, and they do not fix themselves — the text is only rewritten
+  // when someone edits a dimension. Rejoin a value-only line onto the RETURNS line it belongs to.
+  // Deliberately narrow: the following line must be nothing but a measurement, so a real spec line
+  // can never be pulled up into RETURNS by this.
+  s = s.replace(/^([A-Z ]*RETURNS?[ \t]*:)[ \t]*\r?\n[ \t]*\r?\n?[ \t]*([\d./]+[""”][ \t]*)$/gim, '$1 $2')
   // Quotes saved before the placeholders were suppressed still carry the literal tokens in
   // their spec text; they must never survive onto a proposal, filled or not.
   s = s.replace(/\[DEPTH\]["”]?/g, '').replace(/^([A-Z ]*RETURNS?\s*:)[ \t]+$/gim, '$1')
