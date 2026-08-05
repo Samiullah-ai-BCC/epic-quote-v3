@@ -8,7 +8,7 @@ import { sanitizePhone, useContactMethod } from '../../../utils/contactMethod'
 // Company autofill (#8/#9): known companies suggest as you type; a matched company fills its
 // ADDRESS only — the rep picks the exact contact from the dropdown (dropdown-ONLY autofill,
 // Sami 2026-07-14: auto-applying the first contact kept picking wrong people).
-export default function PartyFields({ control, register, setValue, choice, companyHits, exactHit, onCompanyChange, onPickContact, sources }) {
+export default function PartyFields({ control, register, setValue, choice, companyHits, exactHit, onCompanyChange, onPickContact, sources, autoId = false }) {
   const email = useWatch({ control, name: 'email' })
   const contact = useWatch({ control, name: 'contact' })
   const [contactMethod, setContactMethod] = useContactMethod(email, contact)
@@ -21,6 +21,15 @@ export default function PartyFields({ control, register, setValue, choice, compa
   }
   return (
     <>
+      {autoId ? (
+        /* Nothing to fill in: the ID is allocated by the server when the quote is created, from a
+           band that is checked against this database AND the IDs reserved from the other system.
+           A box here would only invite a guess at a number that is not the browser's to choose. */
+        <div className="grid gap-1.5 mb-3">
+          <Label>Quote ID</Label>
+          <div className="muted" style={{ fontSize: 13 }}>Assigned automatically when this quote is created.</div>
+        </div>
+      ) : (
       <div className="grid gap-1.5 mb-3">
         <Label htmlFor="nq-qid">Quote ID <span className="muted font-normal">(required — assign your own, e.g. EC100123)</span></Label>
         <Controller
@@ -70,6 +79,7 @@ export default function PartyFields({ control, register, setValue, choice, compa
           }}
         />
       </div>
+      )}
       <div className="grid gap-1.5 mb-3">
         <Label htmlFor="nq-company">Company Name <span className="muted font-normal">(Company or Client required)</span>{choice === 'ai' && <span className="muted font-normal"> — the sign company on the drawing</span>}</Label>
         <Controller name="company_name" control={control} render={({ field }) => (

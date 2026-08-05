@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Company;
 use App\Models\Quote;
+use App\Support\QuoteIdAllocator;
 use App\Models\Representative;
 use App\Models\Setting;
 use App\Models\StatusHistory;
@@ -257,6 +258,15 @@ class QuoteController extends Controller
         // the team can track quotes by an ID they assigned themselves, instead of a server counter
         // handing out numbers nobody chose. Required + validated here; still auto-fallback ONLY
         // for non-UI creators (e.g. AirtableQuoteSync) that never go through this endpoint at all.
+        // AUTO-ASSIGNED IDS (per-user, User::usesAutoQuoteId). The rep never types one, so an empty
+        // field is the normal case for them rather than a mistake. Allocated SERVER-SIDE at creation
+        // time, not handed to the browser earlier: an ID reserved in a form somebody leaves open is
+        // either a hole in the numbering or a collision waiting for the second tab.
+        // The allocator scans this database UNION reserved_quote_ids (Airtable's 3,550), so "free"
+        // means free in both systems — see App\Support\QuoteIdAllocator.
+        if ($qid === '' && $request->user()?->usesAutoQuoteId()) {
+            $qid = QuoteIdAllocator::next();
+        }
         if ($qid === '') {
             return response()->json(['error' => 'Quote ID is required (e.g. EC100123).'], 422);
         }

@@ -29,6 +29,10 @@ class User extends Authenticatable
         'two_factor_secret',
         'two_factor_recovery_codes',
         'two_factor_confirmed_at',
+        // Assignable so seeders, factories and tests can create an account already configured;
+        // the console commands still write it through forceFill.
+        'two_factor_channel',
+        'auto_quote_id',
     ];
 
     // The TOTP secret and recovery codes never leave the server in an API payload — they are
@@ -52,6 +56,7 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_email_expires_at' => 'datetime',
             'can_create_payment_links' => 'boolean',
+            'auto_quote_id' => 'boolean',
         ];
     }
 
@@ -63,6 +68,17 @@ class User extends Authenticatable
 
     public const TWO_FACTOR_TOTP  = 'totp';
     public const TWO_FACTOR_EMAIL = 'email';
+
+    /**
+     * Does this account get its quote ID assigned automatically instead of typing one?
+     *
+     * Per-user, like the 2FA channel, and for the same reason: this is the quote-creation path, and
+     * a hardcoded username here is a rep who cannot start work the day the condition goes stale.
+     */
+    public function usesAutoQuoteId(): bool
+    {
+        return (bool) $this->auto_quote_id;
+    }
 
     /**
      * Does this account receive its sign-in code by EMAIL instead of an authenticator app?
@@ -166,6 +182,8 @@ class User extends Authenticatable
             'role'       => $this->role,
             'can_create_payment_links' => $this->canCreatePaymentLinks(),
             'two_factor_enabled' => $this->hasTwoFactor(),
+            // The intake form hides its Quote ID field for these accounts — see AddQuoteModal.
+            'auto_quote_id' => $this->usesAutoQuoteId(),
             'default_sales_rep' => $this->defaultSalesRepresentative(),
             'last_login' => $this->last_login?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),

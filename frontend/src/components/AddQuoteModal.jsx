@@ -10,7 +10,7 @@ import { selectUser, selectIsAdmin } from '../store/authSlice'
 import client from '../api/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
-import { EMPTY, quoteSchema } from './quotes/add/quoteSchema'
+import { EMPTY, buildQuoteSchema } from './quotes/add/quoteSchema'
 import PartyFields, { RepField } from './quotes/add/PartyFields'
 import AiIntake from './quotes/add/AiIntake'
 
@@ -30,6 +30,10 @@ export default function AddQuoteModal({ onClose }) {
   const create = useCreateQuote()
   const user = useSelector(selectUser)
   const isAdmin = useSelector(selectIsAdmin)
+  // Server-assigned quote IDs (User::usesAutoQuoteId). The field is not shown, not validated and
+  // not sent: the number is allocated at creation from a band checked against this database AND
+  // the other system's reserved IDs, so a value chosen in the browser could only be a guess.
+  const autoId = !!user?.auto_quote_id
 
   // AI mode is paused (#8): open straight into Custom and skip the "AI vs Custom" chooser.
   // Set back to useState(null) to bring the chooser (and AI mode) back.
@@ -46,7 +50,7 @@ export default function AddQuoteModal({ onClose }) {
   const {
     register, handleSubmit, control, reset, watch, getValues, setValue,
     formState: { errors },
-  } = useForm({ resolver: zodResolver(quoteSchema), defaultValues: formDefaults })
+  } = useForm({ resolver: zodResolver(buildQuoteSchema({ autoId })), defaultValues: formDefaults })
   const salesRep = watch('sales_rep')
   const specText = watch('special_requirements')
 
@@ -198,7 +202,7 @@ export default function AddQuoteModal({ onClose }) {
   const back = () => { setChoice(null); setRevealed(false); setFiles([]); reset(formDefaults) }
 
   const partyFields = (
-    <PartyFields control={control} register={register} setValue={setValue} choice={choice}
+    <PartyFields autoId={autoId} control={control} register={register} setValue={setValue} choice={choice}
       companyHits={companyHits} exactHit={exactHit}
       onCompanyChange={onCompanyChange} onPickContact={applyContact} sources={sources} />
   )

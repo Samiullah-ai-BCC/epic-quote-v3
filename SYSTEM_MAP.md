@@ -434,3 +434,26 @@ DEPENDS ON MAIL BEING CONFIGURED: `mail.default` is `log` by default, which writ
   storage/logs/laravel.log and delivers nothing. Production needs MAIL_* env vars.
 Executable proof: `backend/tests/Feature/SecurityTest.php` — 7 email-OTP cases
 Incident history: requested 2026-08-05 (Rod does not want an authenticator app)
+
+## automatic quote IDs — SOURCE OF TRUTH: `App\Support\QuoteIdAllocator` (band EC900000–EC999999)
+Enabled per user: `users.auto_quote_id` — `php artisan users:auto-quote-id <user> on|off [--dry-run]`
+Taken-elsewhere list: `reserved_quote_ids` — `php artisan quotes:import-reserved-ids <csv> [--dry-run]`
+Written by: `QuoteController::store` — allocates ONLY when the field is blank AND the account is on
+Read by: intake form (`AddQuoteModal` hides the field when `user.auto_quote_id`),
+  `quotes/add/quoteSchema.js` (`buildQuoteSchema({autoId})` drops the required rule for them)
+Why the band: measured 2026-08-05 across both systems — the house sequence tops out at EC116714 and
+  Airtable is STILL CREATING quotes, so a band just above it would be reached in a few thousand
+  quotes. 900000 needs ~780,000. Empty in both sets; still six digits, so it reads as a normal ID.
+Invariants:
+- "Free" means free in BOTH systems. The allocator scans quotes UNION reserved_quote_ids; this
+  database holds ~100 IDs and Airtable 3,550, 55 of which already appear in both.
+- The unique index on quotes.quote_id is the real guarantee; the scan is an optimisation, and
+  `allocate()` retries on a unique violation rather than locking the table.
+- No dialect-specific SQL: production runs SQLite, and the first version used MySQL REGEXP.
+- A typed ID still wins for an auto account — allocation fills a blank field, it does not seize one.
+- Everyone else is untouched: blank ID is still a 422.
+KNOWN, NOT ENFORCED: manual entry does NOT refuse an ID that is reserved from Airtable. 55 IDs
+  already exist in both systems by design (the estimator was seeded from it), so refusing them would
+  break re-creating a legacy quote here. Raise it if the policy should change.
+Executable proof: `backend/tests/Feature/QuoteIdAllocationTest.php` — 7 cases
+Incident history: requested 2026-08-05 (Rod should not have to invent an unused EC number)
