@@ -97,11 +97,19 @@ class User extends Authenticatable
         return $this->defaultSalesRepresentative() !== null;
     }
 
-    // Managers/account managers/viewers see the whole book of business;
-    // quote makers and sales reps see their own quotes only.
+    // Managers, account managers, viewers AND quote makers see the whole book of business;
+    // sales reps see their own customers' quotes only.
+    //
+    // QUOTE MAKERS BELONG HERE. They were in the restricted branch, which sounds harmless until you
+    // notice what the restricted branch matches on: the quote's `sales_rep` against the user's own
+    // full name. A quote maker is not a representative, so no quote ever carries their name — the
+    // rule denied them every quote that had a rep on it, including quotes they had just created and
+    // assigned to Rod or Ed seconds earlier. Locking the people whose job is writing quotes out of
+    // the quotes they write is not a policy, it is a bug wearing one.
+    // Reported 2026-08-05: quote makers could not open EC116706 / EC116707.
     public function seesAllQuotes(): bool
     {
-        return in_array($this->role, ['admin', 'manager', 'account_manager', 'viewer'], true);
+        return in_array($this->role, ['admin', 'manager', 'account_manager', 'quote_maker', 'viewer'], true);
     }
 
     // Viewers are strictly read-only — every write endpoint refuses them.

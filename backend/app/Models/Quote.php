@@ -55,7 +55,8 @@ class Quote extends Model
                 $q->where('sales_rep', $user->full_name)
                   ->orWhere('assigned_to', $user->full_name)
                   ->orWhereNull('sales_rep')
-                  ->orWhere('sales_rep', '');
+                  ->orWhere('sales_rep', '')
+                  ->orWhere('created_by', $user->id);     // you can always reach what you created
             });
         }
         return $query;
@@ -66,7 +67,14 @@ class Quote extends Model
         return $user->seesAllQuotes()
             || $this->sales_rep === $user->full_name
             || $this->assigned_to === $user->full_name
-            || (string) ($this->sales_rep ?? '') === '';   // repless = team-wide (#13)
+            || (string) ($this->sales_rep ?? '') === ''   // repless = team-wide (#13)
+            // THE AUTHOR CAN ALWAYS REACH THEIR OWN QUOTE. Without this, a restricted user could
+            // create a quote, put another person's name in the Sales Rep field — which is the
+            // normal thing to do — press save, and be locked out of it on the next request. The
+            // work was theirs and it disappeared as they finished it. Whatever scoping policy
+            // applies on top, "you may open what you wrote" is not the part that should ever be
+            // in question, and it cannot leak anything: they already saw it, they typed it.
+            || ((int) $this->created_by !== 0 && (int) $this->created_by === (int) $user->id);
     }
 
     // V1 serialize_quote()

@@ -109,3 +109,46 @@ it('blocks a restore on a quote the user cannot see', function () {
     $this->postJson("/api/quotes/{$quote->quote_id}/checkpoints/{$cp->id}/restore")
         ->assertStatus(403);
 });
+
+/* ── Quote makers (reported 2026-08-05: EC116706 / EC116707 unreachable) ─────────────────────
+   A quote maker is not a representative, so no quote ever carries their name. While the role sat
+   outside seesAllQuotes() the rep-name rule denied them every quote that had a rep on it — the
+   whole book, including quotes they had just written. */
+
+it('lets a quote maker open a quote that carries another person\'s rep name', function () {
+    $maker = makeUser(['role' => 'quote_maker']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => 'Rod Muffet']);
+
+    login($maker);
+    $this->getJson("/api/quotes/{$quote->quote_id}")->assertOk();
+});
+
+it('lists every quote for a quote maker, whoever the rep is', function () {
+    $maker = makeUser(['role' => 'quote_maker']);
+    makeQuote(['sales_rep' => 'Rod Muffet']);
+    makeQuote(['sales_rep' => 'ED']);
+    makeQuote(['sales_rep' => '']);
+
+    login($maker);
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(3);
+});
+
+it('still hides another rep\'s quote from a sales rep', function () {
+    // The widening above must not have loosened the role it was not about.
+    $other = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => 'Rod Muffet']);
+
+    login($other);
+    $this->getJson("/api/quotes/{$quote->quote_id}")->assertStatus(403);
+});
+
+it('lets the author reopen a quote they created for someone else', function () {
+    // The trap that made the original bug dangerous rather than merely annoying: put another
+    // person's name in Sales Rep, save, and the quote you just wrote becomes unreachable.
+    $author = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => 'Rod Muffet', 'created_by' => $author->id]);
+
+    login($author);
+    $this->getJson("/api/quotes/{$quote->quote_id}")->assertOk();
+    $this->getJson("/api/quotes/{$quote->quote_id}/revisions")->assertOk();
+});
