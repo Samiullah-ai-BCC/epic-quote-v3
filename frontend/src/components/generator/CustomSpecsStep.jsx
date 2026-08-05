@@ -9,6 +9,7 @@ import { buildSpecLines, normalizeSpecLines, MAX_SPEC_LINES } from '../../genera
 import { parseDims, composeDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
 import { syncSpecFromFields, splitSpecialRequirements, mergeSpecial } from '../../generator/specSync'
+import { saveCatalogItem } from '../../api/catalog'
 import { MAX_PRICE } from '../../generator/parts'
 import MoneyInput from '../MoneyInput'
 
@@ -194,9 +195,8 @@ export default function CustomSpecsStep({
           const pickCustomType = (v) => {
             setCustomTypeSel(v)
             setTypePicking(false); setTypeGroup(null)
-            // '__new__' is still guarded here, not because anything offers it any more, but because
-            // quotes saved while the free-type form existed can still carry it as their stored
-            // selection — resolving that as a catalog name would blank their spec on open.
+            // '__new__' is a MODE, not a type name: it opens the name box below. There is nothing
+            // in the catalog to resolve it against, and treating it as a name would blank the spec.
             if (v === '' || v === '__new__') return
             const nextCat = FA_SIGN_GROUPS.find((g) => g.n === v) || T.find((t) => t.n === v)
             const stored = signLib.find((s) => s.name === v)
@@ -288,11 +288,7 @@ export default function CustomSpecsStep({
                       loaded and still consulted when a type is picked (see `stored` above), so a
                       quote already saved against one of those names keeps resolving its stored
                       spec — only the browsing entry is gone, not the data. */}
-                  {/* "Type a new custom sign type…" is gone with the form it used to open. Leaving
-                      the entry in the list after the form was removed made it a dead control: it
-                      set the selection to '__new__', which pickCustomType returns early on, so the
-                      rep clicked it, the picker closed, and the Sign type box read "pick a sign
-                      type" again with nothing to show for it. */}
+                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>
                   <div className="sign-opt muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
                 </div>
               ) : (
@@ -348,6 +344,49 @@ export default function CustomSpecsStep({
               </select>
             </div>
           )}
+        </div>
+      )}
+      {/* Free-typed sign type: the NAME only.
+          This box used to carry a second field, "Its spec template", plus its own Save button —
+          and that template was the same thing as "4. Specification Text" further down the very
+          same form. The rep was asked for the specification twice, in two places, with the lower
+          one silently overwritten by whatever was typed up here. That duplicate is what was meant
+          to go; the ability to name a type the catalog does not carry stays, because without it a
+          one-off sign cannot be quoted at all.
+          The spec is now authored in exactly one place — section 4 below — and is seeded here only
+          when it is still empty, so naming a type can never clear text the rep has already written. */}
+      {customTypeSel === '__new__' && (
+        <div className="field" style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12 }}>
+          <label>New sign type name</label>
+          <input
+            placeholder="e.g. CHANNEL LETTERS WITH BACKER"
+            value={customSpec?.newTypeDraft || ''}
+            onChange={(e) => setCustomSpec({ ...customSpec, newTypeDraft: e.target.value })}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
+          />
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Write its specification in <strong>4. Specification text</strong> below.
+          </div>
+          <button
+            className="ghost sm"
+            style={{ marginTop: 8 }}
+            disabled={!String(customSpec?.newTypeDraft || '').trim()}
+            onClick={() => {
+              const NAME = String(customSpec.newTypeDraft || '').trim().toUpperCase()
+              // Best-effort: the name joins the team catalog so it resolves on later quotes. A
+              // failure here must not block quoting — the type still works for THIS quote.
+              saveCatalogItem('sign_type', NAME, {}).catch(() => {})
+              setCustomSpec({
+                ...customSpec,
+                newTypeDraft: '',
+                itemDesc: itemDescFor(NAME, ''),
+                // Seed ONLY into an empty box. Overwriting here is exactly the behaviour that made
+                // the old two-field version lose work.
+                specText: String(customSpec?.specText || '').trim() ? customSpec.specText : `SIGN TYPE: ${NAME}`,
+              })
+              setCustomTypeSel(NAME)
+            }}
+          >Use this type</button>
         </div>
       )}
       <div className="field"><label>Item Description</label><input value={customSpec?.itemDesc || ''} onChange={(e) => setCustomSpec({ ...customSpec, itemDesc: e.target.value })} /></div>
