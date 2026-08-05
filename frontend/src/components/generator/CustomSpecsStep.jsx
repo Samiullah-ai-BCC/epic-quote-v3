@@ -279,7 +279,7 @@ export default function CustomSpecsStep({
                     onBlur={(e) => commitTypedName(e.currentTarget.value)}
                   />
                 ) : (
-                  <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', background: 'var(--navy-900)' }}>
+                  <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', background: 'var(--navy-900)', textTransform: 'uppercase' }}>
                     {customTypeSel || <span className="muted">— pick a sign type (prefills the spec) —</span>}
                   </div>
                 )}
@@ -319,8 +319,8 @@ export default function CustomSpecsStep({
                       loaded and still consulted when a type is picked (see `stored` above), so a
                       quote already saved against one of those names keeps resolving its stored
                       spec — only the browsing entry is gone, not the data. */}
-                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>
-                  <div className="sign-opt muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
+                  <div className="sign-opt act" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>
+                  <div className="sign-opt act muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
                 </div>
               ) : (
                 <>
@@ -348,7 +348,7 @@ export default function CustomSpecsStep({
           {trimOpts.length > 0 && (
             <div className="field">
               <label>Trim cap</label>
-              <select value={customSpec?.fa_trimcap || trimOpts[0]} onChange={(e) => {
+              <select className="opts-upper" value={customSpec?.fa_trimcap || trimOpts[0]} onChange={(e) => {
                 const nextMount = faMountingOptions(cat, customSpec?.fa_thickness, e.target.value)[0]
                 applyFaConfig(nextMount, customSpec?.fa_thickness, e.target.value)
               }}>
@@ -359,7 +359,7 @@ export default function CustomSpecsStep({
           {thickOpts.length > 0 && (
             <div className="field">
               <label>Thickness</label>
-              <select value={customSpec?.fa_thickness || thickOpts[0]} onChange={(e) => {
+              <select className="opts-upper" value={customSpec?.fa_thickness || thickOpts[0]} onChange={(e) => {
                 const nextMount = faMountingOptions(cat, e.target.value, customSpec?.fa_trimcap)[0]
                 applyFaConfig(nextMount, e.target.value, customSpec?.fa_trimcap)
               }}>
@@ -370,7 +370,7 @@ export default function CustomSpecsStep({
           {mountOpts.length > 1 && (
             <div className="field">
               <label>Mounting</label>
-              <select value={customSpec?.fa_mounting || mountOpts[0]} onChange={(e) => applyFaConfig(e.target.value, customSpec?.fa_thickness, customSpec?.fa_trimcap)}>
+              <select className="opts-upper" value={customSpec?.fa_mounting || mountOpts[0]} onChange={(e) => applyFaConfig(e.target.value, customSpec?.fa_thickness, customSpec?.fa_trimcap)}>
                 {mountOpts.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>

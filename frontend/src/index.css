@@ -358,7 +358,24 @@ td input:focus, td select:focus { background: var(--navy-900); }
 .ai-result { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; }
 .ai-result .line { margin: 3px 0; }
 .sign-list { max-height: 380px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-.sign-opt { padding: 11px 13px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13px; transition: background .1s; }
+/* ONE CASE FOR PRODUCT NAMES, EVERYWHERE THEY ARE LISTED.
+   The catalog data is genuinely mixed: 5 sign types are stored upper-case ("HALO LIT CHANNEL
+   LETTERS") and 21 in title case ("Side Lit Channel Letters"), and every mounting is title case
+   while every family is upper-case. Rendered raw, one dropdown showed both conventions at once.
+
+   Fixed in CSS, NOT in the data. Those strings are identity, not labels: quotes store the chosen
+   type by name (tpl_name / customTypeSel), the spec templates and item descriptions are built from
+   it, and FA_SIGN_GROUPS is matched with `g.n === customTypeSel`. Rewriting them upper-case would
+   silently strand every saved quote whose type is title-cased — its spec, side view and package
+   would stop resolving. The sheet itself already renders upper-case (the page sets
+   text-transform), so this only makes the pickers agree with the document they produce.
+
+   Action rows (Cancel, "Type a new custom sign type…") opt out via .act — they are instructions,
+   not product names, and shouting them reads as an error. */
+.sign-opt { padding: 11px 13px; border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: 13px; transition: background .1s; text-transform: uppercase; }
+.sign-opt.act { text-transform: none; }
+/* Same rule for the option lists that carry catalog values (mounting, trim cap, thickness). */
+.opts-upper, .opts-upper option { text-transform: uppercase; }
 .sign-opt:hover { background: var(--navy-600); }
 .sign-opt.sel { background: var(--gold-soft); color: var(--gold); font-weight: 600; }
 .sign-opt.ai { color: var(--gold); font-weight: 600; }
