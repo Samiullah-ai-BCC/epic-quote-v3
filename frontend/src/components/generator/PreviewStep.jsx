@@ -264,7 +264,17 @@ export default function PreviewStep({
                 paymentLinkVisible={paymentLinkVisible}
                 approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
                 proposalNotes={p.proposal_notes}
-                specialRequirements={specialRequirements || quote?.special_requirements || ''}
+                // THE WIZARD'S VALUE IS THE VALUE — including when it is empty. This was
+                // `specialRequirements || quote?.special_requirements || ''`, and an empty string
+                // is falsy, so a requirement the rep had just DELETED fell through to the quote
+                // record and printed on the sheet again. Changing the text worked (a non-empty
+                // value beats the fallback), which is exactly how the report described it.
+                // Reproduced live: after clearing the box, special_requirements was '' in the
+                // database and the old line was still in ADDITIONAL NOTES.
+                // The fallback is gone rather than narrowed to `??`: useQuoteData seeds `special`
+                // from this same record on load, in the commit that sets `quote`, so there is no
+                // moment where the record knows something the wizard does not.
+                specialRequirements={specialRequirements || ''}
                 savedState={p.proposal_state}
                 sideViews={p.side_views || []}
                 signBox={p.sign_box}
