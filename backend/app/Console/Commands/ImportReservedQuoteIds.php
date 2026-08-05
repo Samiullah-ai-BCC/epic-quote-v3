@@ -23,7 +23,7 @@ use Illuminate\Console\Command;
 class ImportReservedQuoteIds extends Command
 {
     protected $signature = 'quotes:import-reserved-ids
-        {file : path to a CSV export}
+        {file? : path to a CSV export; defaults to the ID list bundled in database/data}
         {--column=Quote ID : the header of the column holding the IDs}
         {--source=airtable : label stored against each imported row}
         {--dry-run : report what WOULD be imported and write nothing}';
@@ -32,7 +32,11 @@ class ImportReservedQuoteIds extends Command
 
     public function handle(): int
     {
-        $file = (string) $this->argument('file');
+        // Default to the list shipped WITH the code. The export lives on somebody's laptop and the
+        // server cannot see it, so a bundled, IDs-only file is what makes this runnable on a
+        // deployed container at all. It carries no customer name, email or price — only the
+        // numbers that must not be handed out twice.
+        $file = (string) ($this->argument('file') ?: database_path('data/reserved-quote-ids.csv'));
         if (!is_readable($file)) {
             $this->error("Cannot read {$file}");
             return self::FAILURE;
