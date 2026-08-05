@@ -249,16 +249,44 @@ export default function CustomSpecsStep({
           // Committing a free-typed name: it IS the sign type, so it goes straight into the Sign
           // type field. No second box, no separate save button — asking for the same detail twice
           // on one form is what this step is being cleaned of.
+          // A FREE-TYPED NAME IS A TYPE CHANGE, WITH EVERYTHING THAT IMPLIES.
+          //
+          // It used to set only the item description, which left the sheet describing the previous
+          // product: pick HALO LIT CHANNEL LETTERS, then type a one-off name, and the proposal still
+          // printed "SIGN TYPE : HALO LIT CHANNEL LETTERS", the halo stud-mount construction diagram
+          // and the halo package. Reproduced on a live quote before this change.
+          //
+          // A one-off has no catalog template, so nothing catalog-derived from the OLD type may
+          // survive it. What the rep WROTE does survive — those lines are theirs, and section 4 is
+          // where they edit them.
           const commitTypedName = (raw) => {
             const NAME = String(raw || '').trim().toUpperCase()
             if (!NAME) return
             saveCatalogItem('sign_type', NAME, {}).catch(() => {})   // best-effort; never blocks
+
+            // The SIGN TYPE line is identity: it must name the product this quote is now for.
+            const prev = String(customSpec?.specText || '')
+            const specText = /^SIGN TYPE[ \t]*:.*$/im.test(prev)
+              ? prev.replace(/^SIGN TYPE[ \t]*:.*$/im, `SIGN TYPE: ${NAME}`)
+              : (prev.trim() ? `SIGN TYPE: ${NAME}\n${prev}` : `SIGN TYPE: ${NAME}`)
+
+            // The construction diagram belonged to the previous leaf and describes a different
+            // product now. Cleared only when it is catalog-derived — an uploaded drawing, an
+            // explicit "no side view", or a composed set stays, by the same rule the catalog path
+            // uses (sideViewReplaceable).
+            if (sideViewReplaceable()) setSideViews([])
+
             setCustomSpec({
               ...customSpec,
+              // IDENTITY, and the reason the rest of the sheet follows: Proposal resolves the
+              // package and the side view from customSpec.signType. Leaving it on the old name is
+              // what kept PACKAGE INCLUDES and SIDE VIEW showing the previous product.
+              signType: NAME,
               itemDesc: itemDescFor(NAME, ''),
-              // SEEDED, NEVER OVERWRITTEN. Section 4 is the one place the specification is written;
-              // naming a type must not discard text already typed there.
-              specText: String(customSpec?.specText || '').trim() ? customSpec.specText : `SIGN TYPE: ${NAME}`,
+              specText,
+              // A one-off carries no catalog mounting/thickness/trim cap; keeping the previous
+              // type's would re-derive its package and diagram all over again.
+              fa_mounting: '', fa_thickness: '', fa_trimcap: '',
             })
             setCustomTypeSel(NAME)
           }
