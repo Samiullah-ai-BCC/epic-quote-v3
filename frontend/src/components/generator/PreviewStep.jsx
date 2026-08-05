@@ -13,7 +13,7 @@ export default function PreviewStep({
   setExitAsk, deletedPage, undoDeletePage, deleteTimer, setDeletedPage,
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
   collectPartImages, linkTitle, captureAllPages, capturePagesExport,
-  canCreatePaymentLinks, savePaymentLink, hidePaymentLink, logo, paymentLink,
+  canCreatePaymentLinks, savePaymentLink, hidePaymentLink, showPaymentLink, logo, paymentLink,
   paymentLinkKind, paymentLinkVisible, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
   specialRequirements, commitPartClientDoc, docBusy, docErr,
@@ -255,6 +255,7 @@ export default function PreviewStep({
                 canCreatePaymentLinks={canCreatePaymentLinks}
                 onPaymentLinkCreated={(url, kind) => savePaymentLink(url, kind)}
                 onPaymentLinkHidden={hidePaymentLink}
+                onPaymentLinkShown={showPaymentLink}
                 artworkPath={p.artwork_path}
                 onArtworkFile={commitPartArtworkFile ? (f) => commitPartArtworkFile(i, f) : undefined}
                 logo={logo}

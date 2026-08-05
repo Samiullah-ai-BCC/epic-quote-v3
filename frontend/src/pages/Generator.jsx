@@ -234,6 +234,15 @@ export default function Generator() {
     setGeneratedData(payload)
     setPaymentLinkVisible(false)
   }
+  // The exact mirror — same write, same refs, opposite value. Persisted the same way so the live
+  // preview's remount reads the restored state rather than the stale one it was built from.
+  const showPaymentLink = async () => {
+    await putGenerated(quoteId, { payment_link_visible: true })
+    const payload = { ...(generatedDataRef.current || {}), payment_link_visible: true }
+    generatedDataRef.current = payload
+    setGeneratedData(payload)
+    setPaymentLinkVisible(true)
+  }
   const [checkpointBusy, setCheckpointBusy] = useState('')
   const [checkpointMessage, setCheckpointMessage] = useState('')
   // Preview edits save directly to their part. Track those requests so Done can drain them before
@@ -1017,7 +1026,7 @@ export default function Generator() {
             grandTotal={grandTotal} tplForPart={tplForPart} client={client} quoteId={quoteId}
             collectPartImages={collectPartImages} linkTitle={linkTitle} captureAllPages={captureAllPages}
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
-            savePaymentLink={savePaymentLink} hidePaymentLink={hidePaymentLink}
+            savePaymentLink={savePaymentLink} hidePaymentLink={hidePaymentLink} showPaymentLink={showPaymentLink}
             logo={logo} paymentLink={paymentLink} paymentLinkKind={paymentLinkKind}
             paymentLinkVisible={paymentLinkVisible} quote={quote}
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}

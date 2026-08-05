@@ -83,7 +83,7 @@ const HD_SCALE = 3   // capture DPI factor for PNG/PDF downloads (~288dpi on a L
 // 0.96MB / 1.46MB for those pages — no better where it counts, and lossy. Nothing about the
 // capture resolution (HD_SCALE) changes either way.
 
-function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, paymentLinkKind = null, paymentLinkVisible = true, proposalNotes, specialRequirements = '', sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, onPaymentLinkHidden, mainView, signBox,
+function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtworkFile, logo, savedState, onSave, aiResult, paymentLink, paymentLinkKind = null, paymentLinkVisible = true, proposalNotes, specialRequirements = '', sideViews = [], onSideViews, approval, quoteId, canCreatePaymentLinks, onPaymentLinkCreated, onPaymentLinkHidden, onPaymentLinkShown, mainView, signBox,
   // --- multi-page (multi-sign) quote props ---
   // partLabel: 'A'/'B'/… shown after the PROPOSAL ID, or null for a single-sign quote.
   // multi: this quote has >1 part → per-part prices are hidden (Sami's rule: the customer only
@@ -2012,8 +2012,11 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
           <div style={{ margin: '12px 40px 0', display: 'grid', gridTemplateColumns: isLast ? '1fr 1fr' : '1fr', gap: '0 20px' }}>
             {E('terms', { fontSize: 8, lineHeight: '10px', textTransform: 'none' })}
             {/* price block — hidden when capturing the "clean" image for a Shopify product,
-                since the payment options live on the Shopify page, not baked into the picture */}
-            {isLast && (
+                since the payment options live on the Shopify page, not baked into the picture.
+                ALSO hidden by "Remove payment & totals" (paymentLinkVisible): a quote that is not
+                yet confirmed goes out with no CTA AND no price rows — a sheet showing SUBTOTAL and
+                a 50% deposit schedule is still quoting a price, whatever the button says. */}
+            {isLast && paymentLinkVisible && (
             <div data-price-block>
               <div>
                 {totalsMode !== 'balance' && (
@@ -2368,22 +2371,44 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
             {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Remaining Balance (50%)'}</button>}
             {totalsAmount > 0 && totalsAmount <= 500 && <span className="muted" style={{ fontSize: 12 }}>≤ $500 → full payment only</span>}
-            {visiblePaymentLink && onPaymentLinkHidden && (
+            {/* ALWAYS OFFERED while the section is showing — not only once a link exists. The rep's
+                reason for reaching for this is "the job is not confirmed, send it without pricing",
+                which is most true BEFORE any link is made. */}
+            {paymentLinkVisible && onPaymentLinkHidden && (
               <button className="ghost" style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
                 disabled={!!plBusy}
-                title="Hide this payment button from the proposal and downloads; keep the Shopify link and ledger record"
+                title="Take the payment button AND the subtotal / deposit rows off the proposal and downloads. The Shopify link and its ledger record are kept."
                 onClick={async () => {
                   if (!window.confirm('Remove this payment link from the quote preview and downloads?\n\nThe Shopify link and payment ledger record will remain available.')) return
                   setPlBusy('hide')
                   try {
                     await onPaymentLinkHidden()
                     setPlResult(null)
-                    flash('Payment link removed from the quote. Shopify and the ledger were not changed.')
+                    flash('Payment button and price rows removed from the quote. Shopify and the ledger were not changed.')
                   } catch (e) {
                     flash(e?.response?.data?.error || 'Could not remove the payment link from the quote.')
                   } finally { setPlBusy('') }
                 }}>
-                {plBusy === 'hide' ? 'Removing…' : 'Remove from Quote'}
+                {plBusy === 'hide' ? 'Removing…' : 'Remove payment & totals'}
+              </button>
+            )}
+            {/* THE WAY BACK. Without it, one click permanently strips the pricing off a quote and
+                the only recovery is knowing that creating a new link happens to restore it — a trap
+                dressed as a feature. Mirrors the "+ Notes" control on the sheet. */}
+            {!paymentLinkVisible && onPaymentLinkShown && (
+              <button className="ghost" style={{ width: '100%' }}
+                disabled={!!plBusy}
+                title="Put the subtotal, the deposit rows and any payment button back on the proposal"
+                onClick={async () => {
+                  setPlBusy('show')
+                  try {
+                    await onPaymentLinkShown()
+                    flash('Payment button and price rows restored.')
+                  } catch (e) {
+                    flash(e?.response?.data?.error || 'Could not restore the payment section.')
+                  } finally { setPlBusy('') }
+                }}>
+                {plBusy === 'show' ? 'Restoring…' : '＋ Restore payment & totals'}
               </button>
             )}
           </div>

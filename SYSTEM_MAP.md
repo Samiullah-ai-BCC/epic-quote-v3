@@ -409,6 +409,20 @@ Read by:
 - `AuthController::resendTwoFactorCode` — POST /api/two-factor/resend (throttle 3/min)
 Code storage: `users.two_factor_email_code` (HASHED), `_expires_at` (10 min), `_attempts` (max 5)
 Surfaces: `frontend/src/pages/Login.jsx` (code screen text + "Send another"), `store/authSlice.js`
+
+## payment section on the proposal (CTA + price rows) — SOURCE OF TRUTH: `generated_data.payment_link_visible`
+Written by: `Generator.hidePaymentLink` / `Generator.showPaymentLink` (PUT /api/quotes/{id}/generated)
+Read by: `Proposal.jsx` — gates BOTH `[data-price-block]` (SUBTOTAL / 50% DEPOSIT / 50% ON SHIPMENT)
+  and the CLICK HERE TO MAKE PAYMENT anchor
+Controls: "Remove payment & totals" (offered whenever the section is showing, with or without a
+  link) and "＋ Restore payment & totals" — the way back, so removal is never one-way
+Invariants:
+- Presentation only. No Shopify product, payment link or ledger row is created, changed or revoked.
+- Hiding takes the PRICE ROWS with the button: a sheet still showing SUBTOTAL and a deposit
+  schedule is quoting a price, whatever the CTA says.
+- Quotes saved before this flag existed have no key and default to visible.
+Incident history: extended 2026-08-05 (send an unconfirmed quote with no pricing shown)
+
 Invariants:
 - Default is `totp`; every account not switched over keeps the authenticator flow byte for byte.
 - The TOTP secret and recovery codes STAY VALID on an email-channel account. Mail is the one factor
