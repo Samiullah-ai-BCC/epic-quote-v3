@@ -50,3 +50,15 @@ export const useDeleteQuote = () => {
   const invalidate = useQuoteInvalidation()
   return useMutation({ mutationFn: Q.deleteQuote, onSuccess: invalidate })
 }
+
+// Hiding invalidates the same queries a delete does: the row must leave the visible list and
+// appear under Hidden without a manual refresh, and both lists come from the same query key.
+export const useHideQuote = () => {
+  const invalidate = useQuoteInvalidation()
+  return useMutation({ mutationFn: Q.hideQuote, onSuccess: invalidate })
+}
+
+export const useUnhideQuote = () => {
+  const invalidate = useQuoteInvalidation()
+  return useMutation({ mutationFn: Q.unhideQuote, onSuccess: invalidate })
+}

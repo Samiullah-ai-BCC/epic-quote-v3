@@ -37,7 +37,7 @@ export default function QuotesTable({
   sort, columns, statuses, reps, team, admin, readOnly, canApprove,
   selected, allVisibleSelected, onToggleAll, onToggleSel,
   patch, pasteDown, updateStatus, updateTags,
-  onView, onEdit, onHistory, onDelete, onArt, isEmpty,
+  onView, onEdit, onHistory, onDelete, onArt, isEmpty, canHide, hidden, onHide, onUnhide,
 }) {
   const { widths, setWidth } = useColumnWidths()
   const visible = COLS.filter((c) => c.always || columns.has(c.show))
@@ -49,7 +49,7 @@ export default function QuotesTable({
   // The floor is per-role because the row renders a different set of buttons for each: View is
   // always there, Edit unless the grid is read-only, History and Delete for admins only. A flat
   // floor would leave a rep staring at 150px of empty pinned column.
-  const actionsMin = 100 + (readOnly ? 0 : 52) + (admin ? 133 : 0)
+  const actionsMin = 100 + (readOnly ? 0 : 52) + (admin ? 133 : 0) + (canHide ? 62 : 0)
   const widthOf = (c) => {
     const w = widths[c.key] ?? c.def
     return c.key === 'actions' ? Math.max(w, actionsMin) : w
@@ -99,7 +99,8 @@ export default function QuotesTable({
               admin={admin} readOnly={readOnly} canApprove={canApprove} selected={selected.has(q.quote_id)}
               patch={patch} pasteDown={pasteDown} updateStatus={updateStatus} updateTags={updateTags}
               onToggleSel={onToggleSel} onView={onView} onEdit={onEdit}
-              onHistory={onHistory} onDelete={onDelete} onArt={onArt} />
+              onHistory={onHistory} onDelete={onDelete} onArt={onArt}
+              canHide={canHide} hidden={hidden} onHide={onHide} onUnhide={onUnhide} />
           ))}
           {isEmpty && <tr><td colSpan={visible.length} className="center">No quotes found.</td></tr>}
         </tbody>

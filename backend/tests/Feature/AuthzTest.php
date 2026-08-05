@@ -152,3 +152,97 @@ it('lets the author reopen a quote they created for someone else', function () {
     $this->getJson("/api/quotes/{$quote->quote_id}")->assertOk();
     $this->getJson("/api/quotes/{$quote->quote_id}/revisions")->assertOk();
 });
+
+/* ── Hidden quotes: a REP'S OWN list, and nobody else's ──────────────────────────────────────
+   The danger in this feature is leakage in either direction: one rep's tidy-up removing work
+   from someone else's screen, or a rep hiding a quote they were never allowed to see. */
+
+it('hides a quote from the rep who hid it, and from no one else', function () {
+    $rod = makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet', 'role' => 'sales_rep']);
+    $admin = makeUser(['role' => 'admin']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet']);
+
+    login($rod);
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertOk();
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(0);
+
+    // The same quote is still in the book for everyone else.
+    login($admin);
+    $rows = collect($this->getJson('/api/quotes')->assertOk()->json())->pluck('quote_id');
+    expect($rows)->toContain($quote->quote_id);
+});
+
+it('lists a hidden quote under ?hidden=1 and restores it on unhide', function () {
+    $rod = makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet', 'role' => 'sales_rep']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet']);
+
+    login($rod);
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertOk();
+    expect($this->getJson('/api/quotes?hidden=1')->assertOk()->json())->toHaveCount(1);
+
+    $this->deleteJson("/api/quotes/{$quote->quote_id}/hide")->assertOk();
+    expect($this->getJson('/api/quotes?hidden=1')->assertOk()->json())->toHaveCount(0);
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(1);
+});
+
+it('is idempotent — hiding twice leaves one row and one hidden quote', function () {
+    $rod = makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet', 'role' => 'sales_rep']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet']);
+
+    login($rod);
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertOk();
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertOk();
+    expect($this->getJson('/api/quotes?hidden=1')->assertOk()->json())->toHaveCount(1);
+});
+
+it('does not let one rep hide a quote out of another rep\'s list', function () {
+    // Two ORDINARY reps, deliberately not rod/ed: those two carry the stricter private listing
+    // (3905ffd), which excludes repless rows entirely — neither would have seen the shared quote
+    // in the first place, so the test would prove nothing about hiding.
+    $repA = makeUser(['role' => 'sales_rep']);
+    $repB = makeUser(['role' => 'sales_rep']);
+    $shared = makeQuote(['sales_rep' => '']);          // repless = visible to both
+
+    login($repA);
+    $this->postJson("/api/quotes/{$shared->quote_id}/hide")->assertOk();
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount(0);
+
+    login($repB);
+    expect(collect($this->getJson('/api/quotes')->assertOk()->json())->pluck('quote_id'))
+        ->toContain($shared->quote_id);
+});
+
+it('refuses to hide a quote the rep cannot see', function () {
+    $other = makeUser(['role' => 'sales_rep']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet', 'assigned_to' => 'Rod Muffet']);
+
+    login($other);
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertStatus(403);
+});
+
+it('refuses hiding for roles that see the whole book, and gives them an empty hidden tab', function () {
+    $admin = makeUser(['role' => 'admin']);
+    $quote = makeQuote(['sales_rep' => 'Rod Muffet']);
+
+    login($admin);
+    $this->postJson("/api/quotes/{$quote->quote_id}/hide")->assertStatus(403);
+    // ?hidden=1 must not fall through to "everything" for someone who has no hidden list.
+    expect($this->getJson('/api/quotes?hidden=1')->assertOk()->json())->toHaveCount(0);
+});
+
+it('leaves the admin list untouched when a rep hides a quote', function () {
+    $rod = makeUser(['username' => 'rod', 'full_name' => 'Rod Muffet', 'role' => 'sales_rep']);
+    $admin = makeUser(['role' => 'admin']);
+    makeQuote(['sales_rep' => 'Rod Muffet']);
+    makeQuote(['sales_rep' => 'ED']);
+
+    login($admin);
+    $before = count($this->getJson('/api/quotes')->assertOk()->json());
+
+    login($rod);
+    $mine = collect($this->getJson('/api/quotes')->assertOk()->json())->first();
+    $this->postJson("/api/quotes/{$mine['quote_id']}/hide")->assertOk();
+
+    login($admin);
+    expect($this->getJson('/api/quotes')->assertOk()->json())->toHaveCount($before);
+});

@@ -97,6 +97,20 @@ class User extends Authenticatable
         return $this->defaultSalesRepresentative() !== null;
     }
 
+    /**
+     * May this user hide quotes from their OWN list?
+     *
+     * Representatives only. They work one book all day and need to park what they are not chasing;
+     * everyone else — admins, managers, quote makers — is looking at the business as a whole, and
+     * a hidden list there would mean two people discussing "all quotes" while seeing different
+     * sets. Deliberately keyed on the ROLE, not on the two usernames: a new rep gets it by being a
+     * rep, and nobody has to remember to add their name.
+     */
+    public function canHideQuotes(): bool
+    {
+        return $this->role === self::ROLE_SALES_REP;
+    }
+
     // Managers, account managers, viewers AND quote makers see the whole book of business;
     // sales reps see their own customers' quotes only.
     //

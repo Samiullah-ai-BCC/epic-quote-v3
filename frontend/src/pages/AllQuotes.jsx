@@ -3,9 +3,9 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { EASE } from '../components/ui/motion'
-import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote } from '../hooks'
+import { useQuotes, useConstants, useUpdateQuote, useUpdateStatus, useUpdateTags, useDeleteQuote, useHideQuote, useUnhideQuote } from '../hooks'
 import { useSelector } from 'react-redux'
-import { selectIsAdmin, selectIsViewer, selectCanApprove } from '../store/authSlice'
+import { selectIsAdmin, selectIsViewer, selectCanApprove, selectCanHideQuotes } from '../store/authSlice'
 import { useSortable, useColumns, downloadCsv, copyTsv } from '../components/grid'
 import AddQuoteModal from '../components/AddQuoteModal'
 import RevisionHistory from '../components/RevisionHistory'
@@ -22,11 +22,14 @@ export default function AllQuotes() {
   const isAdmin = useSelector(selectIsAdmin)
   const isViewer = useSelector(selectIsViewer)
   const canApprove = useSelector(selectCanApprove)
+  const canHide = useSelector(selectCanHideQuotes)
   const { data: constants } = useConstants()
   const update = useUpdateQuote()
   const updateStatus = useUpdateStatus()
   const updateTags = useUpdateTags()
   const del = useDeleteQuote()
+  const hide = useHideQuote()
+  const unhide = useUnhideQuote()
 
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
@@ -40,6 +43,10 @@ export default function AllQuotes() {
   const [artFor, setArtFor] = useState(null)              // #15 — quote whose files carousel is open
   const [managingStatuses, setManagingStatuses] = useState(false)   // #16 — admin status manager open
   const [selected, setSelected] = useState(() => new Set())   // quote_ids ticked for bulk actions
+  // HIDDEN IS A VIEW OF THE SAME LIST, not a separate page: every filter, column choice and sort
+  // keeps working inside it, and the server decides what belongs there (?hidden=1). Reps only —
+  // for anyone else the tab is never drawn and the endpoint refuses.
+  const [showHidden, setShowHidden] = useState(false)
   // the dashboard's "+ New quote" button arrives with state.openNew → open the modal straight away
   const location = useLocation()
   const [showAdd, setShowAdd] = useState(!!location.state?.openNew)
@@ -58,6 +65,7 @@ export default function AllQuotes() {
   if (company.trim()) params.company = company.trim()
   if (dateFrom) params.date_from = dateFrom
   if (dateTo) params.date_to = dateTo
+  if (showHidden) params.hidden = '1'
   const { data: quotes = [], isLoading } = useQuotes(params)
   const sort = useSortable(quotes)
   // Grid v2: hideable columns (choice remembered per browser)
@@ -137,7 +145,17 @@ export default function AllQuotes() {
     <div className="fill-page">
       <div className="page-head">
         <div className="flex items-center gap-3">
-          <h1>All Quotes</h1>
+          <h1>{showHidden ? 'Hidden Quotes' : 'All Quotes'}</h1>
+          {/* Reps only. Two tabs over one grid — see showHidden. */}
+          {canHide && (
+            <div className="seg">
+              <button type="button" className={showHidden ? 'ghost sm' : 'sm'}
+                onClick={() => setShowHidden(false)}>All</button>
+              <button type="button" className={showHidden ? 'sm' : 'ghost sm'}
+                title="Quotes you have hidden from your own list"
+                onClick={() => setShowHidden(true)}>Hidden</button>
+            </div>
+          )}
           {assignedF && (
             <span className="pill pill-purple cursor-pointer" title="Click to clear this filter"
               onClick={() => setSearchParams({})}>assigned to {assignedF} ✕</span>
@@ -175,6 +193,9 @@ export default function AllQuotes() {
           onView={setViewing}
           onEdit={(q) => navigate(`/quotes/${q.quote_id}/generate`, { state: { from: '/quotes' } })}
           onHistory={setHistoryFor} onDelete={remove} onArt={setArtFor}
+          canHide={canHide} hidden={showHidden}
+          onHide={(q) => hide.mutate(q.quote_id)}
+          onUnhide={(q) => unhide.mutate(q.quote_id)}
           isEmpty={quotes.length === 0}
         />
       )}

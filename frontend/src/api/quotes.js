@@ -30,6 +30,14 @@ export const updateTags = (quoteId, tags) =>
 export const deleteQuote = (quoteId) =>
   client.delete(`/quotes/${quoteId}`).then((r) => r.data)
 
+// Hidden quotes — a REP'S OWN list only (see QuoteController::hide). Presentation only: nothing on
+// the quote changes, so no other user's list moves and the quote keeps its status and history.
+export const hideQuote = (quoteId) =>
+  client.post(`/quotes/${quoteId}/hide`).then((r) => r.data)
+
+export const unhideQuote = (quoteId) =>
+  client.delete(`/quotes/${quoteId}/hide`).then((r) => r.data)
+
 export const getGenerated = (quoteId) =>
   client.get(`/quotes/${quoteId}/generated`).then((r) => r.data)
 

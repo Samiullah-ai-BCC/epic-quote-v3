@@ -55,6 +55,11 @@ Route::middleware(['auth:sanctum', 'two-factor.required', 'readonly.guard'])->gr
     Route::apiResource('quotes', App\Http\Controllers\Api\QuoteController::class);
     Route::put('quotes/{quote}/status', [App\Http\Controllers\Api\QuoteController::class, 'updateStatus']);
     Route::put('quotes/{quote}/tags', [App\Http\Controllers\Api\QuoteController::class, 'updateTags']);
+    // Hidden quotes — a REP'S OWN list only; see QuoteController::hide. Presentation only,
+    // so it sits with the other per-quote actions and needs no admin gate beyond the
+    // controller's own role check.
+    Route::post('quotes/{quote}/hide', [App\Http\Controllers\Api\QuoteController::class, 'hide']);
+    Route::delete('quotes/{quote}/hide', [App\Http\Controllers\Api\QuoteController::class, 'unhide']);
     Route::post('quotes/{quote}/pdf', [App\Http\Controllers\Api\QuoteController::class, 'uploadPdf']);
     Route::post('quotes/{quote}/extra-file', [App\Http\Controllers\Api\QuoteController::class, 'uploadExtraFile']);
     Route::post('quotes/{quote}/artwork', [App\Http\Controllers\Api\QuoteController::class, 'uploadArtwork']);

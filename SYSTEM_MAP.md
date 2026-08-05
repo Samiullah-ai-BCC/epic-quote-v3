@@ -381,3 +381,22 @@ Executable ripple map: none yet — no e2e suite exists in this repo. Verified l
 sheet updates without remount → reload → grid row → duplicate-ID rejection → values restored.
 Incident history: shipped inside commit `0db9095`, whose message describes a different feature — a
 concurrent session ran `git add -A` mid-edit. The code is this node's; the message is not.
+
+## hidden quotes (per-rep listing preference) — SOURCE OF TRUTH: `quote_hides` (user_id, quote_id)
+Written by: `QuoteController::hide` / `::unhide` (POST/DELETE `/api/quotes/{quote}/hide`)
+Read by:
+- `QuoteController::index` — excluded by default, returned alone under `?hidden=1`
+Gate: `User::canHideQuotes()` — role `sales_rep` ONLY. Server-side; the UI selector
+  (`selectCanHideQuotes`) only decides whether the control is drawn.
+Surfaces:
+- `frontend/src/pages/AllQuotes.jsx` — All / Hidden tabs (reps only), `showHidden` -> `?hidden=1`
+- `frontend/src/components/quotes/QuoteRow.jsx` — Hide / Unhide button, reps only
+Invariants:
+- PER USER. One rep hiding a quote must not change any other user's list, and changes NOTHING on
+  the quote itself — no status, price, approval or history is touched, so no audit entry exists.
+- Roles that see the whole book have no hidden list at all; `?hidden=1` returns [] for them rather
+  than falling through to every quote.
+- A rep cannot hide a quote they cannot see (`isVisibleTo` is checked on the way in); unhide is not
+  gated the same way, or a quote could be stranded in the Hidden tab.
+Executable proof: `backend/tests/Feature/AuthzTest.php` — 7 hidden-quote cases
+Incident history: requested 2026-08-05 (Rod and Ed park quotes they are not chasing)

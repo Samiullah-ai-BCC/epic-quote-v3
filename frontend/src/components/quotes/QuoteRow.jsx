@@ -6,7 +6,7 @@ import EditCell from './EditCell'
 export default function QuoteRow({
   q, i, columns, statuses, reps, team, admin, readOnly, canApprove, selected,
   patch, pasteDown, updateStatus, updateTags,
-  onToggleSel, onView, onEdit, onHistory, onDelete, onArt,
+  onToggleSel, onView, onEdit, onHistory, onDelete, onArt, canHide, hidden, onHide, onUnhide,
 }) {
   return (
     // `is-selected` mirrors the tint class for CSS that cannot use it: the pinned actions cell
@@ -104,6 +104,14 @@ export default function QuoteRow({
         {/* Test-flag toggle removed from the UI for now (Sami, 2026-07-14) — the
             is_test field and its KPI exclusion stay intact server-side. */}
         {admin && <button className="danger sm" onClick={() => onDelete(q)}>Delete</button>}
+        {/* Reps only, and never alongside Delete — the two are different in kind and must not be
+            confused at speed: Hide is this rep's own view and is reversible from the Hidden tab;
+            Delete destroys the quote for everyone. */}
+        {canHide && (
+          hidden
+            ? <button className="ghost sm" title="Put this quote back in your All Quotes list" onClick={() => onUnhide(q)}>Unhide</button>
+            : <button className="ghost sm" title="Keep this quote out of YOUR list — nobody else's list changes, and nothing on the quote changes" onClick={() => onHide(q)}>Hide</button>
+        )}
       </td>
     </tr>
   )

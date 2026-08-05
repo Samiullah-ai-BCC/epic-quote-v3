@@ -144,6 +144,9 @@ export const selectIsViewer = (s) => s.auth.user?.role === 'viewer'
 // Mirrors User::canApprovePrices() on the server, which is the actual gate — this only decides
 // whether the checkbox is offered, so a rep is never shown a control that answers 403.
 export const selectCanApprove = (s) => ['admin', 'manager'].includes(s.auth.user?.role)
+// Only representatives may hide quotes from their own list — mirrors User::canHideQuotes()
+// on the server, which is the actual gate; this one decides whether the button is drawn.
+export const selectCanHideQuotes = (s) => s.auth.user?.role === 'sales_rep'
 export const selectImpersonator = (s) => s.auth.impersonator
 
 export default authSlice.reducer

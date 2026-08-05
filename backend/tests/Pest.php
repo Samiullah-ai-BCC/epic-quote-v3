@@ -25,6 +25,12 @@ function login(App\Models\User $user): App\Models\User
         ])->save();
     }
     test()->withHeader('Authorization', 'Bearer '.$user->createToken('test')->plainTextToken);
+    // A test that logs in as a SECOND person mid-way — "the rep hides it; does the admin still see
+    // it?" — was silently answered by the FIRST person: the guard caches the user it resolved on
+    // the previous request, so the new bearer token was ignored and the assertions passed or failed
+    // for the wrong account. Forgetting the guards makes the next request re-resolve from the
+    // header that is actually set.
+    app('auth')->forgetGuards();
     return $user;
 }
 

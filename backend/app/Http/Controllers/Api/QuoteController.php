@@ -93,9 +93,58 @@ class QuoteController extends Controller
             });
         }
 
+        // HIDDEN QUOTES — a rep's own list only (?hidden=1 shows them, default excludes them).
+        //
+        // The rule lives here, at the very end, so it filters whatever the rest of the query
+        // produced and cannot interfere with any other filter. It is applied ONLY to users who
+        // can hide (sales reps): for everyone else the sub-query is skipped entirely, so an
+        // admin's list, the dashboard and the reports are byte-for-byte what they were.
+        if ($user->canHideQuotes()) {
+            $hiddenIds = \App\Models\QuoteHide::where('user_id', $user->id)->pluck('quote_id');
+            $request->query('hidden') === '1'
+                ? $q->whereIn('id', $hiddenIds)
+                : $q->whereNotIn('id', $hiddenIds);
+        } elseif ($request->query('hidden') === '1') {
+            // Nobody else has a hidden list. Returning the FULL list here would turn the tab into
+            // "all quotes" under a name that promises the opposite.
+            return response()->json([]);
+        }
+
         $quotes = $q->with('statusHistory')->latest('created_at')->get()->map->toApi();
 
         return response()->json($quotes);
+    }
+
+    // POST /api/quotes/{quote}/hide — keep this quote out of MY list. Idempotent.
+    // DELETE /api/quotes/{quote}/hide — put it back.
+    //
+    // Presentation only: no field on the quote is written, so status, price, approval and history
+    // are untouched and no other user's list changes. That is also why there is no audit entry —
+    // nothing happened to the quote.
+    public function hide(Request $request, Quote $quote): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->canHideQuotes()) {
+            return response()->json(['error' => 'Only sales representatives can hide quotes.'], 403);
+        }
+        // A rep must not be able to probe for quotes outside their own book by hiding them.
+        if (!$quote->isVisibleTo($user)) {
+            return response()->json(['error' => 'forbidden'], 403);
+        }
+        \App\Models\QuoteHide::firstOrCreate(['user_id' => $user->id, 'quote_id' => $quote->id]);
+        return response()->json(['hidden' => true]);
+    }
+
+    public function unhide(Request $request, Quote $quote): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user->canHideQuotes()) {
+            return response()->json(['error' => 'Only sales representatives can hide quotes.'], 403);
+        }
+        // No visibility check on the way BACK: a quote can only be in this list because the rep
+        // hid it, and refusing to unhide something they can no longer see would strand it there.
+        \App\Models\QuoteHide::where('user_id', $user->id)->where('quote_id', $quote->id)->delete();
+        return response()->json(['hidden' => false]);
     }
 
     // GET /api/companies/suggest?q= — known companies for intake autofill (#12).
