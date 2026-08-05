@@ -345,22 +345,6 @@ export default function CustomSpecsStep({
           )}
         </div>
       )}
-      {customTypeSel === '__new__' && (
-        <div className="field" style={{ border: '1px dashed var(--border)', borderRadius: 8, padding: 12 }}>
-          <label>New sign type name</label>
-          <input placeholder="e.g. CHANNEL LETTERS WITH BACKER" value={newTypeName} onChange={(e) => setNewTypeName(e.target.value)} />
-          <label style={{ marginTop: 10 }}>Its spec template (optional — paste one from a past quote; it gets saved for the whole team, in both modes)</label>
-          <textarea rows={5} value={newTypeSpec} onChange={(e) => setNewTypeSpec(e.target.value)} placeholder={'SIGN TYPE: …\nFACE: …\nRETURNS: …'} />
-          <button className="ghost sm" style={{ marginTop: 8 }} disabled={!newTypeName.trim()} onClick={async () => {
-            const NAME = newTypeName.trim().toUpperCase()
-            const spec = newTypeSpec.trim() || `SIGN TYPE: ${NAME}`
-            try { const item = await saveCatalogItem('sign_type', NAME, { spec }); setSignLib((l) => [...l.filter((x) => x.name !== NAME), item]) } catch { /* still usable locally */ }
-            setCustomSpec({ ...customSpec, itemDesc: `${NAME} FOR ${client.company_name || 'CUSTOMER'}`, specText: spec, application: customSpec?.application || '', price: customSpec?.price || '' })
-            setCustomTypeSel(NAME)
-            setNewTypeName(''); setNewTypeSpec('')
-          }}>Save & use this type</button>
-        </div>
-      )}
       <div className="field"><label>Item Description</label><input value={customSpec?.itemDesc || ''} onChange={(e) => setCustomSpec({ ...customSpec, itemDesc: e.target.value })} /></div>
       <div className="step-section">2. Dimensions &amp; pricing</div>
       <div className="field">
