@@ -9,15 +9,13 @@ import { buildSpecLines, normalizeSpecLines, MAX_SPEC_LINES } from '../../genera
 import { parseDims, composeDims } from '../../generator/questions'
 import { pickSideView } from '../../generator/sideviews'
 import { syncSpecFromFields, splitSpecialRequirements, mergeSpecial } from '../../generator/specSync'
-import { saveCatalogItem } from '../../api/catalog'
 import { MAX_PRICE } from '../../generator/parts'
 import MoneyInput from '../MoneyInput'
 
 export default function CustomSpecsStep({
   customSpec, setCustomSpec, customTypeSel, setCustomTypeSel,
   typePicking, setTypePicking, typeGroup, setTypeGroup,
-  signLib, setSignLib, sideViews, setSideViews, client,
-  newTypeName, setNewTypeName, newTypeSpec, setNewTypeSpec,
+  signLib, sideViews, setSideViews, client,
   customDimsStatus, setCustomDim, setCustomApplication, special, setSpecial, onSpecialLifted, ready,
   saveNext, saving, specCapacity,
 }) {
@@ -196,6 +194,9 @@ export default function CustomSpecsStep({
           const pickCustomType = (v) => {
             setCustomTypeSel(v)
             setTypePicking(false); setTypeGroup(null)
+            // '__new__' is still guarded here, not because anything offers it any more, but because
+            // quotes saved while the free-type form existed can still carry it as their stored
+            // selection — resolving that as a catalog name would blank their spec on open.
             if (v === '' || v === '__new__') return
             const nextCat = FA_SIGN_GROUPS.find((g) => g.n === v) || T.find((t) => t.n === v)
             const stored = signLib.find((s) => s.name === v)
@@ -287,7 +288,11 @@ export default function CustomSpecsStep({
                       loaded and still consulted when a type is picked (see `stored` above), so a
                       quote already saved against one of those names keeps resolving its stored
                       spec — only the browsing entry is gone, not the data. */}
-                  <div className="sign-opt" onClick={() => pickCustomType('__new__')}>➕ Type a new custom sign type…</div>
+                  {/* "Type a new custom sign type…" is gone with the form it used to open. Leaving
+                      the entry in the list after the form was removed made it a dead control: it
+                      set the selection to '__new__', which pickCustomType returns early on, so the
+                      rep clicked it, the picker closed, and the Sign type box read "pick a sign
+                      type" again with nothing to show for it. */}
                   <div className="sign-opt muted" onClick={() => { setTypePicking(false); setTypeGroup(null) }}>Cancel</div>
                 </div>
               ) : (

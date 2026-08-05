@@ -69,8 +69,6 @@ export default function Generator() {
   const [customType, setCustomType] = useState('')   // free-typed sign type (not in the catalog)
   const [signLib, setSignLib] = useState([])          // team's saved custom sign types (shared, both modes)
   const [customTypeSel, setCustomTypeSel] = useState('')  // dropdown selection on the custom-specs page
-  const [newTypeName, setNewTypeName] = useState('')
-  const [newTypeSpec, setNewTypeSpec] = useState('')
   const [customDimsStatus, setCustomDimsStatus] = useState('')
   const customDimsTried = useRef(false)
   const [saving, setSaving] = useState(false)
@@ -1003,9 +1001,8 @@ export default function Generator() {
           <CustomSpecsStep customSpec={customSpec} setCustomSpec={setCustomSpec}
             customTypeSel={customTypeSel} setCustomTypeSel={setCustomTypeSel} typePicking={typePicking}
             setTypePicking={setTypePicking} typeGroup={typeGroup} setTypeGroup={setTypeGroup}
-            signLib={signLib} setSignLib={setSignLib}
-            sideViews={sideViews} setSideViews={setSideViews} client={client} newTypeName={newTypeName}
-            setNewTypeName={setNewTypeName} newTypeSpec={newTypeSpec} setNewTypeSpec={setNewTypeSpec}
+            signLib={signLib}
+            sideViews={sideViews} setSideViews={setSideViews} client={client}
             customDimsStatus={customDimsStatus} setCustomDim={setCustomDim}
             setCustomApplication={setCustomApplication} special={special} setSpecial={setSpecial}
             onSpecialLifted={persistSpecial} ready={!loading} specCapacity={specCapacity}
