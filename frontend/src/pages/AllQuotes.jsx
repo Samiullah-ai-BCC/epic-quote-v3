@@ -43,12 +43,13 @@ export default function AllQuotes() {
   const [artFor, setArtFor] = useState(null)              // #15 — quote whose files carousel is open
   const [managingStatuses, setManagingStatuses] = useState(false)   // #16 — admin status manager open
   const [selected, setSelected] = useState(() => new Set())   // quote_ids ticked for bulk actions
-  // HIDDEN IS A VIEW OF THE SAME LIST, not a separate page: every filter, column choice and sort
-  // keeps working inside it, and the server decides what belongs there (?hidden=1). Reps only —
-  // for anyone else the tab is never drawn and the endpoint refuses.
-  const [showHidden, setShowHidden] = useState(false)
   // the dashboard's "+ New quote" button arrives with state.openNew → open the modal straight away
   const location = useLocation()
+  // HIDDEN IS ITS OWN SIDEBAR DESTINATION (/quotes/hidden) but the SAME grid: every filter,
+  // column choice and sort keeps working inside it, and the server decides what belongs there
+  // (?hidden=1). Derived from the route rather than held in state, so the entry is linkable,
+  // survives a refresh, and cannot disagree with which nav item is highlighted.
+  const showHidden = location.pathname === '/quotes/hidden'
   const [showAdd, setShowAdd] = useState(!!location.state?.openNew)
   const [historyFor, setHistoryFor] = useState(null)   // quote_id whose field-level history is open
   useEffect(() => { if (location.state?.openNew) window.history.replaceState({}, '') }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -146,16 +147,6 @@ export default function AllQuotes() {
       <div className="page-head">
         <div className="flex items-center gap-3">
           <h1>{showHidden ? 'Hidden Quotes' : 'All Quotes'}</h1>
-          {/* Reps only. Two tabs over one grid — see showHidden. */}
-          {canHide && (
-            <div className="seg">
-              <button type="button" className={showHidden ? 'ghost sm' : 'sm'}
-                onClick={() => setShowHidden(false)}>All</button>
-              <button type="button" className={showHidden ? 'sm' : 'ghost sm'}
-                title="Quotes you have hidden from your own list"
-                onClick={() => setShowHidden(true)}>Hidden</button>
-            </div>
-          )}
           {assignedF && (
             <span className="pill pill-purple cursor-pointer" title="Click to clear this filter"
               onClick={() => setSearchParams({})}>assigned to {assignedF} ✕</span>

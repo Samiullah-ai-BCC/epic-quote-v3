@@ -32,6 +32,7 @@ export default function App() {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/quotes" element={<AllQuotes />} />
+        <Route path="/quotes/hidden" element={<AllQuotes />} />
         <Route path="/quotes/:quoteId/generate" element={<Generator />} />
         <Route path="/companies/:companyId" element={<Coming phase="Company detail (P8)" />} />
 

@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { logout, selectUser, selectIsAdmin } from '../../store/authSlice'
-import { IcHome, IcQuotes, IcCard, IcTeam, IcUsers, IcReports, IcActivity } from '../icons'
+import { logout, selectUser, selectIsAdmin, selectCanHideQuotes } from '../../store/authSlice'
+import { IcHome, IcQuotes, IcCard, IcTeam, IcUsers, IcReports, IcActivity, IcHidden } from '../icons'
 import { cn } from '../../lib/utils'
 
 // Tailwind port of the legacy .sidebar/.navlink rules in index.css (values copied 1:1).
@@ -31,6 +31,9 @@ export default function Sidebar() {
   const dispatch = useDispatch()
   const user = useSelector(selectUser)
   const admin = useSelector(selectIsAdmin)
+  // Reps park quotes they are not chasing; nobody else has a hidden list, so nobody else
+  // gets the entry (the server refuses it for them regardless).
+  const canHide = useSelector(selectCanHideQuotes)
 
   const handleLogout = async () => {
     await dispatch(logout())
@@ -61,6 +64,7 @@ export default function Sidebar() {
       </NavLink>
       <NavItem to="/dashboard" icon={IcHome}>Dashboard</NavItem>
       <NavItem to="/quotes" icon={IcQuotes}>All Quotes</NavItem>
+      {canHide && <NavItem to="/quotes/hidden" icon={IcHidden}>Hidden Quotes</NavItem>}
       <NavItem to="/payment-links" icon={IcCard}>Payment Links</NavItem>
       {admin && <NavItem to="/team" icon={IcTeam}>Team</NavItem>}
       {admin && <NavItem to="/users" icon={IcUsers}>Users</NavItem>}
