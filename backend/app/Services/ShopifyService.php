@@ -81,7 +81,7 @@ class ShopifyService
         $baseTitle = $titleOverride !== null && trim($titleOverride) !== ''
             ? self::titleCase(trim($titleOverride))
             : self::titleCase($itemDesc);
-        $title = trim($quote->quote_id.' - '.$baseTitle.' - '.self::kindLabel($kind));
+        $title = self::fitTitle($quote->quote_id, $baseTitle, self::kindLabel($kind), $gd);
 
         // Category (#3): "LED Signs" if ANY sign is illuminated/LED, else "Business Signs". The
         // true Shopify standard-category column is a taxonomy field REST can't set — we put the
@@ -99,7 +99,10 @@ class ShopifyService
             'tags'           => 'estimator,'.$quote->quote_id.','.$kind.','.$category,
             // random handle suffix → the URL is unguessable (privacy): someone can't just
             // increment the quote number to find another customer's link.
-            'handle'         => \Illuminate\Support\Str::slug($title).'-'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8)),
+            // Shopify caps the handle at 255 too, and it is DERIVED from the title — which is why a
+            // long multi-sign title produced TWO "is too long" errors, not one. The random suffix is
+            // what makes the URL unguessable, so it is kept and the slug yields the space.
+            'handle'         => self::fitHandle($title),
             'variants'       => $variants,
         ];
 
@@ -349,14 +352,32 @@ class ShopifyService
         if (count($parts) === 1) {
             return $partOf($parts[0], $parts[0]['tpl_name'] ?? $signType);
         }
-        // multiple signs → one titled block per sign
-        $blocks = [];
+        // MULTIPLE SIGNS -> THE LINE ITEMS, NOT THE SPECS.
+        //
+        // Every sign's full specification block used to be stacked on the storefront page, one under
+        // the next. Past three signs that is a wall of text nobody reads, and it is the customer's
+        // PAYMENT page: what belongs there is what they are paying for, which is the line items. The
+        // specifications live on the proposal PDF, where the customer already has them and can check
+        // them against the drawing beside them.
+        $rows = [];
         foreach ($parts as $i => $p) {
-            $letter = chr(65 + $i);                       // A, B, C…
-            $name = trim((string) ($p['custom_spec']['itemDesc'] ?? $p['tpl_name'] ?? ('Sign '.$letter)));
-            $blocks[] = '<h4>'.e($name !== '' ? $name : ('Sign '.$letter)).'</h4>'.$partOf($p, $p['tpl_name'] ?? '');
+            $letter = chr(65 + $i);                       // A, B, C...
+            $name = trim((string) ($p['custom_spec']['itemDesc'] ?? $p['tpl_name'] ?? ''));
+            $qty = max(1, (int) ($p['proposal_state']['__qty'] ?? $p['custom_spec']['qty'] ?? $p['answers']['qty'] ?? 1));
+            $label = $name !== '' ? $name : ('Sign '.$letter);
+            $rows[] = '<li>'.e($label).($qty > 1 ? ' <strong>x '.$qty.'</strong>' : '').'</li>';
+            // The extra rows the rep added on that sign's proposal are line items too. A discount is
+            // shown as a discount: a customer reading a list of what they are paying for should see
+            // the deduction they were promised, not a silently smaller total.
+            foreach ((array) ($p['proposal_state']['__items'] ?? []) as $it) {
+                $desc = trim((string) ($it['desc'] ?? ''));
+                if ($desc === '') {
+                    continue;
+                }
+                $rows[] = '<li>'.((($it['kind'] ?? '') === 'discount') ? 'Less: ' : '').e($desc).'</li>';
+            }
         }
-        return implode('<hr>', $blocks);
+        return $rows ? '<ul>'.implode('', $rows).'</ul>' : '';
     }
 
     /** "LED Signs" when any sign is illuminated / LED, else "Business Signs" (#3). Reads the sign
@@ -369,6 +390,60 @@ class ShopifyService
             $haystack .= ' '.($p['tpl_name'] ?? '').' '.($p['custom_spec']['specText'] ?? '').' '.($p['ai']['fullSpec'] ?? '');
         }
         return preg_match('/\b(LED|ILLUMINAT|NEON|LIT)\b/i', $haystack) ? 'LED Signs' : 'Business Signs';
+    }
+
+    /** Shopify's hard limit on both `title` and `handle`. Exceeding it is a 422, not a warning. */
+    private const SHOPIFY_MAX = 255;
+
+    /**
+     * The product title, guaranteed to fit Shopify's 255 characters.
+     *
+     * A multi-sign quote's title is every sign's description joined with " & " plus " FOR Company",
+     * so it grows with the page count: at four or five signs it passed 255 and Shopify rejected the
+     * whole product — the rep saw "Shopify couldn't create the product" and had no link at all
+     * (reported 2026-08 on a 3-page LA Fitness quote).
+     *
+     * The quote ID and the payment kind are the parts a human actually needs — the ID identifies the
+     * job, the kind says what is being paid — so they are never sacrificed. Only the description
+     * shrinks: to the FIRST sign plus "+N more", which reads like a summary rather than a sentence
+     * cut off mid-word. If even that will not fit (one absurdly long description) it is trimmed on a
+     * word boundary as a last resort. Titles that already fit are untouched, so every single-sign
+     * quote produces exactly the title it did before.
+     */
+    public static function fitTitle(string $quoteId, string $baseTitle, string $kindLabel, array $gd = []): string
+    {
+        $compose = fn (string $base) => trim($quoteId.' - '.$base.' - '.$kindLabel);
+        $full = $compose($baseTitle);
+        if (mb_strlen($full) <= self::SHOPIFY_MAX) {
+            return $full;
+        }
+
+        // "First sign +3 more" — the count comes from the parts list, which is what made it long.
+        $parts = (isset($gd['parts']) && is_array($gd['parts'])) ? $gd['parts'] : [];
+        $first = trim(explode(' & ', $baseTitle)[0]);
+        if (count($parts) > 1) {
+            $summary = $compose($first.' +'.(count($parts) - 1).' more');
+            if (mb_strlen($summary) <= self::SHOPIFY_MAX) {
+                return $summary;
+            }
+        }
+
+        // Last resort: keep the ID and the kind, give the description whatever is left.
+        $budget = self::SHOPIFY_MAX - mb_strlen($compose(''));
+        $cut = mb_substr($first !== '' ? $first : $baseTitle, 0, max(1, $budget - 1));
+        $space = mb_strrpos($cut, ' ');
+        if ($space !== false && $space > $budget / 2) {
+            $cut = mb_substr($cut, 0, $space);
+        }
+        return $compose(trim($cut).'…');
+    }
+
+    /** The handle: slug of the title + an unguessable suffix, inside the same 255 limit. */
+    public static function fitHandle(string $title): string
+    {
+        $suffix = '-'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8));
+        $slug = \Illuminate\Support\Str::slug($title);
+        return mb_substr($slug, 0, self::SHOPIFY_MAX - mb_strlen($suffix)).$suffix;
     }
 
     /** Human label for a payment kind (goes in the title + variant). */

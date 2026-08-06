@@ -181,6 +181,17 @@ required before changing anything here.**
     "france warehoUSe".
   * a new variant has no inventory level at a NON-default location, so `inventory_levels/set` is
     refused until the item is CONNECTED there. Connect, then set (the retry is not optional).
+- **Shopify caps `title` and `handle` at 255 characters, and a 422 there means NO LINK AT ALL.** A
+  multi-sign title is every sign's description joined with " & " plus " FOR {Company}", so it grows
+  with the page count; a 3-page quote breached it and the rep got two "is too long" errors and no way
+  to take payment (2026-08-06, LA Fitness). `ShopifyService::fitTitle` keeps the quote ID and the
+  payment kind — the two parts a human needs — and summarises the rest as "First sign +N more";
+  `fitHandle` bounds the derived slug while keeping its unguessable suffix. Titles that already fit
+  are returned untouched, so single-sign quotes are byte-identical to before. Pinned by four tests
+  in `tests/Unit/ShopifyServiceTest.php`.
+- **The storefront page shows the LINE ITEMS for a multi-sign quote, not the specifications.** It is
+  the customer's payment page: it should say what they are paying for. The specs are on the proposal
+  PDF, beside the drawing they describe. Single-sign quotes still show the full spec block.
 - **KNOWN MONEY RISK, still open: Shopify's cart is shared per browser session.** Links are
   product-page URLs, so opening two of them in one browser leaves BOTH in the cart — observed live
   with three items across two quotes, including a Full Payment and a 50% Deposit for the SAME quote,
