@@ -18,6 +18,7 @@ export default function PreviewStep({
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
   specialRequirements, commitPartClientDoc, setBlankDocLay, removeBlankDoc, addBlankText, setBlankDocText, docBusy, docErr,
   blankPages, addBlankPage, removeBlankPage, moveBlankPage, onEditSpecs,
+  bankDetails, paymentDisplay, savePaymentDisplay,
 }) {
   // The document's real sheet order — every blank page in its slot, every sign in its own. Built by
   // the SAME function capturePagesExport walks, so what the picker lists, what the preview stacks
@@ -69,6 +70,40 @@ export default function PreviewStep({
           title="Edit the job name, proposal ID, company, client, contact and address saved against this quote">
           ✎ Edit customer details
         </button>
+      )}
+      {/* HOW THIS QUOTE ASKS TO BE PAID. Shopify takes 3% of everything paid through it, so the
+          rep can print the company's wire-transfer details instead — or both, which the manager
+          asked for even though a customer given both will mostly click the orange button anyway.
+
+          Quote-level, so it lives here with Back / Done rather than being repeated beside every
+          sign page. An unsaved quote shows 'shopify' because that is what an unset value means. */}
+      {savePaymentDisplay && (
+        <div style={{ marginTop: 2 }}>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Payment instructions on the proposal</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[['shopify', 'Shopify'], ['bank', 'Bank'], ['both', 'Both']].map(([value, label]) => (
+              <button key={value} className="ghost sm" disabled={saving}
+                onClick={() => savePaymentDisplay(value)}
+                title={value === 'shopify' ? 'Print the orange pay button only (Shopify fee applies)'
+                  : value === 'bank' ? 'Print the wire-transfer details only — no Shopify fee'
+                  : 'Print both — the customer chooses, and most will click the button'}
+                style={{
+                  flex: 1, padding: '4px 0',
+                  ...((paymentDisplay || 'shopify') === value
+                    ? { background: 'var(--gold-soft)', borderColor: 'var(--gold)', fontWeight: 700 }
+                    : null),
+                }}>{label}</button>
+            ))}
+          </div>
+          {/* The block is only printable once details exist. Saying so HERE, in the rep's own
+              column, is what keeps a half-empty set of wire instructions off the customer's
+              proposal without leaving the rep wondering why nothing appeared. */}
+          {(paymentDisplay === 'bank' || paymentDisplay === 'both') && !bankDetails?.account_number && (
+            <span className="muted" style={{ fontSize: 11.5, display: 'block', marginTop: 4, color: '#e05661' }}>
+              No bank details saved yet — an admin adds them in Settings. Nothing will print until then.
+            </span>
+          )}
+        </div>
       )}
       {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
     </>
@@ -265,6 +300,8 @@ export default function PreviewStep({
                 logo={logo}
                 aiResult={p.ai}
                 paymentLink={paymentLink}
+                bankDetails={bankDetails}
+                paymentDisplay={paymentDisplay}
                 paymentLinkKind={paymentLinkKind}
                 paymentLinkVisible={paymentLinkVisible}
                 approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}

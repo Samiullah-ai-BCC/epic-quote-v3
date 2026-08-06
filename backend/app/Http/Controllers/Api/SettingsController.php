@@ -65,6 +65,40 @@ class SettingsController extends Controller
         return response()->json(['statuses' => $clean]);
     }
 
+    // GET /api/settings/bank — the company's wire-transfer details, as printed on proposals.
+    // Readable by anyone who can open a quote: the proposal has to render them.
+    public function getBank(): JsonResponse
+    {
+        return response()->json(['bank' => Setting::bankDetails()]);
+    }
+
+    // PUT /api/settings/bank — admin-only. An account number is money data: one wrong digit sends
+    // a customer's wire to nowhere, and a rep has no reason to change it. Reps still decide, per
+    // quote, whether the details print at all.
+    public function setBank(Request $request): JsonResponse
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['error' => 'Only admins can change the bank details.'], 403);
+        }
+        $in = $request->input('bank');
+        if (!is_array($in)) {
+            return response()->json(['error' => 'Send a bank object.'], 422);
+        }
+        $clean = [];
+        foreach (Setting::BANK_FIELDS as $field) {
+            $value = trim((string) ($in[$field] ?? ''));
+            if (mb_strlen($value) > 200) {
+                return response()->json(['error' => "The {$field} is too long (200 characters max)."], 422);
+            }
+            $clean[$field] = $value;
+        }
+        // Clearing every field is allowed and means "we have no bank details" — the proposal then
+        // prints no block whatever a quote asks for. That is a deliberate off switch, not an error.
+        Setting::put('bank_details', json_encode($clean));
+
+        return response()->json(['bank' => $clean]);
+    }
+
     // GET /api/side-views — stored side-view images (#125)
     public function sideViews(): JsonResponse
     {

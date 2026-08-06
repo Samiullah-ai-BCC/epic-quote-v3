@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getRevisions, getGenerated } from '../../api/quotes'
+import { getBankDetails } from '../../api/meta'
 import Proposal from '../Proposal'
 import ClientDocPage from '../generator/ClientDocPage'
 import { resolveTplByName, itemSigned } from '../../generator/parts'
@@ -11,6 +12,10 @@ import { normalizeBlankPages, blankDocs } from '../../pages/generator/hooks/useP
 export default function ViewProposalImage({ quote }) {
   const [img, setImg] = useState(null)
   const [gd, setGd] = useState(null)
+  // The wire-transfer details this quote may print. Fetched here too: View renders the same
+  // Proposal component, and a sheet that shows the bank block in the editor but not in View would
+  // be lying about what the customer receives.
+  const [bank, setBank] = useState(null)
   const [page, setPage] = useState(0)
   // Fit-to-viewport (#2): the proposal renders at its natural 816px width (~1056px+ tall). To show
   // the WHOLE page in one go — no inner scrollbar — we measure the rendered height and scale the
@@ -39,6 +44,9 @@ export default function ViewProposalImage({ quote }) {
   useEffect(() => {
     let alive = true
     setImg(null); setGd(null); setPage(0)
+    // Silent on failure: the rest of the proposal is still worth showing, and a quote that prints
+    // no bank block is the same as one that never asked for it.
+    getBankDetails().then((b) => { if (alive) setBank(b) }).catch(() => {})
     // the live per-page render is primary (it pages sign-by-sign); the latest version image is
     // the fallback for quotes whose generated data can't load.
     getGenerated(quote.quote_id)
@@ -115,6 +123,8 @@ export default function ViewProposalImage({ quote }) {
             paymentLink={gd.payment_link}
             paymentLinkKind={gd.payment_link_kind}
             paymentLinkVisible={gd.payment_link_visible !== false}
+            paymentDisplay={quote.payment_display}
+            bankDetails={bank}
             proposalNotes={p.proposal_notes}
             specialRequirements={quote.special_requirements || ''}
             partLabel={multi ? String.fromCharCode(65 + i) : null}

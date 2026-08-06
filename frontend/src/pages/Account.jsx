@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux'
 import { selectUser } from '../store/authSlice'
 import TwoFactorPanel from '../components/settings/TwoFactorPanel'
+import BankDetailsPanel from '../components/settings/BankDetailsPanel'
 
 /* "My account" — the one place a person manages their OWN sign-in, regardless of role.
    Kept separate from /users (which is admin-only account administration): every rep needs
@@ -19,6 +20,10 @@ export default function Account() {
 
       <div className="grid gap-4">
         <TwoFactorPanel />
+        {/* Company-wide, not personal — but this is the only settings surface the app has, and
+            the details have to be reachable by the admins who maintain them. Reps see the panel
+            read-only, which is also how they learn the numbers exist. */}
+        <BankDetailsPanel />
       </div>
     </div>
   )

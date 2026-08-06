@@ -100,15 +100,15 @@ Labels bold, values plain.
 
 ## 6. Vertical slice
 
-- [ ] UI — the three-way control; the bank block on the sheet; the settings fields
-- [ ] Endpoint — extend `SettingsController` (get/set `bank_details`); `payment_display`
+- [*] UI — the three-way control; the bank block on the sheet; the settings fields
+- [*] Endpoint — extend `SettingsController` (get/set `bank_details`); `payment_display`
       accepted on the existing quote update
-- [ ] Persistence — `Setting` row; `payment_display` column with a migration
-- [ ] Validation — server-side: admin-only write on the setting; `payment_display`
+- [*] Persistence — `Setting` row; `payment_display` column with a migration
+- [*] Validation — server-side: admin-only write on the setting; `payment_display`
       restricted to the three known values. Client-side is decoration.
-- [ ] Error state — details missing while bank/both is selected: sheet prints nothing,
+- [*] Error state — details missing while bank/both is selected: sheet prints nothing,
       controls column explains
-- [ ] Empty state — a fresh install with no details saved behaves as "Shopify only"
+- [*] Empty state — a fresh install with no details saved behaves as "Shopify only"
       regardless of the per-quote choice
 
 ## 7. Impact map

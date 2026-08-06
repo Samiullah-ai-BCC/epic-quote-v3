@@ -104,6 +104,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   //   changes, so the parent's Σ-parts figure is never a debounce behind what the rep just typed.
   // flushAllPages: async () => void — drains EVERY page's pending autosave (multi-sign only).
   partLabel = null, multi = false, isLast = true, quoteTotal = null, onAmountChange = null, flushAllPages = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, signPageCount = null, readOnly = false,
+  // paymentDisplay: 'shopify' | 'bank' | 'both'. Null/undefined means 'shopify' — what every quote
+  // written before this feature carries, and what it must keep doing. See payMode below.
+  // bankDetails: the company-wide wire-transfer details (five strings) from settings.
+  paymentDisplay = null, bankDetails = null,
   // onSpecCapacity: called with how many SPECIFICATION lines this sheet can still print, measured
   //   on the live DOM. The wizard's Edit-specs step uses it as its cap instead of a constant, so
   //   removing ADDITIONAL NOTES (or quoting a type with no side view) actually buys typing room.
@@ -674,6 +678,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   useEffect(() => { if (onAmountChange) onAmountChange(grandTotal) }, [grandTotal])   // eslint-disable-line react-hooks/exhaustive-deps
   const totalsMode = paymentTotalsMode(paymentLinkKind, totalsAmount)
   const visiblePaymentLink = paymentLinkVisible && paymentLink && /^https?:\/\//i.test(paymentLink)
+  // WHICH PAYMENT INSTRUCTIONS PRINT. Shopify takes 3% of every quote paid through it, so a quote
+  // can print the company's wire-transfer details instead — or, when asked for, both.
+  //
+  // An unset value means 'shopify'. That is the whole compatibility story: every quote written
+  // before this feature has nothing saved, and must keep behaving exactly as it does today.
+  const payMode = paymentDisplay || 'shopify'
+  const showShopifyPay = visiblePaymentLink && payMode !== 'bank'
+  // The block prints only when there is something real to print. A partly-filled set of wire
+  // instructions on a customer's proposal is worse than none at all — they would wire to it.
+  const bankReady = !!(bankDetails && (bankDetails.title || bankDetails.account_number))
+  const showBankDetails = payMode !== 'shopify' && bankReady
   // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
   // they were never actually needed: a rep types the final dollar figure directly). `kind`
   // distinguishes the two: 'discount' subtracts in itemSigned() above instead of adding.
@@ -2059,8 +2074,32 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
               {/* The pay CTA appears ONLY once a real payment link exists — never a placeholder
                   before one is created, and it simply re-points when a link is re-created. No
                   link → nothing renders (a dead "Click here to make payment" misleads the customer). */}
-              {visiblePaymentLink && (
+              {showShopifyPay && (
                 <a data-pay-link href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
+              )}
+              {/* WIRE-TRANSFER INSTRUCTIONS — the 3%-free way to be paid.
+                  Ordinary sheet content, so PNG, PDF and the version snapshot pick it up with no
+                  export changes. Deliberately NOT a link and carrying no data-pay-link: the PDF's
+                  clickable annotation is pinned to the orange bar, and a second element claiming
+                  that hook would move the customer's click onto text that goes nowhere.
+                  The header uses the pay button's own orange so that, when both are shown, the two
+                  read as one block of payment instructions instead of two competing ones. */}
+              {showBankDetails && (
+                <div style={{ marginTop: 14, border: '1.5px solid #111' }}>
+                  <div style={{ background: '#f5a623', borderBottom: '1.5px solid #111', padding: '7px 10px', textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#111' }}>Bank Details:</div>
+                  <div style={{ padding: '9px 10px', textAlign: 'center', fontSize: 11, lineHeight: 1.55, color: '#111' }}>
+                    {bankDetails.title && <div><b>Title:</b> {bankDetails.title}</div>}
+                    {(bankDetails.account_number || bankDetails.routing_number) && (
+                      <div>
+                        {bankDetails.account_number && <><b>Account number:</b> {bankDetails.account_number}</>}
+                        {bankDetails.account_number && bankDetails.routing_number && ' / '}
+                        {bankDetails.routing_number && <><b>Routing Number:</b> {bankDetails.routing_number}</>}
+                        {bankDetails.routing_note && ` (${bankDetails.routing_note})`}
+                      </div>
+                    )}
+                    {bankDetails.address && <div><b>Address:</b> {bankDetails.address}</div>}
+                  </div>
+                </div>
               )}
             </div>
             )}

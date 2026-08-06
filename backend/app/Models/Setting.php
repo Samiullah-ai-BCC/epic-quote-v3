@@ -48,6 +48,31 @@ class Setting extends Model
         return \App\Constants\AppConstants::STATUS_OPTIONS;
     }
 
+    /**
+     * The company's wire-transfer details, printed on the proposal as an alternative to the
+     * Shopify pay button (Shopify takes 3% of every quote paid through it).
+     *
+     * Five discrete fields, not one blob of text: an admin correcting the account number cannot
+     * break the sheet's layout while doing it, and the bold-label styling belongs to the proposal
+     * rather than to whatever a human retyped this time.
+     *
+     * Always returns all five keys, so no caller has to guess whether a field exists. Empty
+     * strings mean "not set yet" — the proposal prints NOTHING rather than a half-filled block,
+     * because wrong-looking payment instructions on a customer's proposal are worse than none.
+     */
+    public const BANK_FIELDS = ['title', 'account_number', 'routing_number', 'routing_note', 'address'];
+
+    public static function bankDetails(): array
+    {
+        $saved = json_decode((string) static::get('bank_details'), true);
+        $saved = is_array($saved) ? $saved : [];
+        $out = [];
+        foreach (self::BANK_FIELDS as $field) {
+            $out[$field] = trim((string) ($saved[$field] ?? ''));
+        }
+        return $out;
+    }
+
     // V1 next_quote_id(): EC{counter}, increments before use.
     // When Airtable is configured (the team's other software also numbers quotes there),
     // continue past Airtable's highest ID so the two systems never hand out the same number.

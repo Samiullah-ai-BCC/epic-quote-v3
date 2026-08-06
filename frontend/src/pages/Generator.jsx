@@ -13,6 +13,7 @@ import { T } from '../generator/catalog'
 import { rasterizePdf } from '../generator/pdfRaster'
 import { MAX_SPEC_LINES } from '../generator/proposal'
 import { fileUrl } from '../api/client'
+import { getBankDetails } from '../api/meta'
 import { MAX_PRICE, FLOWS, PART_KEYS, makeCustomTpl, legacyPartFromGd, matchSignType, resolveTplByName, itemSigned } from '../generator/parts'
 import { isCloudDoc, cloudRaster, cropToBox, urlToDataUrl } from '../generator/artwork'
 import ClientStep from '../components/generator/ClientStep'
@@ -61,6 +62,14 @@ export default function Generator() {
   const [sideViews, setSideViews] = useState([])   // chosen side-view keys
   const [customSpec, setCustomSpec] = useState(null)
   const [logo, setLogoUrl] = useState(null)
+  // PAYMENT INSTRUCTIONS. Shopify takes 3% of every quote paid through it, so a quote can print
+  // the company's wire-transfer details instead — or both, when asked for.
+  //
+  // The details are company-wide and read-only here (admins edit them in Settings); the CHOICE is
+  // per quote. Unset means 'shopify', which is what every quote written before this feature has
+  // and exactly how they must keep behaving.
+  const [bankDetails, setBankDetails] = useState(null)
+  const [paymentDisplay, setPaymentDisplay] = useState(null)
   const [signSearch, setSignSearch] = useState('')
   const [signGroup, setSignGroup] = useState(null)   // #5 — selected main category (two-level picker)
   const [exitAsk, setExitAsk] = useState(false)      // #3 — "save or delete?" ask when leaving the proposal
@@ -217,6 +226,25 @@ export default function Generator() {
 
   // Payment display metadata is additive: the working URL stays exactly where every existing
   // consumer expects it, while kind + visibility drive only the customer-facing proposal.
+  // The company's wire details, fetched once per quote session. A failure is silent on purpose:
+  // no details simply means the bank block cannot print, which the controls column already
+  // explains — it must never block the rep from working on the quote.
+  useEffect(() => { getBankDetails().then(setBankDetails).catch(() => setBankDetails(null)) }, [])
+  // The saved choice arrives with the quote. NULL stays NULL — it is the "behave as before" state,
+  // and writing a value here would quietly convert every old quote the moment it was opened.
+  useEffect(() => { setPaymentDisplay(quote?.payment_display || null) }, [quote?.payment_display])
+
+  // Persisted immediately, like the status or the assignee — this is a quote-level fact, not part
+  // of the editor state that rides along with the 600 ms autosave.
+  const savePaymentDisplay = async (mode) => {
+    setPaymentDisplay(mode)                     // optimistic: the sheet re-renders as the rep clicks
+    try {
+      await updateQuote(quoteId, { payment_display: mode })
+    } catch {
+      setPaymentDisplay(quote?.payment_display || null)   // put the control back if the save failed
+    }
+  }
+
   const savePaymentLink = async (url, kind) => {
     const patch = { payment_link: url, payment_link_kind: kind, payment_link_visible: true }
     await putGenerated(quoteId, patch)
@@ -1129,6 +1157,7 @@ export default function Generator() {
             collectPartImages={collectPartImages} linkTitle={linkTitle} captureAllPages={captureAllPages}
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
             savePaymentLink={savePaymentLink} hidePaymentLink={hidePaymentLink} showPaymentLink={showPaymentLink}
+            bankDetails={bankDetails} paymentDisplay={paymentDisplay} savePaymentDisplay={savePaymentDisplay}
             logo={logo} paymentLink={paymentLink} paymentLinkKind={paymentLinkKind}
             paymentLinkVisible={paymentLinkVisible} quote={quote}
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
@@ -1165,6 +1194,8 @@ export default function Generator() {
            paymentLink={paymentLink}
            paymentLinkKind={paymentLinkKind}
            paymentLinkVisible={paymentLinkVisible}
+           bankDetails={bankDetails}
+           paymentDisplay={paymentDisplay}
            approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}
            proposalNotes={proposalNotes}
            specialRequirements={special}

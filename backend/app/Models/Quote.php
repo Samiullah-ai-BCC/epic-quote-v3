@@ -15,7 +15,7 @@ class Quote extends Model
         'job_name', 'special_requirements', 'customer_pdf',
         'sales_rep', 'quote_source', 'status', 'tags', 'price',
         'quote_type', 'generated_data', 'crunched_artwork',
-        'payment_link', 'order_confirmed', 'order_placed_at',
+        'payment_link', 'payment_display', 'order_confirmed', 'order_placed_at',
         'revision_notes', 'important_notes', 'internal_notes',
         'airtable_id', 'assigned_to', 'rush', 'breakeven_production', 'breakeven_shipping',
         'price_approved', 'approved_by', 'approved_at', 'approval_locked', 'followup_sent', 'followup_notes', 'is_test',

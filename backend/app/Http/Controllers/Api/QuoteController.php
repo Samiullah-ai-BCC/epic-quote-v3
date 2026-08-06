@@ -434,6 +434,23 @@ class QuoteController extends Controller
             $quote->quote_source = $data['quote_source'];
         }
 
+        // Which payment instructions the proposal prints. Shopify takes 3% of anything paid
+        // through it, so a rep can print the company's wire-transfer details instead — or, when
+        // asked for, both.
+        //
+        // NULL is not a value the UI can send; it is what every quote written before this feature
+        // already has, and it means "Shopify only" — today's behaviour, left alone.
+        if (array_key_exists('payment_display', $data)) {
+            $mode = trim((string) ($data['payment_display'] ?? ''));
+            if (!in_array($mode, ['shopify', 'bank', 'both'], true)) {
+                return response()->json(['error' => 'Invalid payment display option'], 400);
+            }
+            if ($mode !== (string) $quote->payment_display) {
+                $changes[] = 'Payment display: '.($quote->payment_display ?: 'shopify')." -> {$mode}";
+                $quote->payment_display = $mode;
+            }
+        }
+
         foreach (['client_name', 'contact', 'email', 'address', 'job_name', 'special_requirements', 'company_name', 'order_id'] as $field) {
             if (array_key_exists($field, $data)) {
                 // ConvertEmptyStringsToNull turns '' into null; these columns are NOT NULL

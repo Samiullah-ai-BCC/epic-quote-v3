@@ -7,7 +7,7 @@ import Proposal from '../../../components/Proposal'
 export default function LivePreviewPanel({
   previewKey, onBack, onSaveAndReturn, saving,
   mode, template, answers, customSpec, info, artworkPath, onArtworkFile, logo, aiResult,
-  paymentLink, paymentLinkKind, paymentLinkVisible, approval, proposalNotes, specialRequirements,
+  paymentLink, paymentLinkKind, paymentLinkVisible, bankDetails, paymentDisplay, approval, proposalNotes, specialRequirements,
   savedState, sideViews, signBox, onSideViews, onSave,
   onSpecCapacity,
 }) {
@@ -32,6 +32,8 @@ export default function LivePreviewPanel({
         paymentLink={paymentLink}
         paymentLinkKind={paymentLinkKind}
         paymentLinkVisible={paymentLinkVisible}
+        bankDetails={bankDetails}
+        paymentDisplay={paymentDisplay}
         approval={approval}
         proposalNotes={proposalNotes}
         specialRequirements={specialRequirements}

@@ -109,5 +109,7 @@ Route::middleware(['auth:sanctum', 'two-factor.required', 'readonly.guard'])->gr
     Route::get('/settings/logo', [App\Http\Controllers\Api\SettingsController::class, 'getLogo']);
     Route::put('/settings/statuses', [App\Http\Controllers\Api\SettingsController::class, 'setStatuses']);
     Route::post('/settings/logo', [App\Http\Controllers\Api\SettingsController::class, 'setLogo']);
+    Route::get('/settings/bank', [App\Http\Controllers\Api\SettingsController::class, 'getBank']);
+    Route::put('/settings/bank', [App\Http\Controllers\Api\SettingsController::class, 'setBank']);
     Route::get('/side-views', [App\Http\Controllers\Api\SettingsController::class, 'sideViews']);
 });
