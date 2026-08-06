@@ -126,6 +126,23 @@ const ClientDocPage = forwardRef(function ClientDocPage({
     // as two different documents in one stack. Each sheet below therefore gets the same width box,
     // the same auto margins, and the same 1px edge + border-box sizing as the proposal page.
     <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+      {/* Replace / Remove live ABOVE the sheet, not on it. They used to sit at top-right INSIDE the
+          page, which was empty space until the letterhead arrived — now they would cover the
+          address block. Controls that steer a page do not belong printed on it: outside the paper
+          they can never collide with its contents, whatever the sheet grows to hold next. Placed
+          on the wrapper (not inside a sheetRef) so the export cannot pick them up either. */}
+      {!readOnly && pages.length > 0 && (
+        <div className="doc-ui" style={{ width: PAGE_W * scale, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+          <button disabled={busy} onClick={() => fileInput.current?.click()}
+            style={{ padding: '4px 9px', borderRadius: 6, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 11 }}>
+            {busy ? 'Uploading…' : 'Replace'}
+          </button>
+          <button disabled={busy} onClick={onRemove}
+            style={{ padding: '4px 9px', borderRadius: 6, border: '1px solid #e05661', background: '#fff', color: '#e05661', cursor: 'pointer', fontSize: 11 }}>
+            Remove
+          </button>
+        </div>
+      )}
       {sheets.map((src, n) => (
         <div key={n} style={{ width: PAGE_W * scale, height: PAGE_H * scale, overflow: 'hidden', margin: '0 auto' }}>
           <div
@@ -178,19 +195,6 @@ const ClientDocPage = forwardRef(function ClientDocPage({
                 )}
               {(loadErr || errorText) && <div className="doc-ui" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, textAlign: 'center', color: '#c0392b', fontSize: 12 }}>{loadErr || errorText}</div>}
             </div>
-            {/* screen-only controls, only on the FIRST sheet — one file, one set of actions */}
-            {!readOnly && src && n === 0 && (
-              <div className="doc-ui" style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 6 }}>
-                <button disabled={busy} onClick={() => fileInput.current?.click()}
-                  style={{ padding: '4px 9px', borderRadius: 6, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 11 }}>
-                  {busy ? 'Uploading…' : 'Replace'}
-                </button>
-                <button disabled={busy} onClick={onRemove}
-                  style={{ padding: '4px 9px', borderRadius: 6, border: '1px solid #e05661', background: '#fff', color: '#e05661', cursor: 'pointer', fontSize: 11 }}>
-                  Remove
-                </button>
-              </div>
-            )}
           </div>
         </div>
       ))}
