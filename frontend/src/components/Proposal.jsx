@@ -689,6 +689,15 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // instructions on a customer's proposal is worse than none at all — they would wire to it.
   const bankReady = !!(bankDetails && (bankDetails.title || bankDetails.account_number))
   const showBankDetails = payMode !== 'shopify' && bankReady
+  // BOTH AT ONCE IS THE TIGHT CASE — an orange bar and a four-line block in a slot sized for one
+  // of them, and it ran off the bottom of the sheet. The room comes from two places: the gaps
+  // between the SUBTOTAL / deposit / remaining rows, which were the loosest thing on the page, and
+  // the payment blocks themselves, which shrink a step.
+  //
+  // Both switches are OFF unless a bank block is actually showing, so a Shopify-only quote — every
+  // quote that exists today — renders at exactly the measurements it always has.
+  const tightTotals = showBankDetails
+  const bothShowing = showShopifyPay && showBankDetails
   // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
   // they were never actually needed: a rep types the final dollar figure directly). `kind`
   // distinguishes the two: 'discount' subtracts in itemSigned() above instead of adding.
@@ -2052,13 +2061,13 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             <div data-price-block>
               <div>
                 {totalsMode !== 'balance' && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: totalsMode === 'deposit' ? 6 : 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 800, marginBottom: totalsMode === 'deposit' ? (tightTotals ? 2 : 6) : 0 }}>
                     {/* not hand-editable — same money-correctness reasoning as UNIT/TOTAL PRICE above */}
                     <span>SUBTOTAL</span>{E('subtotal', undefined, { readOnly: true })}
                   </div>
                 )}
                 {totalsMode === 'deposit' && <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: tightTotals ? 2 : 6 }}>
                     <span>50% DEPOSIT DUE NOW</span>{E('dep1', undefined, { readOnly: true })}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}>
@@ -2075,7 +2084,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   before one is created, and it simply re-points when a link is re-created. No
                   link → nothing renders (a dead "Click here to make payment" misleads the customer). */}
               {showShopifyPay && (
-                <a data-pay-link href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 14, background: '#f5a623', padding: 14, textAlign: 'center', fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
+                <a data-pay-link href={paymentLink} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: bothShowing ? 8 : 14, background: '#f5a623', padding: bothShowing ? 9 : 14, textAlign: 'center', fontSize: bothShowing ? 13 : 15, fontWeight: 800, letterSpacing: 0.5, color: '#111', textDecoration: 'none' }}>CLICK HERE TO MAKE PAYMENT</a>
               )}
               {/* WIRE-TRANSFER INSTRUCTIONS — the 3%-free way to be paid.
                   Ordinary sheet content, so PNG, PDF and the version snapshot pick it up with no
@@ -2085,19 +2094,30 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                   The header uses the pay button's own orange so that, when both are shown, the two
                   read as one block of payment instructions instead of two competing ones. */}
               {showBankDetails && (
-                <div style={{ marginTop: 14, border: '1.5px solid #111' }}>
-                  <div style={{ background: '#f5a623', borderBottom: '1.5px solid #111', padding: '7px 10px', textAlign: 'center', fontSize: 14, fontWeight: 800, color: '#111' }}>Bank Details:</div>
-                  <div style={{ padding: '9px 10px', textAlign: 'center', fontSize: 11, lineHeight: 1.55, color: '#111' }}>
-                    {bankDetails.title && <div><b>Title:</b> {bankDetails.title}</div>}
+                <div style={{ marginTop: bothShowing ? 8 : 14, border: '1.5px solid #111' }}>
+                  <div style={{ background: '#f5a623', borderBottom: '1.5px solid #111', padding: bothShowing ? '4px 10px' : '7px 10px', textAlign: 'center', fontSize: bothShowing ? 12.5 : 14, fontWeight: 800, color: '#111' }}>Bank Details:</div>
+                  <div style={{ padding: bothShowing ? '6px 9px' : '9px 10px', textAlign: 'center', fontSize: bothShowing ? 10 : 11, lineHeight: bothShowing ? 1.35 : 1.55, color: '#111' }}>
+                    {/* TWO lines, not four. Who the money goes to and where they are is one fact,
+                        so the title and the address share a line; the numbers keep their own. The
+                        labels that survive are the ones a customer's bank actually asks for —
+                        "Title:" and "Address:" were labelling the self-evident.
+                        Each join is conditional, so a half-filled set of details never prints a
+                        stranded dash or a dangling slash. */}
+                    {(bankDetails.title || bankDetails.address) && (
+                      <div>
+                        {bankDetails.title}
+                        {bankDetails.title && bankDetails.address && ' — '}
+                        {bankDetails.address}
+                      </div>
+                    )}
                     {(bankDetails.account_number || bankDetails.routing_number) && (
                       <div>
-                        {bankDetails.account_number && <><b>Account number:</b> {bankDetails.account_number}</>}
+                        {bankDetails.account_number && <><b>Account:</b> {bankDetails.account_number}</>}
                         {bankDetails.account_number && bankDetails.routing_number && ' / '}
-                        {bankDetails.routing_number && <><b>Routing Number:</b> {bankDetails.routing_number}</>}
+                        {bankDetails.routing_number && <><b>Routing:</b> {bankDetails.routing_number}</>}
                         {bankDetails.routing_note && ` (${bankDetails.routing_note})`}
                       </div>
                     )}
-                    {bankDetails.address && <div><b>Address:</b> {bankDetails.address}</div>}
                   </div>
                 </div>
               )}
