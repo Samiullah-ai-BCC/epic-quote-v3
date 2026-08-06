@@ -4,7 +4,7 @@
 // component threads them into each <Proposal> without owning any state.
 import { Fragment } from 'react'
 import { partLetter } from '../../generator/parts'
-import { pageSequence } from '../../pages/generator/hooks/usePageCapture'
+import { pageSequence, blankDocs } from '../../pages/generator/hooks/usePageCapture'
 import Proposal from '../Proposal'
 import ClientDocPage from './ClientDocPage'
 
@@ -16,8 +16,8 @@ export default function PreviewStep({
   canCreatePaymentLinks, savePaymentLink, hidePaymentLink, showPaymentLink, logo, paymentLink,
   paymentLinkKind, paymentLinkVisible, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
-  specialRequirements, commitPartClientDoc, docBusy, docErr,
-  blankPages, addBlankPage, removeBlankPage, moveBlankPage, patchBlankPage, onEditSpecs,
+  specialRequirements, commitPartClientDoc, setBlankDocLay, removeBlankDoc, docBusy, docErr,
+  blankPages, addBlankPage, removeBlankPage, moveBlankPage, onEditSpecs,
 }) {
   // The document's real sheet order — every blank page in its slot, every sign in its own. Built by
   // the SAME function capturePagesExport walks, so what the picker lists, what the preview stacks
@@ -112,9 +112,9 @@ export default function PreviewStep({
           title="Move this blank page one sheet later in the document"
           onClick={() => moveBlankPage && moveBlankPage(blank.__bid, +1)}>↓ Move down</button>
       </div>
-      <button className="ghost sm" disabled={saving || !!blank.client_doc} style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
-        title={blank.client_doc
-          ? 'Remove the attached document from this blank page first'
+      <button className="ghost sm" disabled={saving || blankDocs(blank).length > 0} style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
+        title={blankDocs(blank).length > 0
+          ? 'Take the attached documents off this blank page first'
           : 'Remove this blank page from the document'}
         onClick={() => removeBlankPage && removeBlankPage(blank.__bid)}>🗑 Remove blank page</button>
     </div>
@@ -147,12 +147,12 @@ export default function PreviewStep({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <ClientDocPage
                     ref={(el) => { if (docRefs) docRefs.current[blank.__bid] = el }}
-                    doc={blank.client_doc || null}
-                    label={blankCount > 1 ? String(blankNumbers.get(blank.__bid)) : null}
+                    docs={blankDocs(blank)}
                     busy={docBusy === blank.__bid || saving}
                     errorText={docBusy === null ? docErr : ''}
-                    onPick={(file) => commitPartClientDoc && commitPartClientDoc(blank.__bid, file)}
-                    onRemove={() => patchBlankPage && patchBlankPage(blank.__bid, { client_doc: null })}
+                    onPick={(files) => commitPartClientDoc && commitPartClientDoc(blank.__bid, files)}
+                    onLay={(docId, box) => setBlankDocLay && setBlankDocLay(blank.__bid, docId, box)}
+                    onRemoveDoc={(docId) => removeBlankDoc && removeBlankDoc(blank.__bid, docId)}
                   />
                 </div>
                 {blankActions(blank, seqPos === 0, seqPos === sequence.length - 1)}

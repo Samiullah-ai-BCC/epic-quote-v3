@@ -223,13 +223,28 @@ new quotes were never asked for artwork at all. Entry mode is not a property of 
   and then neither note field shows. Same trade-off as before this feature.
 - Read surfaces: `PreviewStep` (quote-level `special`), `LivePreviewPanel`, `ViewProposalImage`.
 
-## CLIENT DOCUMENT sheets — SOURCE OF TRUTH: per-part `client_doc` (a stored file path)
+## CLIENT DOCUMENT sheets — SOURCE OF TRUTH: `blank_pages[].docs` (a list of {id, path, lay})
 One blank Letter sheet hangs off EVERY sign page (`ClientDocPage.jsx`, rendered by `PreviewStep`
 right under its `Proposal`), so our spec and the customer's own spec sheet are read as a pair.
 - Stored through the **extra-file** endpoint, never `quote.customer_pdf`: that column is the quote's
   primary intake drawing and feeds the AI spec read, the artwork fallback and the View carousel. A
   per-page attachment overwriting it would rewrite the quote's own history.
-- A PDF is **rasterised** (`rasterizePdfPages`, all pages, max 12) — an `<iframe>` renders on screen
+- **MANY DOCUMENTS PER SHEET (2026-08).** A blank page holds a LIST. Each entry carries its own
+  `lay` — AdjImg geometry in unscaled 816×1056 page pixels — so every document is dragged, resized
+  and clamped exactly like the proposal's artwork. All of them share ONE sheet; the job is comparing
+  drawings side by side, and that only works on one page.
+- **Read `blankDocs(blank)`, never `blank.client_doc`.** `client_doc` was the single-path field this
+  replaced; `blankDocs` (usePageCapture.js) is the one place that reads it forward, and the first
+  write folds it into the list. Consumers: `PreviewStep` (edit + the remove-page guard),
+  `ViewProposalImage` (read-only), `ClientDocPage` (render + capture).
+- Geometry is seeded by `ClientDocPage` from the image's natural size, NOT by AdjImg's auto-fit —
+  that fit fills the area and centres, which is right for one artwork and would stack every
+  document on top of the last.
+- Writes go through `setBlankDocLay` / `removeBlankDoc` (Generator.jsx), and BOTH refuse to write a
+  list that does not contain the document they were asked to change: a stale list would persist over
+  the real one and silently drop the customer's files.
+- A PDF is **rasterised** (`rasterizePdfPages`, all pages, max 12). Page 1 joins the free canvas;
+  pages 2..n continue as their own centred sheets after it — an `<iframe>` renders on screen
   and exports as an empty box, which would ship blank sheets to a customer. Cloudinary-hosted
   PDF/AI stay one sheet (`cloudRaster` gives page 1 only; the page count is not in the URL).
 - Capture handles live in `docRefs` (`usePageCapture`) and return ARRAYS; every collector emits a

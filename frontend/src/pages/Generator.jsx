@@ -29,7 +29,7 @@ import WizardHeader from './generator/components/WizardHeader'
 import WizardProgressBar from './generator/components/WizardProgressBar'
 import LivePreviewPanel from './generator/components/LivePreviewPanel'
 import { useQuoteData } from './generator/hooks/useQuoteData'
-import { usePageCapture, normalizeBlankPages } from './generator/hooks/usePageCapture'
+import { usePageCapture, normalizeBlankPages, blankDocs } from './generator/hooks/usePageCapture'
 import { useLivePreview } from './generator/hooks/useLivePreview'
 
 export default function Generator() {
@@ -694,17 +694,60 @@ export default function Generator() {
   // The document belongs to the BLANK PAGE, not to a sign — that is what lets the sheet keep its
   // file while it is moved between sign pages, and what lets two blank pages sit in the same slot
   // carrying different documents.
-  const commitPartClientDoc = async (bid, file) => {
-    if (!file) return
+  //
+  // A rep can now pick SEVERAL files at once. They upload one at a time on purpose: the endpoint
+  // takes one file and writes one activity-log line per upload, and that per-file audit entry is
+  // worth more than the second saved by firing them together. The list is written ONCE at the end
+  // — a patch per file would race itself, and the last writer would win with a short list.
+  const commitPartClientDoc = async (bid, files) => {
+    const list = [...(files && typeof files[Symbol.iterator] === 'function' ? files : [files])].filter(Boolean)
+    if (!list.length) return
     setClientDocBusy(bid); setClientDocErr('')
     try {
-      const path = await uploadExtraFile(quoteId, file)
-      await patchBlankPage(bid, { client_doc: path })
+      const added = []
+      for (const file of list) {
+        const path = await uploadExtraFile(quoteId, file)
+        added.push({ id: `d${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, path, lay: null })
+      }
+      const blank = blankPagesRef.current.find((b) => b.__bid === bid)
+      // `client_doc` folds into the list here rather than being left behind: one page cannot have
+      // its documents in two places, or a reader that checks the old field would draw a ghost.
+      await patchBlankPage(bid, { docs: [...blankDocs(blank || {}), ...added], client_doc: null })
     } catch (err) {
       // The preview step has no artwork-error strip, so this has to surface ON the sheet — a failed
       // upload that only logged would look exactly like a successful one that rendered nothing.
       setClientDocErr(err?.response?.data?.error || err?.message || 'That file could not be uploaded.')
     } finally { setClientDocBusy(null) }
+  }
+
+  // One image's position/size on its blank page. Fired on every drag and resize (AdjImg liveLay),
+  // so it goes through patchBlankPage like every other blank-page change.
+  const setBlankDocLay = (bid, docId, box) => {
+    const blank = blankPagesRef.current.find((b) => b.__bid === bid)
+    if (!blank) return
+    const list = blankDocs(blank)
+    // If the document being moved is not in the list we are about to write, that list is stale —
+    // and writing it would persist the stale copy over the real one, quietly dropping whatever it
+    // is missing. A geometry update is never worth a lost document: skip the write and let the
+    // next gesture, working from fresh state, save it.
+    if (!list.some((d) => d.id === docId)) return
+    patchBlankPage(bid, {
+      docs: list.map((d) => (d.id === docId ? { ...d, lay: box } : d)),
+      client_doc: null,
+    })
+  }
+
+  // Take ONE document off a blank page. The page itself stays — a rep removing the wrong drawing
+  // from a three-drawing sheet must not lose the other two along with the sheet.
+  const removeBlankDoc = (bid, docId) => {
+    const blank = blankPagesRef.current.find((b) => b.__bid === bid)
+    if (!blank) return
+    const list = blankDocs(blank)
+    // Same stale-list rule as setBlankDocLay: if the document being removed is not in the list we
+    // hold, that list is not the truth, and writing it would delete whatever it is missing. Removal
+    // of a file the customer sent is exactly the write that must never happen from stale state.
+    if (!list.some((d) => d.id === docId)) return
+    patchBlankPage(bid, { docs: list.filter((d) => d.id !== docId), client_doc: null })
   }
 
   const onCustomerFile = async (e) => {
@@ -1054,6 +1097,7 @@ export default function Generator() {
             savePart={savePart} commitPartArtworkFile={commitPartArtworkFile} movePart={movePart}
             specialRequirements={special}
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
+            setBlankDocLay={setBlankDocLay} removeBlankDoc={removeBlankDoc}
             pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
             blankPages={blankPages} addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
             moveBlankPage={moveBlankPage} patchBlankPage={patchBlankPage}

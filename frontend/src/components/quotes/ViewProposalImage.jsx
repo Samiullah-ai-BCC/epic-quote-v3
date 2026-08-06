@@ -3,7 +3,7 @@ import { getRevisions, getGenerated } from '../../api/quotes'
 import Proposal from '../Proposal'
 import ClientDocPage from '../generator/ClientDocPage'
 import { resolveTplByName, itemSigned } from '../../generator/parts'
-import { normalizeBlankPages } from '../../pages/generator/hooks/usePageCapture'
+import { normalizeBlankPages, blankDocs } from '../../pages/generator/hooks/usePageCapture'
 
 // The PROPOSAL itself at the top of the View modal (#7): the latest version image when one
 // exists, else the real proposal rendered live from the saved state (read-only) — so View
@@ -125,9 +125,9 @@ export default function ViewProposalImage({ quote }) {
           {/* The client's own document belongs to the page, so View must show it too — otherwise the
               one screen people check a quote on is the one screen that hides half of it. Read-only
               here: attaching/replacing happens in the wizard. */}
-          {blanksHere.map((blank, n) => (
+          {blanksHere.map((blank) => (
             <div key={blank.__bid} style={{ marginTop: 26 }}>
-              <ClientDocPage readOnly doc={blank.client_doc} label={blanksHere.length > 1 ? String(n + 1) : null} />
+              <ClientDocPage readOnly docs={blankDocs(blank)} />
             </div>
           ))}
           </div>

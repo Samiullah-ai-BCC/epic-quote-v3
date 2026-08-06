@@ -21,6 +21,16 @@ export const BLANK_AT_END = (parts) => (parts || []).length
 // like a new one; the first blank-page action of the session writes the normalized list back.
 export const hasBlankPage = (part) => !!(part?.blank_page || part?.client_doc)
 
+// A blank page's documents, read forward from every shape the field has had. `client_doc` was a
+// single path; `docs` is the list that replaced it (2026-08, multi-upload + free placement). Old
+// quotes keep rendering and keep exporting through this one function — the same contract
+// normalizeBlankPages has for the pages themselves. Every reader calls this; nobody touches
+// `client_doc` directly any more.
+export function blankDocs(blank) {
+  if (Array.isArray(blank?.docs)) return blank.docs
+  return blank?.client_doc ? [{ id: `d_legacy_${blank.__bid}`, path: blank.client_doc, lay: null }] : []
+}
+
 export function normalizeBlankPages(parts, blankPages) {
   if (Array.isArray(blankPages)) return blankPages
   return (parts || []).flatMap((part, index) => (
