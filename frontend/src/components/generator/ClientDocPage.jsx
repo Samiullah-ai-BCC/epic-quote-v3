@@ -25,6 +25,7 @@ import { isCloudDoc, cloudRaster } from '../../generator/artwork'
 import { rasterizePdfPages } from '../../generator/pdfRaster'
 import { ORG_ADDRESS_HTML } from '../proposal/util'
 import AdjImg from '../proposal/AdjImg'
+import AdjText from '../proposal/AdjText'
 
 const PAGE_W = 816
 const PAGE_H = 1056
@@ -66,7 +67,8 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   // onPick(FileList|File[]) — one call carries every file chosen, so a multi-select is one upload
   //   batch and one save rather than a race of single patches.
   // onLay(id, box) — persist one image's geometry. onRemoveDoc(id) — take one image off the page.
-  docs = [], busy, onPick, onLay, onRemoveDoc, readOnly = false, errorText = '',
+  // onAddText() — put a new empty text block on the page. onText(id, value) — persist its content.
+  docs = [], busy, onPick, onLay, onRemoveDoc, onAddText, onText, readOnly = false, errorText = '',
 }, fwdRef) {
   const wrapRef = useRef(null)
   const sheetRefs = useRef([])
@@ -105,15 +107,15 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   //
   // Keyed on the PATHS, not the docs array: moving or resizing an image rewrites `docs` on every
   // gesture, and re-rasterising a PDF mid-drag would stutter the page and lose the pointer.
-  const pathKey = docs.map((d) => d.path).join('|')
+  const pathKey = docs.map((d) => d.path || '').join('|')
   useEffect(() => {
     let alive = true
     setLoadErr('')
-    if (!docs.length) { setRendered({}); return }
+    if (!docs.some((d) => d.kind !== 'text')) { setRendered({}); return }
     const pending = []
     const next = {}
     for (const d of docs) {
-      if (!d.path) continue
+      if (d.kind === 'text' || !d.path) continue
       if (isCloudDoc(d.path)) {
         // Cloudinary-hosted PDF/AI: the CDN rasterises page 1 for us. Page count is not knowable
         // from the URL, so these stay one page (same limit the wizard's drawing viewer has).
@@ -191,7 +193,7 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   useEffect(() => {
     if (readOnly || !onLay) return
     docs.forEach((d, i) => {
-      if (d.lay || seededRef.current.has(d.id)) return
+      if (d.kind === 'text' || d.lay || seededRef.current.has(d.id)) return
       const src = (rendered[d.id] || [])[0]
       if (!src) return
       seededRef.current.add(d.id)
@@ -202,6 +204,29 @@ const ClientDocPage = forwardRef(function ClientDocPage({
       probe.src = src
     })
   }, [docs, rendered, readOnly])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // NOTHING ON THIS SHEET MAY OVERLAP ANYTHING ELSE.
+  //
+  // Enforced during the gesture, not cleaned up after it: a rep dragging one drawing across another
+  // must SEE it stop, not watch it jump somewhere else on mouse-up. AdjImg/AdjText call this on
+  // every frame, after their own bounds clamp.
+  //
+  // When the proposed box collides we try, in order: sliding on X alone, sliding on Y alone, then
+  // refusing the frame outright. The two single-axis attempts are what let an element slide ALONG a
+  // neighbour it is pressed against instead of sticking the moment the two touch.
+  const lastGoodRef = useRef({})
+  const hits = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  const constrainFor = (id) => (boxIn) => {
+    const others = docs.filter((d) => d.id !== id && d.lay).map((d) => d.lay)
+    const clear = (b) => !others.some((o) => hits(b, o))
+    if (clear(boxIn)) { lastGoodRef.current[id] = boxIn; return boxIn }
+    const prev = lastGoodRef.current[id] || docs.find((d) => d.id === id)?.lay || boxIn
+    const slideX = { ...boxIn, y: prev.y, h: prev.h }
+    if (clear(slideX)) { lastGoodRef.current[id] = slideX; return slideX }
+    const slideY = { ...boxIn, x: prev.x, w: prev.w }
+    if (clear(slideY)) { lastGoodRef.current[id] = slideY; return slideY }
+    return prev
+  }
 
   const pick = (files) => {
     const list = [...(files || [])].filter(Boolean)
@@ -260,11 +285,16 @@ const ClientDocPage = forwardRef(function ClientDocPage({
       {!readOnly && docs.length > 0 && (
         <div className="doc-ui" style={{ width: PAGE_W * scale, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: '#8a8a8a' }}>
-            {docs.length === 1 ? '1 document' : `${docs.length} documents`} — drag to move, corners to resize
+            {docs.length === 1 ? '1 element' : `${docs.length} elements`} — drag to move, corners to resize; they cannot overlap
           </span>
           <button className="doc-ui" disabled={busy} onClick={() => fileInput.current?.click()}
             style={{ marginLeft: 'auto', padding: '4px 9px', borderRadius: 6, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 11 }}>
             {busy ? 'Uploading…' : '＋ Add documents'}
+          </button>
+          <button className="doc-ui" disabled={busy} onClick={() => onAddText && onAddText()}
+            title="Add a text block — type into it, drag it, resize it; the text sizes itself to the box"
+            style={{ padding: '4px 9px', borderRadius: 6, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 11 }}>
+            ＋ Add text
           </button>
           <button className="doc-ui" disabled={busy || !selId} onClick={() => { if (selId && onRemoveDoc) { onRemoveDoc(selId); setSelId(null) } }}
             title={selId ? 'Take the selected document off this page' : 'Select a document on the sheet first'}
@@ -282,6 +312,24 @@ const ClientDocPage = forwardRef(function ClientDocPage({
           style={{ flex: 1, minHeight: 0, margin: '14px 40px 40px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
         >
           {docs.map((d, i) => {
+            if (d.kind === 'text') {
+              return (
+                <AdjText
+                  key={d.id}
+                  rk={d.id}
+                  lay={d.lay}
+                  onLay={(box) => onLay && onLay(d.id, box)}
+                  text={d.text || ''}
+                  onText={(value) => onText && onText(d.id, value)}
+                  scaleRef={scaleRef}
+                  selected={selId === d.id}
+                  onSelect={() => !readOnly && setSelId(d.id)}
+                  readOnly={readOnly}
+                  bounds={{ w: CANVAS_W, h: CANVAS_H }}
+                  constrain={readOnly ? null : constrainFor(d.id)}
+                />
+              )
+            }
             const src = (rendered[d.id] || [])[0]
             if (!src) return null
             // Read-only (the View modal) draws the same geometry with a plain image: no handles to
@@ -312,6 +360,7 @@ const ClientDocPage = forwardRef(function ClientDocPage({
                 selected={selId === d.id}
                 onSelect={() => !readOnly && setSelId(d.id)}
                 bounds={{ w: CANVAS_W, h: CANVAS_H }}
+                constrain={constrainFor(d.id)}
                 cors={/res\.cloudinary\.com/i.test(src || '')}
               />
             )
@@ -326,11 +375,17 @@ const ClientDocPage = forwardRef(function ClientDocPage({
                   <div style={{ fontWeight: 600, color: '#555' }}>Attach the client&rsquo;s documents</div>
                   <div style={{ marginTop: 4 }}>PDFs or images — their spec sheets or drawings, to check against ours</div>
                   <div style={{ marginTop: 2, fontSize: 12 }}>Pick several at once; place and size each one on the sheet.</div>
-                  <button className="doc-ui" disabled={busy}
-                    onClick={() => fileInput.current?.click()}
-                    style={{ marginTop: 12, padding: '7px 14px', borderRadius: 7, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 13 }}>
-                    {busy ? 'Uploading…' : 'Choose files'}
-                  </button>
+                  <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    <button className="doc-ui" disabled={busy}
+                      onClick={() => fileInput.current?.click()}
+                      style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 13 }}>
+                      {busy ? 'Uploading…' : 'Choose files'}
+                    </button>
+                    <button className="doc-ui" disabled={busy} onClick={() => onAddText && onAddText()}
+                      style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 13 }}>
+                      Add text
+                    </button>
+                  </div>
                 </>
               )}
             </div>

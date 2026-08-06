@@ -16,7 +16,7 @@ export default function PreviewStep({
   canCreatePaymentLinks, savePaymentLink, hidePaymentLink, showPaymentLink, logo, paymentLink,
   paymentLinkKind, paymentLinkVisible, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
-  specialRequirements, commitPartClientDoc, setBlankDocLay, removeBlankDoc, docBusy, docErr,
+  specialRequirements, commitPartClientDoc, setBlankDocLay, removeBlankDoc, addBlankText, setBlankDocText, docBusy, docErr,
   blankPages, addBlankPage, removeBlankPage, moveBlankPage, onEditSpecs,
 }) {
   // The document's real sheet order — every blank page in its slot, every sign in its own. Built by
@@ -153,6 +153,8 @@ export default function PreviewStep({
                     onPick={(files) => commitPartClientDoc && commitPartClientDoc(blank.__bid, files)}
                     onLay={(docId, box) => setBlankDocLay && setBlankDocLay(blank.__bid, docId, box)}
                     onRemoveDoc={(docId) => removeBlankDoc && removeBlankDoc(blank.__bid, docId)}
+                    onAddText={() => addBlankText && addBlankText(blank.__bid)}
+                    onText={(docId, value) => setBlankDocText && setBlankDocText(blank.__bid, docId, value)}
                   />
                 </div>
                 {blankActions(blank, seqPos === 0, seqPos === sequence.length - 1)}

@@ -1,3 +1,8 @@
+// DUPLICATED-WITH: frontend/src/components/proposal/AdjText.jsx — keep in sync
+// WHY duplicated: AdjText places an editable text block with the same move/resize gesture and the
+// same handle chrome, so both element kinds feel identical to a rep. The payloads differ (bitmap +
+// crop window here, text + auto-sized font there) and that difference runs through every branch.
+// Rule of three: a third placeable kind is when these become one abstraction.
 import { useEffect, useRef, useState } from 'react'
 import { detectSubjectBox } from './util'
 
@@ -12,7 +17,7 @@ const ART_FILL_H = 0.95
 //  • EDGE bars crop (shrink the visible window; the image itself stays put and is clipped)
 // Absolute-positioned, so changing one never reflows the page. Geometry (incl. the crop window
 // ix/iy/iw/ih) is reported up via onLay; selection chrome carries "adj-ui" so PDF capture hides it.
-export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds, slotCenterX = null }) {
+export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds, slotCenterX = null, constrain = null }) {
   // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
   // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
   // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
@@ -26,7 +31,14 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
   const padTop = bounds?.padTop || 0, padBottom = bounds?.padBottom || 0
   const innerW = bounds ? Math.max(24, bounds.w - padX * 2) : 0
   const innerH = bounds ? Math.max(24, bounds.h - padTop - padBottom) : 0
+  // `constrain` (optional) is a second clamp applied AFTER the bounds clamp, on every gesture and
+  // on auto-fit. The client-document page uses it to enforce "these elements never overlap"; every
+  // other caller omits it and this is a no-op, so the proposal's artwork behaves exactly as before.
   const fitBounds = (b) => {
+    const clamped = fitBoundsOnly(b)
+    return constrain ? constrain(clamped) : clamped
+  }
+  const fitBoundsOnly = (b) => {
     if (!bounds) return b
     let { x, y, w, h, ix, iy, iw, ih } = b
     if (w > innerW || h > innerH) {

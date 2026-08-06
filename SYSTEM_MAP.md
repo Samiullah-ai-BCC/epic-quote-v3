@@ -223,12 +223,23 @@ new quotes were never asked for artwork at all. Entry mode is not a property of 
   and then neither note field shows. Same trade-off as before this feature.
 - Read surfaces: `PreviewStep` (quote-level `special`), `LivePreviewPanel`, `ViewProposalImage`.
 
-## CLIENT DOCUMENT sheets — SOURCE OF TRUTH: `blank_pages[].docs` (a list of {id, path, lay})
+## CLIENT DOCUMENT sheets — SOURCE OF TRUTH: `blank_pages[].docs` (a list of placed elements)
 One blank Letter sheet hangs off EVERY sign page (`ClientDocPage.jsx`, rendered by `PreviewStep`
 right under its `Proposal`), so our spec and the customer's own spec sheet are read as a pair.
 - Stored through the **extra-file** endpoint, never `quote.customer_pdf`: that column is the quote's
   primary intake drawing and feeds the AI spec read, the artwork fallback and the View carousel. A
   per-page attachment overwriting it would rewrite the quote's own history.
+- An element is `{ id, lay, kind }`: `kind:'image'` carries `path` (default when absent — legacy
+  rows have no `kind`), `kind:'text'` carries `text`. Images render through `AdjImg`, text through
+  `AdjText` (its DUPLICATED-WITH twin). One list, so overlap, selection, removal and export treat
+  both kinds identically.
+- **ELEMENTS MAY NEVER OVERLAP.** `ClientDocPage.constrainFor(id)` is passed to both components as
+  their `constrain` hook and runs on EVERY gesture frame after the bounds clamp: slide on X, else
+  slide on Y, else refuse the frame. Enforced during the drag, not repaired after it — a rep must
+  see an element stop, not watch it jump on mouse-up. `addBlankText` scans for a free slot for the
+  same reason.
+- **Text sizes itself to its box.** AdjText binary-searches the largest font that still fits
+  (8 halvings, 6–160px) on every box or content change. Content commits on blur, not per keystroke.
 - **MANY DOCUMENTS PER SHEET (2026-08).** A blank page holds a LIST. Each entry carries its own
   `lay` — AdjImg geometry in unscaled 816×1056 page pixels — so every document is dragged, resized
   and clamped exactly like the proposal's artwork. All of them share ONE sheet; the job is comparing

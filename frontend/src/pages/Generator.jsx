@@ -737,6 +737,43 @@ export default function Generator() {
     })
   }
 
+  // A new TEXT BLOCK on a blank page. It is born with geometry (unlike an uploaded image, whose
+  // size is seeded from the file) and must land somewhere free: elements on this sheet may never
+  // overlap, so dropping it on top of a drawing would be an illegal state the rep then has to undo.
+  // The scan walks the canvas in the same two-column rhythm the uploads use and takes the first
+  // clear slot; a full page falls back to the top-left, where the sheet's own clamp still holds it
+  // on the paper and the rep can drag it where they want.
+  const TEXT_W = 336, TEXT_H = 120, CANVAS_W = 736, CANVAS_H = 932
+  const addBlankText = (bid) => {
+    const blank = blankPagesRef.current.find((b) => b.__bid === bid)
+    if (!blank) return
+    const list = blankDocs(blank)
+    const taken = list.filter((d) => d.lay).map((d) => d.lay)
+    const hits = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+    let spot = { x: 16, y: 16, w: TEXT_W, h: TEXT_H }
+    outer:
+    for (let y = 16; y + TEXT_H <= CANVAS_H; y += 20) {
+      for (const x of [16, 384]) {
+        const candidate = { x, y, w: TEXT_W, h: TEXT_H }
+        if (x + TEXT_W <= CANVAS_W && !taken.some((t) => hits(candidate, t))) { spot = candidate; break outer }
+      }
+    }
+    patchBlankPage(bid, {
+      docs: [...list, { id: `t${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, kind: 'text', text: 'Type here', lay: spot }],
+      client_doc: null,
+    })
+  }
+
+  // One text block's content. Committed on blur (AdjText), not per keystroke — a save per character
+  // would be a PUT per character.
+  const setBlankDocText = (bid, docId, value) => {
+    const blank = blankPagesRef.current.find((b) => b.__bid === bid)
+    if (!blank) return
+    const list = blankDocs(blank)
+    if (!list.some((d) => d.id === docId)) return   // stale list — see setBlankDocLay
+    patchBlankPage(bid, { docs: list.map((d) => (d.id === docId ? { ...d, text: value } : d)), client_doc: null })
+  }
+
   // Take ONE document off a blank page. The page itself stays — a rep removing the wrong drawing
   // from a three-drawing sheet must not lose the other two along with the sheet.
   const removeBlankDoc = (bid, docId) => {
@@ -1098,6 +1135,7 @@ export default function Generator() {
             specialRequirements={special}
             commitPartClientDoc={commitPartClientDoc} docBusy={clientDocBusy} docErr={clientDocErr}
             setBlankDocLay={setBlankDocLay} removeBlankDoc={removeBlankDoc}
+            addBlankText={addBlankText} setBlankDocText={setBlankDocText}
             pageRefs={pageRefs} docRefs={docRefs} proposalRef={proposalRef} mode={mode}
             blankPages={blankPages} addBlankPage={addBlankPage} removeBlankPage={removeBlankPage}
             moveBlankPage={moveBlankPage} patchBlankPage={patchBlankPage}
