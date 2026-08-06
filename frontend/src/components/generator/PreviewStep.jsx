@@ -12,7 +12,7 @@ export default function PreviewStep({
   parts, cpBusy, cpMsg, saving, saveCheckpoint, navigate, exitTo, addPage,
   setExitAsk, deletedPage, undoDeletePage, deleteTimer, setDeletedPage,
   multiPreviewRef, grandTotal, tplForPart, client, quoteId,
-  collectPartImages, linkTitle, captureAllPages, capturePagesExport,
+  collectPartImages, linkTitle, captureAllPages, capturePagesExport, publishPartAmount, flushAllPages,
   canCreatePaymentLinks, savePaymentLink, hidePaymentLink, showPaymentLink, logo, paymentLink,
   paymentLinkKind, paymentLinkVisible, quote,
   savePart, commitPartArtworkFile, movePart, pageRefs, docRefs, proposalRef, mode, editPart, editArtwork, deletePage, duplicatePage,
@@ -246,6 +246,8 @@ export default function PreviewStep({
                 multi={multi}
                 isLast={isLast}
                 quoteTotal={multi ? grandTotal : null}
+                onAmountChange={multi ? (amount) => publishPartAmount(p.__pid, amount) : null}
+                flushAllPages={multi ? flushAllPages : null}
                 collectImages={multi ? collectPartImages : null}
                 linkTitle={multi ? linkTitle : null}
                 captureAll={multiSheet ? captureAllPages : null}

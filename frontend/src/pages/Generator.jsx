@@ -356,7 +356,28 @@ export default function Generator() {
       .reduce((sum, item) => sum + itemSigned(item), 0)
     return Math.max(0, price * quantity + extras)
   }
-  const grandTotal = parts.reduce((sum, part) => sum + partAmount(part), 0)
+  // A page publishes its own total here the instant the rep changes it (onAmountChange). Without
+  // this the sum below reads `parts`, which is only rewritten after that page's 600 ms autosave
+  // debounce and its PUT have both returned — the subtotal visibly lagged a discount by a couple of
+  // seconds, and a payment link created in that window billed the old amount. Keyed by __pid so it
+  // survives reordering; a page with nothing published yet falls back to its persisted figure.
+  const [liveAmounts, setLiveAmounts] = useState({})
+  const publishPartAmount = (pid, amount) => setLiveAmounts((prev) => (prev[pid] === amount ? prev : { ...prev, [pid]: amount }))
+  const grandTotal = parts.reduce((sum, part) => {
+    const live = liveAmounts[part.__pid]
+    return sum + (typeof live === 'number' ? live : partAmount(part))
+  }, 0)
+
+  // Drain EVERY page's pending autosave before anything prices the quote from the database
+  // (payment links). Sequential, not Promise.all: savePart rebuilds the whole parts array from
+  // partsRef, so two concurrent flushes would each write their own copy and the second would
+  // clobber the first.
+  const flushAllPages = async () => {
+    for (const part of partsRef.current) {
+      const page = pageRefs.current[part.__pid]
+      if (page?.flushSave) await page.flushSave()
+    }
+  }
 
   // Rebuild a part's template object from its saved name (catalog entry, or a synthesized custom one).
   const tplForPart = (part) => (part?.tpl_name ? resolveTplByName(part.tpl_name, part.tpl_stored_spec || null) : null)
@@ -1024,6 +1045,7 @@ export default function Generator() {
             setExitAsk={setExitAsk} deletedPage={deletedPage} undoDeletePage={undoDeletePage}
             deleteTimer={deleteTimer} setDeletedPage={setDeletedPage} multiPreviewRef={multiPreviewRef}
             grandTotal={grandTotal} tplForPart={tplForPart} client={client} quoteId={quoteId}
+            publishPartAmount={publishPartAmount} flushAllPages={flushAllPages}
             collectPartImages={collectPartImages} linkTitle={linkTitle} captureAllPages={captureAllPages}
             capturePagesExport={capturePagesExport} canCreatePaymentLinks={canCreatePaymentLinks}
             savePaymentLink={savePaymentLink} hidePaymentLink={hidePaymentLink} showPaymentLink={showPaymentLink}

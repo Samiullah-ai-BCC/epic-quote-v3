@@ -3,6 +3,12 @@
 
 export const HEAD = '#e9e9e9'
 
+// The company letterhead address block, exactly as it prints under the logo. It lives here because
+// TWO sheet kinds now print it — the proposal page and the blank/client-document page — and an
+// address that says one thing on page 1 and another on page 2 is worse than no address at all.
+// Proposal.jsx seeds its editable `contact` block from this; ClientDocPage renders it fixed.
+export const ORG_ADDRESS_HTML = '101 E LUZERNE ST. PHILADELPHIA, PENNSYLVANIA 19124, US<br>www.epiccraftings.com<br>sales@epiccraftings.com<br>+1 (445) 444-0334'
+
 export const LOUPE = 185, SRC = 38   // eyedropper magnifier: loupe diameter (px) and source pixels across it
                               // (~5.5px per pixel — pixels stay visible but you keep enough context to aim)
 

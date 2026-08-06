@@ -16,7 +16,7 @@ import AdjDim from './proposal/AdjDim'
 import AdjSwatch from './proposal/AdjSwatch'
 import EBlock from './proposal/EBlock'
 import EditCell from './proposal/EditCell'
-import { HEAD, LOUPE, SRC, detectSubjectBox } from './proposal/util'
+import { HEAD, LOUPE, SRC, ORG_ADDRESS_HTML, detectSubjectBox } from './proposal/util'
 import SideViewPicker from './proposal/SideViewPicker'
 import PagePicker from './proposal/PagePicker'
 import ArtworkCropper from './ArtworkCropper'
@@ -100,7 +100,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // readOnly: rendered inside the All Quotes "View" modal — the doc is shown, not edited (the
   //   wrapper already kills pointer events). We use it only to hide the "click any text to edit"
   //   hint, which is a lie in that context. Editing still happens in the Generator wizard.
-  partLabel = null, multi = false, isLast = true, quoteTotal = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, signPageCount = null, readOnly = false,
+  // onAmountChange: (amount) => void — publishes THIS page's own total upward the instant it
+  //   changes, so the parent's Σ-parts figure is never a debounce behind what the rep just typed.
+  // flushAllPages: async () => void — drains EVERY page's pending autosave (multi-sign only).
+  partLabel = null, multi = false, isLast = true, quoteTotal = null, onAmountChange = null, flushAllPages = null, collectImages = null, linkTitle = null, captureAll = null, capturePages = null, pageLabels = null, signPageCount = null, readOnly = false,
   // onSpecCapacity: called with how many SPECIFICATION lines this sheet can still print, measured
   //   on the live DOM. The wizard's Edit-specs step uses it as its cap instead of a constant, so
   //   removing ADDITIONAL NOTES (or quoting a type with no side view) actually buys typing room.
@@ -660,6 +663,15 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // The figure the TOTALS block shows: the whole-quote sum on a multi-page quote, else this
   // proposal's own total. Deposits, the ≤$500 rule and payment all key off this.
   const totalsAmount = quoteTotal != null ? quoteTotal : grandTotal
+
+  // Tell the parent this page's own total the MOMENT it changes. On a multi-sign quote the TOTALS
+  // block shows Σ parts, and that sum used to be read back from `parts` — state the parent only
+  // rewrites after this page's 600 ms autosave debounce AND its PUT have both returned. So adding a
+  // discount left the subtotal showing the old figure for a couple of seconds, and a rep who hit
+  // "Full payment" inside that window billed the pre-discount amount. The number is known locally
+  // and instantly; publishing it here is what closes that window. Saving is untouched — this is
+  // display truth, the PUT remains the money truth.
+  useEffect(() => { if (onAmountChange) onAmountChange(grandTotal) }, [grandTotal])   // eslint-disable-line react-hooks/exhaustive-deps
   const totalsMode = paymentTotalsMode(paymentLinkKind, totalsAmount)
   const visiblePaymentLink = paymentLinkVisible && paymentLink && /^https?:\/\//i.test(paymentLink)
   // Line items and discounts are Description + Amount only now (#6 — qty/unit price dropped,
@@ -842,7 +854,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // default content per editable block; any saved proposal_state overrides it.
   const initial = useMemo(() => {
     const def = {
-      contact: '101 E LUZERNE ST. PHILADELPHIA, PENNSYLVANIA 19124, US<br>www.epiccraftings.com<br>sales@epiccraftings.com<br>+1 (445) 444-0334',
+      contact: ORG_ADDRESS_HTML,
       // CONTACT = one line, email first; the phone only appears when there is no email (#7)
       infoLeft: infoLeftHTML,
       infoRight: infoRightHTML,
@@ -1598,12 +1610,17 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
     try {
       // flush any pending edit FIRST so it's recorded as a change before the checkpoint is minted
       // server-side (otherwise the last edit would land in the NEXT rev, not this payment's rev).
-      if (onSave) {
-        try { await onSave(captureState()) }
-        catch {
-          flash('Could not save the latest quote changes. No payment link was created.')
-          return
-        }
+      // `onSave` only flushes THIS page. On a multi-sign quote a discount typed on another page can
+      // still be sitting in that page's 600 ms debounce, and the backend prices the link from the
+      // persisted quotes.price — so an unflushed sibling means Shopify charges the pre-discount
+      // total. flushAllPages drains every page first; the sum is only trustworthy once all of them
+      // have landed.
+      try {
+        if (flushAllPages) await flushAllPages()
+        else if (onSave) await onSave(captureState())
+      } catch {
+        flash('Could not save the latest quote changes. No payment link was created.')
+        return
       }
 
       // one clean image per sign on a multi-sign quote (parent-collected), else just this page
@@ -2389,7 +2406,7 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                     flash(e?.response?.data?.error || 'Could not remove the payment link from the quote.')
                   } finally { setPlBusy('') }
                 }}>
-                {plBusy === 'hide' ? 'Removing…' : 'Remove payment & totals'}
+                {plBusy === 'hide' ? 'Removing…' : 'Remove Payment Details'}
               </button>
             )}
             {/* THE WAY BACK. Without it, one click permanently strips the pricing off a quote and

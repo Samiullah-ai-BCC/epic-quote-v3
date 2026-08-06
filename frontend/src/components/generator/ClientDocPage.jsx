@@ -15,13 +15,17 @@ import { toCanvas } from 'html-to-image'
 import { fileUrl } from '../../api/client'
 import { isCloudDoc, cloudRaster } from '../../generator/artwork'
 import { rasterizePdfPages } from '../../generator/pdfRaster'
+import { ORG_ADDRESS_HTML } from '../proposal/util'
 
 const PAGE_W = 816
 const PAGE_H = 1056
 const HD_SCALE = 3   // same capture DPI as Proposal.jsx, so the two page kinds match in the PDF
 
 const ClientDocPage = forwardRef(function ClientDocPage({
-  doc, label, busy, onPick, onRemove, readOnly = false, errorText = '',
+  // `label` is still passed by PreviewStep but no longer read: the "CLIENT DOCUMENT — PAGE x"
+  // strip that printed it is gone, replaced by the company letterhead below. Left out of the
+  // signature rather than destructured-and-ignored, which lint counts as an error.
+  doc, busy, onPick, onRemove, readOnly = false, errorText = '',
 }, fwdRef) {
   const wrapRef = useRef(null)
   const sheetRefs = useRef([])
@@ -135,10 +139,21 @@ const ClientDocPage = forwardRef(function ClientDocPage({
               border: '1px solid var(--border, #d8dee8)',
             }}
           >
-            <div style={{ padding: '18px 40px 8px', fontSize: 11, letterSpacing: 0.6, fontWeight: 700, borderBottom: '1px solid #777', display: 'flex', justifyContent: 'space-between' }}>
-              <span>CLIENT DOCUMENT{label ? ` — PAGE ${label}` : ''}</span>
-              {sheets.length > 1 && <span>{n + 1} / {sheets.length}</span>}
+            {/* Letterhead, printed on EVERY sheet of this kind by default. A blank page is not a
+                scrap of paper the customer receives loose — it travels inside the same PDF as the
+                proposal, so it carries the same logo and address block, in the same geometry as
+                Proposal.jsx's header (70px band, 52px logo, 9px address right-aligned at top 12).
+                Fixed, not editable: this is the company's own identity, and the one editable copy
+                on the proposal page is where a correction belongs. */}
+            <div style={{ height: 70, position: 'relative', padding: '0 40px', display: 'flex', alignItems: 'center', flex: '0 0 auto' }}>
+              <img src="/quote-logo.png" alt="Epic Craftings" crossOrigin="anonymous"
+                style={{ height: 52, objectFit: 'contain', display: 'block' }} />
+              {/* uppercase to match the proposal sheet, where the page's own CSS raises it — without
+                  this the same address prints lower-case on one page and upper-case on the next. */}
+              <div style={{ position: 'absolute', right: 40, top: 12, fontSize: 9, textAlign: 'right', lineHeight: '15px', textTransform: 'uppercase' }}
+                dangerouslySetInnerHTML={{ __html: ORG_ADDRESS_HTML }} />
             </div>
+
             <div style={{ flex: 1, minHeight: 0, margin: '14px 40px 40px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
               {src
                 ? <img src={src} alt={`Client document page ${n + 1}`}
