@@ -31,6 +31,21 @@ const PAGE_W = 816
 const PAGE_H = 1056
 const HD_SCALE = 3   // same capture DPI as Proposal.jsx, so the two page kinds match in the PDF
 
+// HOW SHARP THE CUSTOMER'S OWN DOCUMENT HAS TO BE.
+//
+// The exported sheet is 816 CSS px captured at HD_SCALE, i.e. 2448 device px across an 8.5in page —
+// 288 DPI. A document dragged out to the full width of the canvas therefore occupies 736 × 3 = 2208
+// of those pixels. The rasteriser was producing 1224 px for a Letter page (pdf.js scale 2), so the
+// export was UPSCALING it by 1.8× and the customer received a visibly pixelated copy of their own
+// drawing. Reported by reps 2026-08-06 as "low quality, bad impression".
+//
+// Scale 4 puts a Letter page at 2448 px — at or above what the export can consume at any size the
+// rep can drag the frame to, so the image is downsampled (always safe) and never stretched. Cloud
+// PDFs ask the CDN for the matching width. The page cap stays at 12: this is more pixels per page,
+// not more pages.
+const DOC_PDF_SCALE = 4
+const DOC_CLOUD_W = 2600
+
 // The free canvas: everything below the letterhead band, inside the sheet's margins. AdjImg clamps
 // every drag and resize to this box, so an image can never be dragged off the paper (the fitBounds
 // rule the artwork box has always had — "an image may never leave its box").
@@ -119,12 +134,12 @@ const ClientDocPage = forwardRef(function ClientDocPage({
       if (isCloudDoc(d.path)) {
         // Cloudinary-hosted PDF/AI: the CDN rasterises page 1 for us. Page count is not knowable
         // from the URL, so these stay one page (same limit the wizard's drawing viewer has).
-        next[d.id] = [cloudRaster(d.path, 1600)]
+        next[d.id] = [cloudRaster(d.path, DOC_CLOUD_W)]
       } else if (!/\.pdf($|\?)/i.test(d.path)) {
         next[d.id] = [fileUrl(d.path)]
       } else {
         pending.push(
-          rasterizePdfPages(fileUrl(d.path), 2)
+          rasterizePdfPages(fileUrl(d.path), DOC_PDF_SCALE)
             .then((urls) => { next[d.id] = urls.length ? urls : [] })
             .catch(() => { next[d.id] = [] }),
         )

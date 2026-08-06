@@ -265,6 +265,14 @@ right under its `Proposal`), so our spec and the customer's own spec sheet are r
 - Writes go through `setBlankDocLay` / `removeBlankDoc` (Generator.jsx), and BOTH refuse to write a
   list that does not contain the document they were asked to change: a stale list would persist over
   the real one and silently drop the customer's files.
+- **RESOLUTION IS A DELIVERABLE.** The exported sheet is 816 CSS px at HD_SCALE 3 = 2448 device px
+  across an 8.5in page (288 DPI), so a document dragged to the full canvas width consumes 2208 of
+  those pixels. Rasterising at pdf.js scale 2 gave only 1224 px for a Letter page, so the export
+  UPSCALED the customer's own drawing by 1.8× and shipped it visibly pixelated (reported 2026-08-06).
+  `DOC_PDF_SCALE = 4` (2448 px/page) and `DOC_CLOUD_W = 2600` keep the source at or above what the
+  export can consume at any size the rep can drag to — always downsampling, never stretching. Cost
+  measured at the 12-page cap: 5.8s and 13.7MB. Raising the export scale would NOT have fixed this;
+  the ceiling was the source.
 - A PDF is **rasterised** (`rasterizePdfPages`, all pages, max 12). Page 1 joins the free canvas;
   pages 2..n continue as their own centred sheets after it — an `<iframe>` renders on screen
   and exports as an empty box, which would ship blank sheets to a customer. Cloudinary-hosted
