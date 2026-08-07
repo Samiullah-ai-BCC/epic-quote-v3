@@ -61,7 +61,7 @@ One `Setting` row, key `bank_details`, five string fields:
 | `title` | Epic Craftings Inc. (Bank of America) |
 | `account_number` | 444030406654 |
 | `routing_number` | 026009593 |
-| `routing_note` | Wire Transfer |
+| `routing_note` |Wire |
 | `address` | 101 E Luzerne St # B Philadelphia, PA 19124 4201 |
 
 Five discrete fields rather than one block of text, for two reasons: an admin correcting
@@ -148,7 +148,7 @@ sheets print no block; already-exported files are unaffected.
 ## 9. Known gap, deliberately out of scope
 
 **A bank payment will not mark a quote paid.** `ShopifyWebhookController` flips a quote's
-status when Shopify confirms a payment. A wire transfer arrives at the bank, not at this
+status when Shopify confirms a payment. AWire arrives at the bank, not at this
 app, so a bank-paid quote stays "unpaid" until a human says otherwise. Nothing in this
 spec closes that, and it will be noticed in the first week of real use. It needs its own
 decision — a manual "mark as paid" action, or a reconciliation import — and is not

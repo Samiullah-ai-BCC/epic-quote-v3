@@ -71,40 +71,12 @@ export default function PreviewStep({
           ✎ Edit customer details
         </button>
       )}
-      {/* HOW THIS QUOTE ASKS TO BE PAID. Shopify takes 3% of everything paid through it, so the
-          rep can print the company's wire-transfer details instead — or both, which the manager
-          asked for even though a customer given both will mostly click the orange button anyway.
-
-          Quote-level, so it lives here with Back / Done rather than being repeated beside every
-          sign page. An unsaved quote shows 'shopify' because that is what an unset value means. */}
-      {savePaymentDisplay && (
-        <div style={{ marginTop: 2 }}>
-          <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Payment instructions on the proposal</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[['shopify', 'Shopify'], ['bank', 'Bank'], ['both', 'Both']].map(([value, label]) => (
-              <button key={value} className="ghost sm" disabled={saving}
-                onClick={() => savePaymentDisplay(value)}
-                title={value === 'shopify' ? 'Print the orange pay button only (Shopify fee applies)'
-                  : value === 'bank' ? 'Print the wire-transfer details only — no Shopify fee'
-                  : 'Print both — the customer chooses, and most will click the button'}
-                style={{
-                  flex: 1, padding: '4px 0',
-                  ...((paymentDisplay || 'shopify') === value
-                    ? { background: 'var(--gold-soft)', borderColor: 'var(--gold)', fontWeight: 700 }
-                    : null),
-                }}>{label}</button>
-            ))}
-          </div>
-          {/* The block is only printable once details exist. Saying so HERE, in the rep's own
-              column, is what keeps a half-empty set of wire instructions off the customer's
-              proposal without leaving the rep wondering why nothing appeared. */}
-          {(paymentDisplay === 'bank' || paymentDisplay === 'both') && !bankDetails?.account_number && (
-            <span className="muted" style={{ fontSize: 11.5, display: 'block', marginTop: 4, color: '#e05661' }}>
-              No bank details saved yet — an admin adds them in Settings. Nothing will print until then.
-            </span>
-          )}
-        </div>
-      )}
+      {/* "Payment instructions on the proposal" (Shopify/Bank/Both) used to live here. Moved
+          2026-08 into the "💳 Shopify payment link" card on the LAST page, beside Full payment /
+          50% deposit / Remaining Balance — the buttons that actually mint the link and the switch
+          that decides whether the link even prints are the same decision and belong in one place.
+          savePaymentDisplay/paymentDisplay/bankDetails still flow through this component straight
+          to <Proposal> below (unchanged) — only the control that reads them moved. */}
       {cpMsg && <span className="muted" style={{ fontSize: 12.5 }}>{cpMsg}</span>}
     </>
   )
@@ -134,9 +106,12 @@ export default function PreviewStep({
   // the sign pages keep theirs). ↑/↓ step it one sheet at a time through the whole document, past
   // signs and past other blank pages alike.
   //
-  // Removal is refused while a document is attached. The button would otherwise be a one-click
-  // delete of the customer's own file with no confirmation — Remove on the sheet itself takes the
-  // file off first, which is the deliberate path.
+  // Removable at any time (item #4, 2026-08), unconditionally. It used to REFUSE while a document
+  // was attached; that gate is gone. A follow-up attempt at gating this behind window.confirm()
+  // (2026-08-07) turned out to be its own bug: this app's target browsers/embeds silently resolve
+  // confirm() to `false` with no dialog ever drawn (proved live — window.confirm was called,
+  // returned false, and NOTHING appeared on screen), so the confirming path made deletion look
+  // broken rather than merely asking first. No confirm dialog of any kind belongs on this button.
   const blankActions = (blank, first, last) => (
     <div style={{ width: 220, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', gap: 6 }}>
@@ -147,10 +122,8 @@ export default function PreviewStep({
           title="Move this blank page one sheet later in the document"
           onClick={() => moveBlankPage && moveBlankPage(blank.__bid, +1)}>↓ Move down</button>
       </div>
-      <button className="ghost sm" disabled={saving || blankDocs(blank).length > 0} style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
-        title={blankDocs(blank).length > 0
-          ? 'Take the attached documents off this blank page first'
-          : 'Remove this blank page from the document'}
+      <button className="ghost sm" disabled={saving} style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
+        title="Remove this blank page from the document — immediate, no confirmation step"
         onClick={() => removeBlankPage && removeBlankPage(blank.__bid)}>🗑 Remove blank page</button>
     </div>
   )
@@ -302,6 +275,7 @@ export default function PreviewStep({
                 paymentLink={paymentLink}
                 bankDetails={bankDetails}
                 paymentDisplay={paymentDisplay}
+                savePaymentDisplay={savePaymentDisplay}
                 paymentLinkKind={paymentLinkKind}
                 paymentLinkVisible={paymentLinkVisible}
                 approval={{ locked: quote?.approval_locked, approved: quote?.price_approved }}

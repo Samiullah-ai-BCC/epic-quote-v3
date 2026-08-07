@@ -49,3 +49,8 @@ auditor/*
 .claude/settings.local.json
 
 docs/quote-generation-executive-demo-script.md
+
+# Production data artefacts: a customer database and every uploaded file. The .sql line above
+# already covers dumps; this covers the storage archive that travels with them. Neither belongs in
+# a git remote — the dump carries encrypted 2FA seeds and every client's contact details.
+/backend/database/dumps/*.tar.gz

@@ -52,7 +52,8 @@ const DOC_CLOUD_W = 2600
 const CANVAS_W = 736     // 816 − 40 left − 40 right
 const CANVAS_H = 932     // 1056 − 70 letterhead − 14 top − 40 bottom
 
-// Where the nth image lands before anyone touches it: a two-column stagger, aspect preserved.
+// Where a freshly-uploaded image lands before anyone touches it: the first clear two-column slot,
+// aspect preserved.
 //
 // WHY WE COMPUTE THIS INSTEAD OF LETTING AdjImg AUTO-FIT: AdjImg's fit-on-load is ARTWORK
 // behaviour — scale the image to fill the area, then centre it. That is right for the one sign
@@ -61,19 +62,34 @@ const CANVAS_H = 932     // 1056 − 70 letterhead − 14 top − 40 bottom
 // this page seeds each image's geometry from the image's own natural size the moment it loads, and
 // AdjImg — which skips its auto-fit whenever a `lay` already exists — is left to do what it is
 // actually needed for: dragging, resizing and clamping. The proposal's artwork path is untouched.
+//
+// SCANS FOR A CLEAR SLOT AGAINST `others` — it does NOT rely on the drag-time `constrainFor` to
+// push a fresh placement clear. constrainFor slides an element AWAY FROM a `prev` (its last known
+// good position); a brand-new element has no `prev` yet, so on a genuine first-seed collision its
+// fallback chain has nothing to slide FROM and hands back the very box that collided (proved live:
+// two uploads landing at the identical staggered slot rendered exactly on top of one another,
+// selectable but visually indistinguishable). This mirrors the same free-slot scan
+// `addBlankText` (Generator.jsx) already uses for text blocks — one convention for "find somewhere
+// this page isn't already using," reused rather than reinvented.
 const CELL_W = 336          // two columns inside the 736-wide canvas, with a gutter
-const seedLay = (n, naturalW, naturalH) => {
+const boxesHit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+const seedLay = (naturalW, naturalH, others = []) => {
   const ratio = naturalW > 0 && naturalH > 0 ? naturalW / naturalH : 4 / 3
   const w = CELL_W
   const h = Math.max(40, Math.round(w / ratio))
-  const col = n % 2
-  const row = Math.floor(n / 2)
-  // Rows step by a nominal cell height rather than by the image's own, so a tall document does not
-  // push everything after it off the sheet. Overlap on a crowded page is the rep's to sort out by
-  // dragging — that is the point of the feature — but nothing may start outside the paper.
-  const x = Math.min(CANVAS_W - w, 16 + col * (CELL_W + 32))
-  const y = Math.min(Math.max(0, CANVAS_H - h), 16 + row * 300)
-  return { x, y, w, h, rot: 0, ix: 0, iy: 0, iw: w, ih: h }
+  let spot = { x: 16, y: 16, w, h }
+  outer:
+  for (let y = 16; y + h <= CANVAS_H; y += 20) {
+    for (const x of [16, 16 + CELL_W + 32]) {
+      if (x + w > CANVAS_W) continue
+      const candidate = { x, y, w, h }
+      if (!others.some((o) => boxesHit(candidate, o))) { spot = candidate; break outer }
+    }
+  }
+  // A page with no clear slot left (the scan exhausted CANVAS_H) falls back to the top-left corner,
+  // same as addBlankText's fallback — a crowded page is the rep's to untangle by dragging, but
+  // nothing may be born off the paper.
+  return { ...spot, rot: 0, ix: 0, iy: 0, iw: spot.w, ih: spot.h }
 }
 
 const ClientDocPage = forwardRef(function ClientDocPage({
@@ -202,25 +218,7 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   const sheetCount = 1 + overflowSheets.length
   sheetRefs.current = sheetRefs.current.slice(0, sheetCount)
 
-  // Seed geometry for any document that has none yet, from the image's natural size. One write per
-  // document, tracked so a re-render cannot re-seed one the rep has since moved.
-  const seededRef = useRef(new Set())
-  useEffect(() => {
-    if (readOnly || !onLay) return
-    docs.forEach((d, i) => {
-      if (d.kind === 'text' || d.lay || seededRef.current.has(d.id)) return
-      const src = (rendered[d.id] || [])[0]
-      if (!src) return
-      seededRef.current.add(d.id)
-      const probe = new Image()
-      probe.crossOrigin = 'anonymous'
-      probe.onload = () => onLay(d.id, seedLay(i, probe.naturalWidth, probe.naturalHeight))
-      probe.onerror = () => onLay(d.id, seedLay(i, 4, 3))
-      probe.src = src
-    })
-  }, [docs, rendered, readOnly])   // eslint-disable-line react-hooks/exhaustive-deps
-
-  // NOTHING ON THIS SHEET MAY OVERLAP ANYTHING ELSE.
+  // NOTHING ON THIS SHEET MAY OVERLAP ANYTHING ELSE, ONCE PLACED.
   //
   // Enforced during the gesture, not cleaned up after it: a rep dragging one drawing across another
   // must SEE it stop, not watch it jump somewhere else on mouse-up. AdjImg/AdjText call this on
@@ -229,6 +227,12 @@ const ClientDocPage = forwardRef(function ClientDocPage({
   // When the proposed box collides we try, in order: sliding on X alone, sliding on Y alone, then
   // refusing the frame outright. The two single-axis attempts are what let an element slide ALONG a
   // neighbour it is pressed against instead of sticking the moment the two touch.
+  //
+  // DRAG/RESIZE ONLY — a fresh upload's FIRST position is decided by seedLay's own free-slot scan
+  // below, not by this. This slides an element AWAY FROM its `prev` (its last known good spot); a
+  // brand-new element has no `prev` yet, so on a genuine first-placement collision the fallback
+  // chain has nothing to slide from and would hand back the very box that collided — proved live,
+  // two uploads landing on the identical slot rendered exactly on top of one another.
   const lastGoodRef = useRef({})
   const hits = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
   const constrainFor = (id) => (boxIn) => {
@@ -242,6 +246,59 @@ const ClientDocPage = forwardRef(function ClientDocPage({
     if (clear(slideY)) { lastGoodRef.current[id] = slideY; return slideY }
     return prev
   }
+
+  // Seed geometry for any document that has none yet, from the image's natural size. One write per
+  // document, tracked so a re-render cannot re-seed one the rep has since moved.
+  //
+  // `seededLayRef` tracks positions handed out THIS SESSION, ahead of `docs` catching up — several
+  // files picked in one batch each resolve their own async Image() probe independently, so the
+  // SECOND upload's seed can land before React has re-rendered with the FIRST upload's new `lay`.
+  // Reading only `docs` here would let two same-batch uploads seed to the same slot; reading
+  // `seededLayRef` too means each one sees every sibling already handed a spot, batch or not.
+  const seededRef = useRef(new Set())
+  const seededLayRef = useRef({})
+  useEffect(() => {
+    if (readOnly || !onLay) return
+    docs.forEach((d) => {
+      if (d.kind === 'text' || d.lay || seededRef.current.has(d.id)) return
+      const src = (rendered[d.id] || [])[0]
+      if (!src) return
+      seededRef.current.add(d.id)
+      const probe = new Image()
+      probe.crossOrigin = 'anonymous'
+      const place = (naturalW, naturalH) => {
+        const others = [
+          ...docs.filter((o) => o.id !== d.id && o.lay).map((o) => o.lay),
+          ...Object.values(seededLayRef.current),
+        ]
+        const box = seedLay(naturalW, naturalH, others)
+        seededLayRef.current[d.id] = box
+        onLay(d.id, box)
+      }
+      probe.onload = () => place(probe.naturalWidth, probe.naturalHeight)
+      probe.onerror = () => place(4, 3)
+      probe.src = src
+    })
+  }, [docs, rendered, readOnly])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Delete/Backspace removes the SELECTED element (item #5) — the same key the proposal's own
+  // dimension arrows and colour chips already answer to (Proposal.jsx), so a rep does not have to
+  // learn a second convention for this sheet. Ignored whenever the event target is itself editable
+  // (AdjText's own contentEditable body, or any input/textarea/select) — a Backspace typed INTO the
+  // text block must edit its content, never delete the block out from under the caret.
+  useEffect(() => {
+    if (readOnly || !selId || !onRemoveDoc) return undefined
+    const onKey = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const t = e.target
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return
+      e.preventDefault()
+      onRemoveDoc(selId)
+      setSelId(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selId, readOnly, onRemoveDoc])
 
   const pick = (files) => {
     const list = [...(files || [])].filter(Boolean)
@@ -300,7 +357,7 @@ const ClientDocPage = forwardRef(function ClientDocPage({
       {!readOnly && docs.length > 0 && (
         <div className="doc-ui" style={{ width: PAGE_W * scale, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: '#8a8a8a' }}>
-            {docs.length === 1 ? '1 element' : `${docs.length} elements`} — drag to move, corners to resize; they cannot overlap
+            {docs.length === 1 ? '1 element' : `${docs.length} elements`} — drag to move, corners to resize, Delete to remove; they cannot overlap
           </span>
           <button className="doc-ui" disabled={busy} onClick={() => fileInput.current?.click()}
             style={{ marginLeft: 'auto', padding: '4px 9px', borderRadius: 6, border: '1px solid #777', background: '#fff', color: '#111', cursor: 'pointer', fontSize: 11 }}>
@@ -376,6 +433,10 @@ const ClientDocPage = forwardRef(function ClientDocPage({
                 onSelect={() => !readOnly && setSelId(d.id)}
                 bounds={{ w: CANVAS_W, h: CANVAS_H }}
                 constrain={constrainFor(d.id)}
+                // Matches AdjText's own hardcoded 20/50 scheme exactly, so an image and a text
+                // block on the same sheet stack the same way regardless of kind: unselected on the
+                // same plane, selected always on top of everything else.
+                zIndex={selId === d.id ? 50 : 20}
                 cors={/res\.cloudinary\.com/i.test(src || '')}
               />
             )

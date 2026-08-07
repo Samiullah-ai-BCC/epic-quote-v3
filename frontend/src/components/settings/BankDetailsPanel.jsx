@@ -20,7 +20,7 @@ const FIELDS = [
   { key: 'title', label: 'Title', hint: 'Account holder and bank, as it should read on the proposal', placeholder: 'Epic Craftings Inc. (Bank of America)' },
   { key: 'account_number', label: 'Account number', hint: '', placeholder: '444030406654' },
   { key: 'routing_number', label: 'Routing number', hint: '', placeholder: '026009593' },
-  { key: 'routing_note', label: 'Routing note', hint: 'Printed in brackets after the routing number', placeholder: 'Wire Transfer' },
+  { key: 'routing_note', label: 'Routing note', hint: 'Printed in brackets after the routing number', placeholder: 'Wire' },
   { key: 'address', label: 'Address', hint: '', placeholder: '101 E Luzerne St # B Philadelphia, PA 19124 4201' },
 ]
 

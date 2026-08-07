@@ -34,6 +34,44 @@ class CopySqliteToDefault extends Command
         'personal_access_tokens', 'user_catalog_items',
     ];
 
+    /**
+     * Group rows into INSERT batches that stay under a byte budget.
+     *
+     * 512 KB against MySQL's 1 MB default max_allowed_packet — half, because the statement text,
+     * the escaping of binary-ish payloads and the protocol overhead all sit on top of the raw
+     * column bytes, and a batch that is merely "probably" under the limit fails halfway through a
+     * ten-minute copy. A single row over budget is still emitted alone: the biggest row in this
+     * database is 247 KB, and a row that cannot be sent alone cannot be sent at all, so it should
+     * fail loudly rather than be silently skipped.
+     *
+     * @param  \Illuminate\Support\Collection  $rows
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private static function batchByBytes($rows, int $budget = 524288): array
+    {
+        $batches = [];
+        $batch = [];
+        $bytes = 0;
+        foreach ($rows as $row) {
+            $arr = (array) $row;
+            $size = 0;
+            foreach ($arr as $v) {
+                $size += strlen((string) $v) + 8;   // +8 ≈ quoting, comma, escapes
+            }
+            if ($batch && $bytes + $size > $budget) {
+                $batches[] = $batch;
+                $batch = [];
+                $bytes = 0;
+            }
+            $batch[] = $arr;
+            $bytes += $size;
+        }
+        if ($batch) {
+            $batches[] = $batch;
+        }
+        return $batches;
+    }
+
     public function handle(): int
     {
         $file = $this->argument('file');
@@ -135,9 +173,20 @@ class CopySqliteToDefault extends Command
                         $this->warn('Merged '.count($companyRemap).' duplicate companies (equal under MySQL collation).');
                     }
                 } else {
-                    foreach ($rows->chunk(200) as $chunk) {
-                        $target->table($t)->insert($chunk->map(fn ($r) => (array) $r)->all());
-                        $copied += $chunk->count();
+                    // BATCH BY BYTES, NOT BY ROW COUNT. A fixed chunk of 200 rows is a gamble on
+                    // row size: quote_revisions.snapshot averages 8 KB and peaks at 247 KB, so 200
+                    // of them is a ~1.6 MB statement against MySQL's 1 MB default
+                    // max_allowed_packet — and the failure is a "MySQL server has gone away"
+                    // wrapped in a QueryException so large that printing it can kill the process
+                    // before the message is even readable. That is what made this look like a
+                    // mystery instead of a limit.
+                    //
+                    // Sizing to a byte budget makes the copy independent of both row size and the
+                    // target's packet setting, so it works on a stock MySQL with no server tuning
+                    // asked of whoever runs the migration.
+                    foreach (self::batchByBytes($rows) as $batch) {
+                        $target->table($t)->insert($batch);
+                        $copied += count($batch);
                     }
                 }
                 // keep AUTO_INCREMENT above the copied ids

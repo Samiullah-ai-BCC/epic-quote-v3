@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Which payment instructions a quote's proposal prints: the Shopify pay button, the company's
- * bank details, or both. Shopify takes 3% of every quote paid through it, so a wire transfer is
+ * bank details, or both. Shopify takes 3% of every quote paid through it, so aWire is
  * often the preferred route — but it is the rep's call, per quote.
  *
  * NULLABLE WITH NO DEFAULT, DELIBERATELY. Every quote already in the system has no value, and

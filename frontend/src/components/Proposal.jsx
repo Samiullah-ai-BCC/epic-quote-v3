@@ -107,7 +107,10 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
   // paymentDisplay: 'shopify' | 'bank' | 'both'. Null/undefined means 'shopify' — what every quote
   // written before this feature carries, and what it must keep doing. See payMode below.
   // bankDetails: the company-wide wire-transfer details (five strings) from settings.
-  paymentDisplay = null, bankDetails = null,
+  // savePaymentDisplay: persists a new paymentDisplay choice. Only truthy on the editable wizard
+  // page (undefined in ViewProposalImage / read-only contexts), which is what hides the selector
+  // there exactly as it always did when it lived in PreviewStep's column.
+  paymentDisplay = null, bankDetails = null, savePaymentDisplay = null,
   // onSpecCapacity: called with how many SPECIFICATION lines this sheet can still print, measured
   //   on the live DOM. The wizard's Edit-specs step uses it as its cap instead of a constant, so
   //   removing ADDITIONAL NOTES (or quoting a type with no side view) actually buys typing room.
@@ -2054,10 +2057,12 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
             {E('terms', { fontSize: 8, lineHeight: '10px', textTransform: 'none' })}
             {/* price block — hidden when capturing the "clean" image for a Shopify product,
                 since the payment options live on the Shopify page, not baked into the picture.
-                ALSO hidden by "Remove payment & totals" (paymentLinkVisible): a quote that is not
-                yet confirmed goes out with no CTA AND no price rows — a sheet showing SUBTOTAL and
-                a 50% deposit schedule is still quoting a price, whatever the button says. */}
-            {isLast && paymentLinkVisible && (
+                paymentLinkVisible ("Remove Payment Button") no longer hides this whole block — it
+                only hides the orange CLICK HERE TO MAKE PAYMENT bar below (via showShopifyPay,
+                which already reads paymentLinkVisible through visiblePaymentLink). SUBTOTAL and the
+                deposit rows are the quote's price, not a Shopify artifact, and a rep who took the
+                pay button off a not-yet-confirmed quote still needs the sheet to say what it costs. */}
+            {isLast && (
             <div data-price-block>
               <div>
                 {totalsMode !== 'balance' && (
@@ -2097,26 +2102,23 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
                 <div style={{ marginTop: bothShowing ? 8 : 14, border: '1.5px solid #111' }}>
                   <div style={{ background: '#f5a623', borderBottom: '1.5px solid #111', padding: bothShowing ? '4px 10px' : '7px 10px', textAlign: 'center', fontSize: bothShowing ? 12.5 : 14, fontWeight: 800, color: '#111' }}>Bank Details:</div>
                   <div style={{ padding: bothShowing ? '6px 9px' : '9px 10px', textAlign: 'center', fontSize: bothShowing ? 10 : 11, lineHeight: bothShowing ? 1.35 : 1.55, color: '#111' }}>
-                    {/* TWO lines, not four. Who the money goes to and where they are is one fact,
-                        so the title and the address share a line; the numbers keep their own. The
-                        labels that survive are the ones a customer's bank actually asks for —
-                        "Title:" and "Address:" were labelling the self-evident.
-                        Each join is conditional, so a half-filled set of details never prints a
-                        stranded dash or a dangling slash. */}
-                    {(bankDetails.title || bankDetails.address) && (
-                      <div>
-                        {bankDetails.title}
-                        {bankDetails.title && bankDetails.address && ' — '}
-                        {bankDetails.address}
-                      </div>
+                    {/* THREE labelled lines — Title / Account+Routing / Address — each on its own
+                        row, matching what a customer's bank form actually asks for one field at a
+                        time. Each is independently conditional, so a half-filled set of details
+                        never prints a stranded label or a dangling slash. */}
+                    {bankDetails.title && (
+                      <div><b>Title:</b> {bankDetails.title}</div>
                     )}
                     {(bankDetails.account_number || bankDetails.routing_number) && (
                       <div>
-                        {bankDetails.account_number && <><b>Account:</b> {bankDetails.account_number}</>}
+                        {bankDetails.account_number && <><b>Account #:</b> {bankDetails.account_number}</>}
                         {bankDetails.account_number && bankDetails.routing_number && ' / '}
-                        {bankDetails.routing_number && <><b>Routing:</b> {bankDetails.routing_number}</>}
+                        {bankDetails.routing_number && <><b>Routing #:</b> {bankDetails.routing_number}</>}
                         {bankDetails.routing_note && ` (${bankDetails.routing_note})`}
                       </div>
+                    )}
+                    {bankDetails.address && (
+                      <div><b>Address:</b> {bankDetails.address}</div>
                     )}
                   </div>
                 </div>
@@ -2441,50 +2443,95 @@ function Proposal({ mode, tpl, answers, customSpec, info, artworkPath, onArtwork
       {isLast && canCreatePaymentLinks && quoteId && (
         <div style={{ marginTop: 15, padding: 10, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--navy-900)' }}>
           <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>💳 Shopify payment link</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 , marginTop: 8}}>
-            {/* all three payment options: same prominent style AND same full width (#6/#8) */}
-            <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
-            {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
-            {totalsAmount > 500 && <button style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Remaining Balance (50%)'}</button>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 , marginTop: 8}}>
+            {/* all three payment options: same prominent style AND same full width (#6/#8).
+                `sm` (item #3) shrinks their height — this box now also holds the payment-display
+                selector below, and the old full-height bars left it no room to sit "alongside"
+                them without the whole card growing past the rest of the column. */}
+            <button className="sm" style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('full')}>{plBusy === 'full' ? 'Creating…' : 'Full payment'}</button>
+            {totalsAmount > 500 && <button className="sm" style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('deposit')}>{plBusy === 'deposit' ? 'Creating…' : '50% deposit'}</button>}
+            {totalsAmount > 500 && <button className="sm" style={{ width: '100%' }} disabled={!!plBusy || exportBlocked} onClick={() => createPaymentLink('balance')}>{plBusy === 'balance' ? 'Creating…' : 'Remaining Balance (50%)'}</button>}
             {totalsAmount > 0 && totalsAmount <= 500 && <span className="muted" style={{ fontSize: 12 }}>≤ $500 → full payment only</span>}
+            {/* HOW THIS QUOTE ASKS TO BE PAID (item #2, moved 2026-08 from the quote-level Back/Done
+                column to sit alongside the buttons that actually mint the Shopify link — the two
+                were controls for the same decision, living in two different places). Still
+                quote-level, not per-page: only the LAST page renders this whole card, exactly like
+                the buttons above it. Absent (savePaymentDisplay null) in read-only contexts, which
+                is what hides it there exactly as it always did in its old spot. */}
+            {savePaymentDisplay && (
+              <div style={{ marginTop: 2 }}>
+                {/* <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Payment instructions on the proposal</div> */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[['shopify', 'Shopify'], ['bank', 'Bank'], ['both', 'Both']].map(([value, label]) => (
+                    <button key={value} className="ghost sm" disabled={!!plBusy}
+                      onClick={() => savePaymentDisplay(value)}
+                      title={value === 'shopify' ? 'Print the orange pay button only (Shopify fee applies)'
+                        : value === 'bank' ? 'Print the wire-transfer details only — no Shopify fee'
+                        : 'Print both — the customer chooses, and most will click the button'}
+                      style={{
+                        flex: 1, padding: '4px 0',
+                        ...((paymentDisplay || 'shopify') === value
+                          ? { background: 'var(--gold-soft)', borderColor: 'var(--gold)', fontWeight: 700 }
+                          : null),
+                      }}>{label}</button>
+                  ))}
+                </div>
+                {/* The block is only printable once details exist. Saying so HERE, beside the
+                    switch, is what keeps a half-empty set of wire instructions off the customer's
+                    proposal without leaving the rep wondering why nothing appeared. */}
+                {(paymentDisplay === 'bank' || paymentDisplay === 'both') && !bankDetails?.account_number && (
+                  <span className="muted" style={{ fontSize: 11.5, display: 'block', marginTop: 4, color: '#e05661' }}>
+                    No bank details saved yet — an admin adds them in Settings. Nothing will print until then.
+                  </span>
+                )}
+              </div>
+            )}
             {/* ALWAYS OFFERED while the section is showing — not only once a link exists. The rep's
                 reason for reaching for this is "the job is not confirmed, send it without pricing",
-                which is most true BEFORE any link is made. */}
+                which is most true BEFORE any link is made.
+                REMOVES ONLY THE ORANGE BAR (item #7) — the subtotal / deposit rows and any Bank
+                Details block are the quote's price, not a Shopify artifact, and stay on the sheet.
+                Only visiblePaymentLink (and therefore showShopifyPay) reads paymentLinkVisible now.
+                NO window.confirm() (2026-08-07) — this app's target browsers/embeds silently
+                resolve confirm() to `false` with no dialog ever drawn (proved live against the
+                identical pattern on the blank-page delete button: confirm() was called, returned
+                false, nothing appeared on screen), which made this button look broken rather than
+                merely asking first. Safe without one anyway — "＋ Restore Payment Button" below is
+                a genuine, working undo, not a re-creation workaround. */}
             {paymentLinkVisible && onPaymentLinkHidden && (
-              <button className="ghost" style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
+              <button className="ghost sm" style={{ width: '100%', color: '#e05661', borderColor: '#e05661' }}
                 disabled={!!plBusy}
-                title="Take the payment button AND the subtotal / deposit rows off the proposal and downloads. The Shopify link and its ledger record are kept."
+                title="Take the CLICK HERE TO MAKE PAYMENT button off the proposal and downloads — immediate, no confirmation step. The subtotal, any Bank Details block, the Shopify link and its ledger record are all kept, and ＋ Restore Payment Button below puts it straight back."
                 onClick={async () => {
-                  if (!window.confirm('Remove this payment link from the quote preview and downloads?\n\nThe Shopify link and payment ledger record will remain available.')) return
                   setPlBusy('hide')
                   try {
                     await onPaymentLinkHidden()
                     setPlResult(null)
-                    flash('Payment button and price rows removed from the quote. Shopify and the ledger were not changed.')
+                    flash('Payment button removed from the quote. Shopify and the ledger were not changed.')
                   } catch (e) {
-                    flash(e?.response?.data?.error || 'Could not remove the payment link from the quote.')
+                    flash(e?.response?.data?.error || 'Could not remove the payment button from the quote.')
                   } finally { setPlBusy('') }
                 }}>
-                {plBusy === 'hide' ? 'Removing…' : 'Remove Payment Details'}
+                {plBusy === 'hide' ? 'Removing…' : 'Remove Payment Button'}
               </button>
             )}
-            {/* THE WAY BACK. Without it, one click permanently strips the pricing off a quote and
+            {/* THE WAY BACK. Without it, one click permanently strips the pay button off a quote and
                 the only recovery is knowing that creating a new link happens to restore it — a trap
                 dressed as a feature. Mirrors the "+ Notes" control on the sheet. */}
             {!paymentLinkVisible && onPaymentLinkShown && (
-              <button className="ghost" style={{ width: '100%' }}
+              <button className="ghost sm" style={{ width: '100%' }}
                 disabled={!!plBusy}
-                title="Put the subtotal, the deposit rows and any payment button back on the proposal"
+                title="Put the CLICK HERE TO MAKE PAYMENT button back on the proposal"
                 onClick={async () => {
                   setPlBusy('show')
                   try {
                     await onPaymentLinkShown()
-                    flash('Payment button and price rows restored.')
+                    flash('Payment button restored.')
                   } catch (e) {
-                    flash(e?.response?.data?.error || 'Could not restore the payment section.')
+                    flash(e?.response?.data?.error || 'Could not restore the payment button.')
                   } finally { setPlBusy('') }
                 }}>
-                {plBusy === 'show' ? 'Restoring…' : '＋ Restore payment & totals'}
+                {plBusy === 'show' ? 'Restoring…' : '＋ Restore Payment Button'}
               </button>
             )}
           </div>

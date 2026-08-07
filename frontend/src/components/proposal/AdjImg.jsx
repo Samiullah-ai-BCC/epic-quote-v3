@@ -17,7 +17,14 @@ const ART_FILL_H = 0.95
 //  • EDGE bars crop (shrink the visible window; the image itself stays put and is clipped)
 // Absolute-positioned, so changing one never reflows the page. Geometry (incl. the crop window
 // ix/iy/iw/ih) is reported up via onLay; selection chrome carries "adj-ui" so PDF capture hides it.
-export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds, slotCenterX = null, constrain = null }) {
+// `zIndex` defaults to 'auto' — every existing caller (artwork, package tiles, side views,
+// swatches, dimension arrows) omits it and stacks exactly as it always has. ClientDocPage is the
+// one caller that passes a real number, matching AdjText's own 20/50 scheme 1:1: without this,
+// AdjImg NEVER set a z-index, so an AdjText sibling — which always does — sat in front of ANY
+// image on the same sheet regardless of selection or intent, silently swallowing clicks aimed at
+// the image underneath (the "clicking an element sometimes selects nothing" report — the click
+// WAS landing, just on the invisible text-block rectangle stacked over the image).
+export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors, scaleRef, selected, onSelect, liveLay, fitCenterH, reserveCaption = true, autoCrop, bounds, slotCenterX = null, constrain = null, zIndex = 'auto' }) {
   // bounds {w,h}: the image must stay INSIDE its section box, whole — an oversize frame is
   // shrunk to fit (aspect kept, crop window scaled along), and the position is clamped so no
   // gesture, saved layout, or auto-fit can ever push it out of view / over other sections.
@@ -146,7 +153,7 @@ export default function AdjImg({ rk, def, lay, onLay, src, alt, lockAspect, cors
   }
   return (
     <div ref={rootRef} data-rk={rk} onMouseDown={start('move')}
-      style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move' }}>
+      style={{ position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h, transform: `rotate(${box.rot}deg)`, cursor: 'move', zIndex }}>
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
         <img src={src} alt={alt} draggable={false} crossOrigin={cors ? 'anonymous' : undefined}
           onError={() => setBroken(true)}

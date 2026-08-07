@@ -28,7 +28,7 @@ class SettingsSeeder extends Seeder
             'title'          => 'Epic Craftings Inc. (Bank of America)',
             'account_number' => '444030406654',
             'routing_number' => '026009593',
-            'routing_note'   => 'Wire Transfer',
+            'routing_note'   => 'Wire',
             'address'        => '101 E Luzerne St # B Philadelphia, PA 19124 4201',
         ])]);
     }
