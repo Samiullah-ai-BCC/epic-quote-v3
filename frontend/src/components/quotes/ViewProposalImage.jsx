@@ -109,6 +109,9 @@ export default function ViewProposalImage({ quote }) {
             pointer-events-none keeps it read-only. */}
         <div className="flex justify-center overflow-hidden" style={{ height: contentH ? contentH * fit : undefined }}>
           <div ref={contentRef} className="pointer-events-none w-[816px] origin-top rounded-lg border border-line" style={{ transform: `scale(${fit})`, transformOrigin: 'top center' }}>
+          {/* specialRequirements is the quote-level caveat and prints on the FIRST sign page only,
+              the same rule the editor uses — otherwise View would show it on every page while the
+              exported PDF shows it once. */}
           <Proposal
             key={i}
             readOnly
@@ -126,7 +129,7 @@ export default function ViewProposalImage({ quote }) {
             paymentDisplay={quote.payment_display}
             bankDetails={bank}
             proposalNotes={p.proposal_notes}
-            specialRequirements={quote.special_requirements || ''}
+            specialRequirements={i === 0 ? (quote.special_requirements || '') : ''}
             partLabel={multi ? String.fromCharCode(65 + i) : null}
             multi={multi}
             isLast={i === parts.length - 1}
