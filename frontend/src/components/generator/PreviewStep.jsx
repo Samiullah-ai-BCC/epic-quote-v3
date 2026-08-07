@@ -316,17 +316,15 @@ export default function PreviewStep({
                 // The fallback is gone rather than narrowed to `??`: useQuoteData seeds `special`
                 // from this same record on load, in the commit that sets `quote`, so there is no
                 // moment where the record knows something the wizard does not.
-                // ONE QUOTE-LEVEL CAVEAT, ONE PAGE. `specialRequirements` is the quote's
-                // Special requirements COLUMN — one value for the whole job, handed to every sign
-                // page. ADDITIONAL NOTES is built from it plus this part's own proposal_notes, so
-                // a rep who changed that box watched the notes on EVERY page change together, and
-                // it came back that way from the server because the value lives on the quote row,
-                // not the part (reported 2026-08 on EC116721). It now prints on the FIRST sign page
-                // only: the caveat still has its surface — dropping it would send the lifted spec
-                // lines back to printing nowhere, which is the bug it was added to fix — but the
-                // other pages show only what is genuinely theirs. A single-sign quote has exactly
-                // one page, so its sheet is unchanged.
-                specialRequirements={i === 0 ? (specialRequirements || '') : ''}
+                // EACH PAGE PRINTS ITS OWN CAVEAT. Special requirements used to live only on the
+                // quote COLUMN — one value handed to every page — while "Edit specs" presented the
+                // box per page, so editing sign B's requirements rewrote ADDITIONAL NOTES on every
+                // sheet in chorus (EC116721, twice: the first fix pinned the column to page one and
+                // page B then showed nothing while its Edit specs still held text). Ownership moved
+                // to the PART at load (useQuoteData migrates: column value → page one, others '').
+                // The `i === 0` fallback below is only for a part object that predates migration —
+                // View-modal style consumers that render parts straight from generated_data.
+                specialRequirements={p.special_requirements ?? (i === 0 ? (specialRequirements || '') : '')}
                 savedState={p.proposal_state}
                 sideViews={p.side_views || []}
                 signBox={p.sign_box}

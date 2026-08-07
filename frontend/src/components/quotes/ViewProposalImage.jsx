@@ -129,7 +129,7 @@ export default function ViewProposalImage({ quote }) {
             paymentDisplay={quote.payment_display}
             bankDetails={bank}
             proposalNotes={p.proposal_notes}
-            specialRequirements={i === 0 ? (quote.special_requirements || '') : ''}
+            specialRequirements={p.special_requirements ?? (i === 0 ? (quote.special_requirements || '') : '')}
             partLabel={multi ? String.fromCharCode(65 + i) : null}
             multi={multi}
             isLast={i === parts.length - 1}

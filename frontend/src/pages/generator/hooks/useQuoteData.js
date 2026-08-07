@@ -64,7 +64,14 @@ export function useQuoteData(quoteId, searchParams, wizardSetters) {
             let partId = part.__pid
             if (!partId || seenPartIds.has(partId)) partId = `p${index}_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`
             seenPartIds.add(partId)
-            return { ...part, __pid: partId }
+            // SPECIAL REQUIREMENTS BELONGS TO THE PART, decided here, once, at load. It used to be
+            // only the quote COLUMN — one value handed to every page — while "Edit specs" showed it
+            // per page, so editing sign B's box rewrote ADDITIONAL NOTES on every sheet in chorus
+            // (EC116721). A part that already owns a value keeps it; a legacy quote's column value
+            // becomes PAGE ONE's, the other pages start empty. The next save persists this
+            // ownership, and the column itself is never read for display again.
+            const special = part.special_requirements ?? (index === 0 ? (loadedQuote.special_requirements || '') : '')
+            return { ...part, __pid: partId, special_requirements: special }
           })
         setParts(loadedParts)
         // persist the repaired ids so the fix sticks (only when something actually changed)

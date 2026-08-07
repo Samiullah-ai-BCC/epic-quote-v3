@@ -321,6 +321,9 @@ export default function Generator() {
       side_views: sideViews,
       sign_box: signBox,
       proposal_notes: proposalNotes,
+      // per-part since the EC116721 chorus bug: the wizard's Special requirements box edits the
+      // ACTIVE part's caveat, not a quote-wide one.
+      special_requirements: special,
     }
     for (const key of PART_KEYS) if (extra[key] !== undefined) part[key] = extra[key]
     return part
@@ -440,6 +443,7 @@ export default function Generator() {
     setSignBox(part.sign_box || null)
     setSideViews(part.side_views || [])
     setProposalNotes(part.proposal_notes || '')
+    setSpecial(part.special_requirements ?? '')
     // Close the picker UI, but do NOT clear the selection — this line used to blank
     // customTypeSel on every part load, which is why reopening a quote showed
     // "— pick a sign type —" with its mounting/trim-cap dropdowns gone, and why a later
